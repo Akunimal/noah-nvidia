@@ -28,6 +28,23 @@
   forma idempotente, `tenant-demo` quedó guardado y la lectura sobrevivió un
   reinicio del API. Render queda solo como recurso legacy temporal.
 
+## Onboarding workstream
+
+El workstream activo es el onboarding simple descrito en
+[`onboarding-roadmap.md`](onboarding-roadmap.md). La **fase 0 está cerrada**:
+el contrato `onboarding.v1`, la separación demo/playground, la política de
+proveedores y los criterios de skip quedaron versionados. No hay endpoints ni
+componentes live de onboarding todavía; las siguientes fases son de código.
+
+- Datos del usuario: solo Nebius/NVIDIA; OpenCode2API no recibe texto privado.
+- `ProviderResult`: sobre de procedencia, separado del JSON de negocio; ver
+  `contracts/provider-result.schema.json`.
+- Demo: `tenant-demo` puede usar Atlas sintético para el video.
+- Playground: tenant nuevo vacío; confirmar aplica el borrador; skip siembra
+  Atlas sintético con un warning explícito y sin efectos externos.
+- Contrato JSON: `contracts/onboarding.v1.schema.json`.
+- Evidencia: `evidence/phase-0-onboarding.md`.
+
 ## Qué significa `ProviderResult`
 
 `ProviderResult` no es un proveedor ni demuestra que OpenCode2API esté siendo
@@ -209,6 +226,13 @@ Estado: **cerrado — Neon Free live aprobado; Render legacy expira el 2026-10-0
   la configuración de Render; no depender del default cambiante del runtime.
 - Antes de activar una integración, comparar este archivo con `.env.example`,
   `render.yaml`, `provider-manifest.md` y `runbook.md`.
+- Toda implementación de onboarding debe validar contra
+  `contracts/onboarding.v1.schema.json` y actualizar este roadmap, OpenAPI y
+  las pruebas en el mismo cambio.
+- `extract` nunca escribe business/inventory; solo `complete`, después de
+  revisión y confirmación, puede hacerlo.
+- `skip` solo puede aplicar el fixture sintético versionado y debe ser
+  idempotente; no puede llamar a Nebius ni a OpenCode2API.
 
 ## Definición de entregable
 
@@ -238,7 +262,8 @@ Estado: **cerrado — Neon Free live aprobado; Render legacy expira el 2026-10-0
 ## Próximo paso exacto
 
 La demo es entregable con Neon Free server-only y el slice OAuth de lectura
-está verificado. El siguiente paso exacto es observar los límites de Neon,
-confirmar que no quedan datos pendientes en Render legacy y retirar esa base
-sin activar billing; no se habilitan planes pagos, Vercel ni efectos externos
-por inferencia.
+está verificado. La fase 0 del onboarding también está cerrada como contrato.
+El siguiente paso exacto es ejecutar la fase 1 del
+[`onboarding-roadmap.md`](onboarding-roadmap.md): separar y verificar el modo
+playground vacío del `tenant-demo`, sin habilitar planes pagos, Supabase,
+Vercel ni efectos externos.

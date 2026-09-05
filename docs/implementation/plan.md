@@ -35,3 +35,12 @@ The remaining statuses are intentionally explicit. A model key, Google OAuth
 client, PostgreSQL database, Render service, or public video cannot be fabricated
 inside source control. Once those are supplied, the smoke tests in the plan
 must be run and their evidence added under docs/implementation/evidence/.
+
+## Onboarding workstream
+
+The onboarding workstream is additive to the original delivery phases and is
+tracked in [onboarding-roadmap.md](onboarding-roadmap.md). Its phase 0 is now
+closed as a contract-only change: the JSON schema, provider provenance, demo /
+playground separation, explicit skip semantics, and exit criteria are versioned.
+No onboarding endpoint or UI is claimed as live until its implementation phase
+and side-by-side evidence are complete.

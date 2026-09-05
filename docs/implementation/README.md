@@ -2,6 +2,9 @@
 
 The current operational source of truth is [STATE.md](STATE.md). It defines
 the active provider route, integration order, gates, and anti-drift rules.
+The active onboarding workstream is specified in
+[onboarding-roadmap.md](onboarding-roadmap.md), with its JSON contract in
+`contracts/onboarding.v1.schema.json`.
 
 ## Vertical slice
 
@@ -41,19 +44,22 @@ payments, and CSV export. Real Nebius, Google, embeddings, parse, and reranking
 still require operator credentials and smoke evidence before claiming a
 connected demo.
 
+The onboarding phase 0 contract is closed. It keeps `tenant-demo` with the
+synthetic Atlas fixture for the video, starts playground tenants empty, sends
+user-provided onboarding text only to Nebius/NVIDIA, and treats OpenCode2API as
+synthetic-only. Extraction is a reviewable draft; only an explicit completion
+can apply it, while skip shows the synthetic-data warning and is idempotent.
+
 ## Next execution steps
 
 Follow [STATE.md](STATE.md) instead of starting integrations from this record.
 The active order is:
 
-1. Configure Nebius server-side with a conservative usage limit and smoke-test
-   a real Nemotron response without enabling external effects.
-2. Reproduce the demo manually on the chosen host, aligning the API URL and
-   CORS origin; Vercel is out of scope.
-3. Optionally test OpenCode2API as the synthetic-only free sandbox and verify
-   its `ProviderResult` provenance.
-4. Add Google OAuth test users and smoke-test Gmail/Calendar behind approval.
-5. Configure a server-only PostgreSQL URL and verify restart recovery; Nebius
-   remains the inference provider and no database credential reaches the web.
-6. Run the tenant, approval, retry, calendar, monetary, document, and
-   prompt-injection evaluations after connected evidence exists.
+1. Execute onboarding phase 1: preserve `tenant-demo` and create an empty,
+   isolated playground tenant path.
+2. Build the wizard shell without calling a model, then add Nebius extraction
+   and review/confirm persistence in separate phases.
+3. Test skip, idempotency, tenant isolation, and restart recovery on Neon.
+4. Run the original tenant, approval, retry, calendar, monetary, document,
+   and prompt-injection evaluations after connected evidence exists.
+5. Add the guided tour only after onboarding is complete and verified.

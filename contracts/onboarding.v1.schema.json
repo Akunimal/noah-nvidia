@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://noah-nvidia.local/contracts/onboarding.v1.schema.json",
+  "title": "Noah Nvidia onboarding v1",
+  "description": "Validated company profile captured by the first-run onboarding wizard.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "business",
+    "inventory",
+    "missing_fields"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "onboarding.v1"
+    },
+    "business": {
+      "$ref": "#/$defs/business"
+    },
+    "inventory": {
+      "type": "array",
+      "description": "Optional inventory captured by the user; an empty array is valid when it was not provided.",
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/inventory_item"
+      }
+    },
+    "missing_fields": {
+      "type": "array",
+      "description": "Fields the model could not infer without guessing.",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "business.name",
+          "business.description",
+          "business.category",
+          "business.timezone",
+          "business.currency",
+          "business.locale",
+          "inventory"
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "nullable_text": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 1000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "business": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "description",
+        "category",
+        "timezone",
+        "currency",
+        "locale"
+      ],
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "category": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timezone": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "locale": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z]{2}(?:-[A-Z]{2})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "inventory_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "sku",
+        "quantity",
+        "unit"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "sku": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

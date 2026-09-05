@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://noah-nvidia.local/contracts/provider-result.schema.json",
+  "title": "Noah Nvidia provider result",
+  "description": "Transport provenance for a model response. This is not a business payload or a provider selection policy.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "provider",
+    "model",
+    "text",
+    "error"
+  ],
+  "properties": {
+    "provider": {
+      "type": "string",
+      "enum": [
+        "nebius",
+        "opencode2api",
+        "deterministic-demo"
+      ]
+    },
+    "model": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "text": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "error": {
+          "type": "null"
+        }
+      }
+    },
+    {
+      "properties": {
+        "text": {
+          "type": "null"
+        },
+        "error": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  ]
+}
