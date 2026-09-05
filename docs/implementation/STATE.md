@@ -60,7 +60,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Build Render del API | OK tras fijar Python 3.12.10 | El primer deploy de `8af42c3` falló por Python 3.14; evidencia en `evidence/render-build-incident-2026-09-05.md` |
 | Política de deploy | OK | Auto-Deploy desactivado en ambos servicios; los próximos releases se disparan manualmente |
 | OpenCode2API free | Contrato local OK; Nemotron-only enforced; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
-| Google OAuth | En preparación | Proyecto, consentimiento y Gmail/Calendar APIs configurados; falta cliente web |
+| Google OAuth | En preparación | Proyecto, consentimiento, APIs, cliente, test user y deploy configurados; falta consentimiento/sync |
 | Supabase | Fuera de alcance | No se provisiona ni se usa en este flujo |
 | Vercel | Fuera de alcance | No importar ni desplegar proyectos |
 
@@ -124,7 +124,7 @@ Estado: **contrato local cerrado; gateway live pendiente**.
 
 ### Gate 4 — Google OAuth y efectos externos
 
-Estado: **proyecto, consentimiento y APIs configurados; cliente pendiente**.
+Estado: **proyecto, consentimiento, APIs y cliente configurados; integración pendiente**.
 
 - Cuenta operadora verificada: `gesecseguridad@gmail.com`.
 - Proyecto de pruebas: `Noah Nvidia OAuth Test`
@@ -132,17 +132,21 @@ Estado: **proyecto, consentimiento y APIs configurados; cliente pendiente**.
 - Google Auth Platform quedó configurado como aplicación externa en modo
   Testing, con `Noah Nvidia` y `gesecseguridad@gmail.com` como contacto.
 - Gmail API y Google Calendar API están habilitadas y verificadas en el proyecto.
-- Callback web preparado: `https://noah-nvidia-api.onrender.com/api/v1/connections/google/callback`.
+- Cliente web creado: `Noah Nvidia Render Web`, con callback
+  `https://noah-nvidia-api.onrender.com/api/v1/connections/google/callback`.
 - No se inició la prueba gratuita, no se creó ni modificó una cuenta de
   facturación y no se habilitaron servicios de cómputo o almacenamiento. No se
   promete costo cero absoluto porque cuotas y políticas pueden cambiar.
-- Aún no se creó el cliente OAuth, no se guardó `GOOGLE_CLIENT_ID`/secret y no
-  se concedió acceso a Gmail/Calendar. Esa creación requiere confirmación
-  explícita inmediatamente antes de ejecutarla.
-- Secuencia segura posterior: crear cliente web, cargar las credenciales solo
-  en Render, agregar únicamente la cuenta de prueba, consentir lectura/sync,
-  verificar y recién después probar borradores. `NOAH_ENABLE_EXTERNAL_EFFECTS`
-  continúa en `false`.
+- El `client_id`, el `client_secret` y `NOAH_CONNECTION_ENCRYPTION_KEY` están
+  guardados solo como variables privadas del API en Render; ningún secreto ni
+  token se guardó en el repo. Todavía no se concedió acceso a Gmail/Calendar.
+- La cuenta de prueba `gesecseguridad@gmail.com` ya está agregada; todavía no
+  se concedió acceso efectivo a Gmail/Calendar mediante consentimiento.
+- Deploy manual del API completado y servicio `Live` en Render desde `317b7bf`
+  (`dep-dae352ou01pc73ctla0g`).
+- Secuencia segura posterior: consentir lectura/sync y verificar. Los borradores
+  y envíos siguen detrás de aprobación y
+  `NOAH_ENABLE_EXTERNAL_EFFECTS` continúa en `false`.
 - Evidencia: `docs/implementation/evidence/gate-4-google-oauth-setup.md`.
 
 ### Gate 5 — Persistencia durable
@@ -198,6 +202,6 @@ Estado: **fuera de alcance para esta entrega**.
 ## Próximo paso exacto
 
 La demo ya es entregable. Para continuar hacia producción, el siguiente paso
-es crear el cliente web OAuth ya preparado en el proyecto de prueba; luego
-cargar sus valores solo en Render y probar lectura/sync con efectos todavía
-apagados. No activar Supabase, Vercel ni efectos externos por inferencia.
+es completar el consentimiento de la cuenta de prueba y probar lectura/sync con
+efectos todavía apagados. No activar
+Supabase, Vercel ni efectos externos por inferencia.
