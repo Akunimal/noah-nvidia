@@ -60,7 +60,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Build Render del API | OK tras fijar Python 3.12.10 | El primer deploy de `8af42c3` falló por Python 3.14; evidencia en `evidence/render-build-incident-2026-09-05.md` |
 | Política de deploy | OK | Auto-Deploy desactivado en ambos servicios; los próximos releases se disparan manualmente |
 | OpenCode2API free | Contrato local OK; Nemotron-only enforced; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
-| Google OAuth | En preparación | Proyecto, consentimiento, APIs, cliente, test user y deploy configurados; falta consentimiento/sync |
+| Google OAuth | OK — lectura verificada | Consentimiento real, callback, token cifrado y sync de lectura verificados con `gesecseguridad@gmail.com`; efectos externos siguen apagados |
 | Supabase | Fuera de alcance | No se provisiona ni se usa en este flujo |
 | Vercel | Fuera de alcance | No importar ni desplegar proyectos |
 
@@ -124,7 +124,7 @@ Estado: **contrato local cerrado; gateway live pendiente**.
 
 ### Gate 4 — Google OAuth y efectos externos
 
-Estado: **proyecto, consentimiento, APIs y cliente configurados; integración pendiente**.
+Estado: **cerrado — consentimiento, callback y sync de lectura aprobados; efectos externos apagados**.
 
 - Cuenta operadora verificada: `gesecseguridad@gmail.com`.
 - Proyecto de pruebas: `Noah Nvidia OAuth Test`
@@ -139,14 +139,18 @@ Estado: **proyecto, consentimiento, APIs y cliente configurados; integración pe
   promete costo cero absoluto porque cuotas y políticas pueden cambiar.
 - El `client_id`, el `client_secret` y `NOAH_CONNECTION_ENCRYPTION_KEY` están
   guardados solo como variables privadas del API en Render; ningún secreto ni
-  token se guardó en el repo. Todavía no se concedió acceso a Gmail/Calendar.
-- La cuenta de prueba `gesecseguridad@gmail.com` ya está agregada; todavía no
-  se concedió acceso efectivo a Gmail/Calendar mediante consentimiento.
-- Deploy manual del API completado y servicio `Live` en Render desde `317b7bf`
-  (`dep-dae352ou01pc73ctla0g`).
-- Secuencia segura posterior: consentir lectura/sync y verificar. Los borradores
-  y envíos siguen detrás de aprobación y
-  `NOAH_ENABLE_EXTERNAL_EFFECTS` continúa en `false`.
+  token se guardó en el repo. El secreto anterior quedó deshabilitado después
+  de verificar el nuevo flujo.
+- La cuenta de prueba `gesecseguridad@gmail.com` concedió únicamente estos
+  scopes: `gmail.readonly`, `calendar.calendarlist.readonly`,
+  `calendar.freebusy` y `calendar.events.readonly`.
+- Callback real verificado en Render: respuesta 200, conexión `google=connected`
+  y cuatro scopes. La sincronización de lectura devolvió 20 mensajes y 0
+  eventos desde `google-api`; no envió, creó ni modificó datos.
+- Deploy manual del API completado y servicio `Live` en Render desde `cd2f858`
+  (`dep-dae45vfqj5pc73a6r2k0`).
+- `NOAH_ENABLE_EXTERNAL_EFFECTS` continúa en `false`; los borradores y envíos
+  siguen detrás de aprobación y no forman parte de este consentimiento.
 - Evidencia: `docs/implementation/evidence/gate-4-google-oauth-setup.md`.
 
 ### Gate 5 — Persistencia durable
@@ -191,8 +195,8 @@ Estado: **fuera de alcance para esta entrega**.
 
 ### Producción — todavía no declarar
 
-1. Decidir y configurar OAuth Google solo en backend; crear el cliente y
-   consentir scopes requiere una confirmación inmediata del operador.
+1. OAuth Google de lectura ya está verificado solo en backend; antes de
+   producción falta sacar el almacenamiento de tokens del proceso en memoria.
 2. Definir persistencia durable por separado. Nebius resuelve inferencia, no
    base de datos; Supabase no es requisito ni está activo en este flujo.
 3. Rotar el token de demo, revisar dominios/CORS y agregar monitoreo/alertas.
@@ -201,7 +205,8 @@ Estado: **fuera de alcance para esta entrega**.
 
 ## Próximo paso exacto
 
-La demo ya es entregable. Para continuar hacia producción, el siguiente paso
-es completar el consentimiento de la cuenta de prueba y probar lectura/sync con
-efectos todavía apagados. No activar
-Supabase, Vercel ni efectos externos por inferencia.
+La demo ya es entregable y el slice OAuth de lectura está verificado. Para
+continuar hacia producción, el siguiente paso es definir persistencia durable
+sin Supabase y conservar los efectos externos apagados hasta completar un plan
+de pruebas de mutaciones con aprobación y recibo. No activar Vercel ni efectos
+externos por inferencia.

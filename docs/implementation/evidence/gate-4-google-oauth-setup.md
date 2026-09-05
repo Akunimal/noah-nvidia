@@ -1,7 +1,7 @@
 # Gate 4 — Google OAuth preflight
 
 Fecha: 2026-09-05  
-Estado: **proyecto, consentimiento, APIs, cliente, test user y deploy configurados; integración pendiente**
+Estado: **cerrado — consentimiento, callback y sync de lectura verificados; efectos externos apagados**
 
 ## Proyecto aislado
 
@@ -21,8 +21,10 @@ Estado: **proyecto, consentimiento, APIs, cliente, test user y deploy configurad
 
 El `client secret` fue creado y guardado únicamente en las variables privadas de
 Render junto con `GOOGLE_CLIENT_ID`, `GOOGLE_REDIRECT_URI` y una clave
-`NOAH_CONNECTION_ENCRYPTION_KEY` generada para AES-GCM. No se guardó ningún
-token ni se pidió todavía acceso efectivo a datos de Gmail o Calendar.
+`NOAH_CONNECTION_ENCRYPTION_KEY` generada para AES-GCM. El secreto anterior fue
+deshabilitado después de verificar el secreto nuevo. El token de Google se
+intercambió server-side y se almacenó cifrado en memoria del proceso; no se
+guardó ningún token en el repo.
 
 No se inició la prueba gratuita de Google Cloud, no se creó ni modificó una
 cuenta de facturación y no se habilitaron servicios de cómputo o almacenamiento.
@@ -43,12 +45,16 @@ GOOGLE_REDIRECT_URI
 NOAH_CONNECTION_ENCRYPTION_KEY
 ```
 
-Los scopes que hoy solicita el código son los mínimos funcionales para el slice
-actual: Gmail readonly/compose/send y Calendar events.owned/freebusy/
-calendarlist.readonly. Deben revisarse en Google Auth Platform antes de crear
-el cliente; no se agregó Drive ni ningún scope adicional.
+Los scopes que solicita el código son los mínimos funcionales para el slice de
+lectura actual: `gmail.readonly`, `calendar.calendarlist.readonly`,
+`calendar.freebusy` y `calendar.events.readonly`. No se solicitaron scopes de
+compose, send, escritura de eventos ni Drive.
 
 ## Próximos pasos de integración
 
-1. Completar consentimiento y probar sync de lectura; mantener borradores y envíos detrás de aprobación y
-   con efectos externos apagados.
+1. Consentimiento real completado con `gesecseguridad@gmail.com`; el callback
+   respondió 200 y registró la conexión como `connected` con cuatro scopes.
+2. Sync de lectura verificado: 20 mensajes, 0 eventos, fuente `google-api`;
+   no hubo efectos externos.
+3. La persistencia sigue siendo in-memory: cada deploy exige reconectar hasta
+   definir una base durable separada de Supabase.
