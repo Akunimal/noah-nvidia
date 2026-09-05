@@ -32,11 +32,11 @@
 ## Onboarding workstream
 
 El workstream activo es el onboarding simple descrito en
-[`onboarding-roadmap.md`](onboarding-roadmap.md). Las **fases 0 y 1 están
-cerradas en local**: el contrato `onboarding.v1` quedó versionado y el runtime
-ya separa `tenant-demo` del playground vacío. No hay endpoints del wizard ni
-componentes de onboarding live todavía; la fase siguiente es el shell del
-wizard.
+[`onboarding-roadmap.md`](onboarding-roadmap.md). Las **fases 0, 1 y 2 están
+cerradas en local**: el contrato `onboarding.v1` quedó versionado, el runtime
+ya separa `tenant-demo` del playground vacío y el shell visual del wizard está
+disponible. No hay endpoints del wizard ni extracción conectada live todavía;
+la fase siguiente es Nebius.
 
 - Datos del usuario: solo Nebius/NVIDIA; OpenCode2API no recibe texto privado.
 - `ProviderResult`: sobre de procedencia, separado del JSON de negocio; ver
@@ -47,9 +47,12 @@ wizard.
   conexiones demo. Confirmar y skip siguen reservados para las fases 3–4.
 - Runtime: solo `tenant-demo` puede sembrar `atlas-v1`; la UI muestra una
   banda explícita de sandbox y no pinta Atlas mientras el modo sea desconocido.
+- Wizard: el playground abre el shell local de bienvenida, descripción,
+  preparación, revisión editable y salida; todavía no persiste ni llama a un
+  proveedor. El skip solo cambia la vista hasta fase 4.
 - Contrato JSON: `contracts/onboarding.v1.schema.json`.
 - Evidencia: `evidence/phase-0-onboarding.md` y
-  `evidence/phase-1-playground.md`.
+  `evidence/phase-1-playground.md` y `evidence/phase-2-wizard-shell.md`.
 
 ## Qué significa `ProviderResult`
 
@@ -86,6 +89,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 |---|---|---|
 | API determinista | OK | 39 tests Python pasan con Python 3.12 y las versiones fijadas |
 | Frontend | OK | typecheck, lint, Vitest y build pasan |
+| Onboarding shell | OK en local | 6 Vitest; `components/OnboardingWizard.tsx`; evidencia en `evidence/phase-2-wizard-shell.md` |
 | Smoke local | OK | Atlas Services, run succeeded, receipt generado |
 | Aislamiento demo/playground, aprobaciones e idempotencia | OK en tests locales | `services/api/test_main.py`; evidencia en `evidence/phase-1-playground.md` |
 | Router Nebius/OpenCode2API | Nebius live OK; OpenCode2API contrato local OK | OpenCode2API live sigue pendiente; evidencia en `evidence/gate-3-opencode2api.md` |
@@ -268,9 +272,9 @@ Estado: **cerrado — Neon Free live aprobado; Render legacy expira el 2026-10-0
 ## Próximo paso exacto
 
 La demo es entregable con Neon Free server-only y el slice OAuth de lectura
-está verificado. Las fases 0 y 1 del onboarding están cerradas en local: el
-contrato está versionado y el playground queda vacío y aislado de `tenant-demo`.
-El siguiente paso exacto es ejecutar la fase 2 del
-[`onboarding-roadmap.md`](onboarding-roadmap.md): construir el shell del wizard
-sin llamada de modelo, sin habilitar planes pagos, Supabase, Vercel ni efectos
-externos.
+está verificado. Las fases 0, 1 y 2 del onboarding están cerradas en local: el
+contrato, el aislamiento y el shell del wizard están versionados. El siguiente
+paso exacto es ejecutar la fase 3 del
+[`onboarding-roadmap.md`](onboarding-roadmap.md): conectar extracción
+estructurada a Nebius/NVIDIA sin escritura automática, sin habilitar planes
+pagos, Supabase, Vercel ni efectos externos.

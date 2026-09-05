@@ -39,8 +39,9 @@ must be run and their evidence added under docs/implementation/evidence/.
 ## Onboarding workstream
 
 The onboarding workstream is additive to the original delivery phases and is
-tracked in [onboarding-roadmap.md](onboarding-roadmap.md). Its phases 0 and 1
-are closed locally: the JSON schema, provider provenance, explicit skip
-semantics, and the runtime demo/playground isolation are versioned and tested.
-No wizard endpoint or onboarding flow is claimed as live until its
-implementation phase and side-by-side evidence are complete.
+tracked in [onboarding-roadmap.md](onboarding-roadmap.md). Its phases 0, 1 and
+2 are closed locally: the JSON schema, provider provenance, explicit skip
+semantics, runtime demo/playground isolation, and the reviewable wizard shell
+are versioned and tested. No wizard endpoint or connected onboarding flow is
+claimed as live until extraction, persistence, and side-by-side evidence are
+complete.

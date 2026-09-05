@@ -51,6 +51,7 @@ import {
   type ApiQuote,
   type ApiReceivable,
 } from './lib/api';
+import OnboardingWizard from './components/OnboardingWizard';
 
 type Section = 'overview' | 'assistant' | 'approvals' | 'mail' | 'calendar' | 'finance' | 'knowledge' | 'settings';
 type WorkspaceMode = 'demo' | 'playground' | 'unknown';
@@ -148,6 +149,7 @@ function App() {
   const [isThinking, setIsThinking] = useState(false);
   const [apiOnline, setApiOnline] = useState(false);
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('unknown');
+  const [onboardingVisible, setOnboardingVisible] = useState(false);
   const [businessName, setBusinessName] = useState('New business');
   const [businessTimezone, setBusinessTimezone] = useState('UTC');
   const [businessCurrency, setBusinessCurrency] = useState('USD');
@@ -172,6 +174,7 @@ function App() {
         const [bootstrap, pending] = await Promise.all([getBootstrap(), getPendingActions()]);
         const nextWorkspaceMode: WorkspaceMode = bootstrap.workspace?.mode === 'demo' ? 'demo' : 'playground';
         setWorkspaceMode(nextWorkspaceMode);
+        setOnboardingVisible(nextWorkspaceMode === 'playground');
         setMessages(nextWorkspaceMode === 'demo' ? initialMessages : []);
         setActivity(nextWorkspaceMode === 'demo' ? initialActivity : []);
         setBusinessName(bootstrap.business.name);
@@ -337,6 +340,11 @@ function App() {
     reader.readAsDataURL(file);
   }
 
+  function exitOnboarding() {
+    setOnboardingVisible(false);
+    setSection('overview');
+  }
+
   return (
     <div className="noah-shell">
       <aside className={'noah-sidebar ' + (mobileNav ? 'is-open' : '')}>
@@ -404,30 +412,32 @@ function App() {
         </header>
 
         <div className="page-content">
-          {workspaceMode === 'demo' && <div className="workspace-banner demo"><ShieldCheck size={17} /><div><strong>Demo sandbox</strong><span>Atlas Services is synthetic fixture data for the video. No external effects are enabled.</span></div></div>}
-          {workspaceMode === 'playground' && <div className="workspace-banner playground"><Sparkles size={17} /><div><strong>Playground vacío</strong><span>Este tenant empieza sin datos ficticios. Lo que agregues quedará aislado de la demo.</span></div></div>}
-          {section === 'overview' && (
-            <Overview
-              greeting={greeting}
-              businessName={businessName}
-              approvals={approvals}
-              activity={activity}
-              demoMode={demoMode}
-              onOpenAssistant={() => setSection('assistant')}
-              onOpenApprovals={() => setSection('approvals')}
-            />
-          )}
-          {section === 'assistant' && (
-            <Assistant messages={messages} input={input} isThinking={isThinking} setInput={setInput} onSubmit={submitMessage} businessName={businessName} runtimeModel={runtimeModel} timezone={businessTimezone} currency={businessCurrency} demoMode={demoMode} />
-          )}
-          {section === 'approvals' && (
-            <Approvals approvals={approvals} onResolve={resolveApproval} businessName={businessName} />
-          )}
-          {section === 'mail' && <Mailroom onOpenAssistant={() => setSection('assistant')} items={mailItems} demoMode={demoMode} />}
-          {section === 'calendar' && <Calendar businessName={businessName} items={calendarItems} demoMode={demoMode} onOpenAssistant={() => { setInput('Find a slot next week for a 90 minute field assessment'); setSection('assistant'); }} />}
-          {section === 'finance' && <Finance ledgerItems={ledgerItems} quoteItems={quoteItems} receivableItems={receivableItems} currency={businessCurrency} demoMode={demoMode} onExport={exportLedger} />}
-          {section === 'knowledge' && <Knowledge businessName={businessName} items={documentItems} demoMode={demoMode} onAddDocument={(file) => { void addDocument(file); }} />}
-          {section === 'settings' && <Settings businessName={businessName} timezone={businessTimezone} currency={businessCurrency} runtimeModel={runtimeLabel} persistenceMode={persistenceMode} connections={connections} providerConfigured={primaryProviderConfigured || freeProviderConfigured} externalEffectsEnabled={externalEffectsEnabled} />}
+          {onboardingVisible && workspaceMode === 'playground' ? <OnboardingWizard businessName={businessName} onExit={exitOnboarding} /> : <>
+            {workspaceMode === 'demo' && <div className="workspace-banner demo"><ShieldCheck size={17} /><div><strong>Demo sandbox</strong><span>Atlas Services is synthetic fixture data for the video. No external effects are enabled.</span></div></div>}
+            {workspaceMode === 'playground' && <div className="workspace-banner playground"><Sparkles size={17} /><div><strong>Playground vacío</strong><span>Este tenant empieza sin datos ficticios. Lo que agregues quedará aislado de la demo.</span></div><button className="text-button workspace-banner-action" type="button" onClick={() => setOnboardingVisible(true)}>Abrir onboarding</button></div>}
+            {section === 'overview' && (
+              <Overview
+                greeting={greeting}
+                businessName={businessName}
+                approvals={approvals}
+                activity={activity}
+                demoMode={demoMode}
+                onOpenAssistant={() => setSection('assistant')}
+                onOpenApprovals={() => setSection('approvals')}
+              />
+            )}
+            {section === 'assistant' && (
+              <Assistant messages={messages} input={input} isThinking={isThinking} setInput={setInput} onSubmit={submitMessage} businessName={businessName} runtimeModel={runtimeModel} timezone={businessTimezone} currency={businessCurrency} demoMode={demoMode} />
+            )}
+            {section === 'approvals' && (
+              <Approvals approvals={approvals} onResolve={resolveApproval} businessName={businessName} />
+            )}
+            {section === 'mail' && <Mailroom onOpenAssistant={() => setSection('assistant')} items={mailItems} demoMode={demoMode} />}
+            {section === 'calendar' && <Calendar businessName={businessName} items={calendarItems} demoMode={demoMode} onOpenAssistant={() => { setInput('Find a slot next week for a 90 minute field assessment'); setSection('assistant'); }} />}
+            {section === 'finance' && <Finance ledgerItems={ledgerItems} quoteItems={quoteItems} receivableItems={receivableItems} currency={businessCurrency} demoMode={demoMode} onExport={exportLedger} />}
+            {section === 'knowledge' && <Knowledge businessName={businessName} items={documentItems} demoMode={demoMode} onAddDocument={(file) => { void addDocument(file); }} />}
+            {section === 'settings' && <Settings businessName={businessName} timezone={businessTimezone} currency={businessCurrency} runtimeModel={runtimeLabel} persistenceMode={persistenceMode} connections={connections} providerConfigured={primaryProviderConfigured || freeProviderConfigured} externalEffectsEnabled={externalEffectsEnabled} />}
+          </>}
         </div>
       </main>
     </div>

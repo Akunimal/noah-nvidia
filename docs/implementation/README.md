@@ -44,23 +44,23 @@ payments, and CSV export. Real Nebius, Google, embeddings, parse, and reranking
 still require operator credentials and smoke evidence before claiming a
 connected demo.
 
-The onboarding phases 0 and 1 are closed locally. The contract keeps
+The onboarding phases 0, 1 and 2 are closed locally. The contract keeps
 `tenant-demo` with the synthetic Atlas fixture for the video and the runtime
 starts every other authenticated tenant empty, with no demo connection
 fallback. User-provided onboarding text remains reserved for the Nebius/NVIDIA
 route, and OpenCode2API remains synthetic-only. Extraction is a reviewable
-draft; only an explicit completion can apply it, while skip shows the
-synthetic-data warning and is idempotent.
+draft; the phase 2 shell previews that review locally, while only a later
+explicit completion can apply it. Skip shows the synthetic-data warning but
+does not seed anything until phase 4.
 
 ## Next execution steps
 
 Follow [STATE.md](STATE.md) instead of starting integrations from this record.
 The active order is:
 
-1. Build the onboarding phase 2 wizard shell without calling a model, then add
-   Nebius extraction
-   and review/confirm persistence in separate phases.
-2. Test skip, idempotency, tenant isolation, and restart recovery on Neon.
+1. Replace the phase 2 local draft transition with Nebius extraction while
+   preserving review-only behavior.
+2. Add confirm/skip persistence, idempotency, and restart recovery on Neon.
 3. Run the original tenant, approval, retry, calendar, monetary, document,
    and prompt-injection evaluations after connected evidence exists.
 4. Add the guided tour only after onboarding is complete and verified.

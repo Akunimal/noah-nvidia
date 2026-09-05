@@ -1,6 +1,6 @@
 # Onboarding simple de Noah Nvidia
 
-> Contrato y roadmap del workstream de onboarding. Fases 0 y 1 cerradas en
+> Contrato y roadmap del workstream de onboarding. Fases 0, 1 y 2 cerradas en
 > local el 2026-09-05. La fuente operativa general sigue siendo `STATE.md`.
 
 ## Objetivo
@@ -83,6 +83,25 @@ La verificación de esta fase es local y está registrada en
 [`evidence/phase-1-playground.md`](evidence/phase-1-playground.md). El deploy
 manual que actualizará Render queda separado de esta fase para no confundir
 una prueba local con evidencia live.
+
+## Implementación de fase 2
+
+El playground ahora abre un `OnboardingWizard` después de recibir
+`bootstrap.workspace.mode=playground`. El shell cubre los estados de producto
+sin afirmar que la extracción real ya esté conectada:
+
+- bienvenida con propósito, alcance del playground y acceso al skip;
+- descripción libre con ejemplo y validación mínima de entrada;
+- estado de preparación claramente marcado como local;
+- revisión editable del shape `onboarding.v1`, JSON visible y
+  `missing_fields` recalculado;
+- salida de preview para confirmar o saltear sin escribir en el backend.
+
+El helper local solo conserva texto que el usuario proporcionó y deja en
+`null` zona horaria, moneda y locale si no fueron indicados. Esto permite
+probar la interacción sin convertir un parser de UI en sustituto de Nebius.
+La fase 3 reemplazará esa transición local por extracción NVIDIA/Nebius; la
+fase 4 conectará confirmación, skip e idempotencia.
 
 ## Contrato JSON v1
 
@@ -203,7 +222,7 @@ completar manualmente o reintentar, nunca reenviar el texto a otra ruta.
 |---|---|---|---|
 | 0 | Contrato, modos, límites de proveedor, skip y criterios anti-drift | Schema versionado, rutas reservadas, copia exacta del warning y reglas alineadas con `STATE.md` | **Cerrada** |
 | 1 | Aislamiento demo/playground | Demo conserva Atlas; tenant nuevo queda vacío; snapshots tenant-safe no cruzan datos | **Cerrada en local** |
-| 2 | Shell del wizard | Estados bienvenida, texto, carga, revisión y salida; sin llamada de modelo todavía | Pendiente |
+| 2 | Shell del wizard | Estados bienvenida, texto, carga, revisión y salida; sin llamada de modelo todavía | **Cerrada en local** |
 | 3 | Extracción Nebius | Prompt estructurado, parseo estricto, errores visibles, sin escritura automática | Pendiente |
 | 4 | Confirmación y skip | Aplicación idempotente, auditoría, fixture sintético y warning verificable | Pendiente |
 | 5 | Prueba de lado a lado | Navegador limpio: demo, onboarding, edición, confirmación, skip y aislamiento; evidencia guardada | Pendiente |
@@ -228,10 +247,12 @@ de invertir tiempo en pulido de presentación. La estimación vigente es de
 - [ ] El tour no aparece antes de completar o saltear explícitamente.
 - [ ] Ninguna clave o token aparece en UI, logs, Graphify, contratos o commits.
 
-## Fuera de fase 0 y fase 1
+## Fuera de fase 0, fase 1 y fase 2
 
 Fase 0 no agrega endpoints, componentes React, migraciones ni despliegues. No
 se afirma que el onboarding esté disponible todavía; deja el contrato cerrado
 para que las fases de código puedan avanzar sin reinterpretar el producto.
-Fase 1 tampoco agrega el wizard ni llama a un modelo: solo hace visible y
-verificable el aislamiento de los dos modos en el runtime existente.
+Fase 1 no agrega el wizard ni llama a un modelo: solo hace visible y
+verificable el aislamiento de los dos modos en el runtime existente. Fase 2
+agrega únicamente el shell y su preview local; no agrega endpoints, llamadas
+de proveedor ni escritura durable.
