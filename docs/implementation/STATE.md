@@ -48,14 +48,14 @@ a NVIDIA.
 
 | Área | Estado | Evidencia |
 |---|---|---|
-| API determinista | OK | 26 tests Python pasan en `services/api/.venv` |
+| API determinista | OK | 27 tests Python pasan en `services/api/.venv` |
 | Frontend | OK | typecheck, lint, Vitest y build pasan |
 | Smoke local | OK | Atlas Services, run succeeded, receipt generado |
 | Aislamiento, aprobaciones e idempotencia | OK en tests | `services/api/test_main.py` |
-| Router Nebius/OpenCode2API | OK en vivo | Nebius primario conectado; OpenCode2API desactivado |
+| Router Nebius/OpenCode2API | Nebius live OK; OpenCode2API contrato local OK | OpenCode2API live sigue pendiente; evidencia en `evidence/gate-3-opencode2api.md` |
 | Nebius real | OK | Gate 1 probado con `nvidia/nemotron-3-super-120b-a12b` |
 | Demo manual live | OK | Gate 2 probado desde frontend Render; evidencia en `evidence/gate-2-render.md` |
-| OpenCode2API free | Opcional y sintético | No es el gate primario |
+| OpenCode2API free | Contrato local OK; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
 | Google OAuth | Pendiente | Requiere cliente y cuenta de prueba |
 | Supabase | Diferido | No bloquear el MVP/demo actual |
 | Vercel | Fuera de alcance | No importar ni desplegar proyectos |
@@ -103,13 +103,20 @@ Estado: **cerrado — aprobado**.
 
 ### Gate 3 — OpenCode2API sandbox (opcional)
 
-Estado: **no bloquea**.
+Estado: **contrato local cerrado; gateway live pendiente**.
 
-- Usarlo solo como comparación sintética o contingencia de demo.
-- Verificar que Nebius no esté configurado o que la prueba fuerce claramente
-  la ruta free autorizada.
-- Confirmar en la respuesta que el proveedor sea `opencode2api`.
-- No enviar correo, documentos de clientes, credenciales ni datos reales.
+- La prueba levanta un servidor HTTP efímero en `127.0.0.1`, devuelve una
+  respuesta OpenAI-compatible sintética y recorre el POST real del adaptador.
+- Se verifican `provider=opencode2api`, el modelo, el `Authorization` ficticio,
+  el payload de mensajes y la ausencia de `error` en `ProviderResult`.
+- La prueba fuerza `NOAH_ALLOW_FREE_SYNTHETIC=true` y
+  `allow_free_synthetic=true`; no usa Nebius, datos privados ni efectos.
+- Render permanece seguro: `NOAH_ALLOW_FREE_SYNTHETIC=false` y
+  `NOAH_ENABLE_EXTERNAL_EFFECTS=false`.
+- La validación live queda pendiente de una URL de gateway OpenCode2API y su
+  clave proporcionadas por el operador mediante configuración privada. No se
+  inventa un endpoint público ni se modifica la ruta primaria.
+- Evidencia: `docs/implementation/evidence/gate-3-opencode2api.md`.
 
 ### Gate 4 — Google OAuth y efectos externos
 
@@ -146,8 +153,8 @@ Estado: **diferido**.
 
 ## Próximo paso exacto
 
-Gate 2 está cerrado. El siguiente paso opcional es Gate 3: aislar y comparar la
-ruta sintética OpenCode2API, verificando explícitamente `provider=opencode2api`
-sin enviar datos privados. Si no se necesita esa comparación, continuar con el
-gate de Google OAuth usando cuenta de prueba. No activar Supabase, Vercel ni
-efectos externos por inferencia.
+Gate 3 de contrato está cerrado. El siguiente paso recomendado es preparar
+Google OAuth en modo Testing con una cuenta de prueba y scopes mínimos, sin
+activar todavía efectos externos. El Gate 3 live solo se completa si se decide
+operar un gateway OpenCode2API real y se cargan su URL y clave de forma privada.
+No activar Supabase, Vercel ni efectos externos por inferencia.
