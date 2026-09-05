@@ -6,9 +6,11 @@
 
 - Repositorio: `Akunimal/noah-nvidia`
 - Rama: `main`
-- Commit de aplicación verificado: `9a2d6d8`
+- Commit de aplicación verificado en API: `9a2d6d8`; frontend desplegado desde
+  `9b6dbdd`.
 - Despliegue: manual; Vercel queda fuera del flujo.
 - Backend live: `https://noah-nvidia-api.onrender.com` (Render Web Service, plan Free).
+- Frontend live: `https://noah-nvidia-web.onrender.com` (Render Static Site, plan Free).
 - Runtime del backend: Python `3.12.10` configurado en Render.
 - Persistencia actual: memoria/in-memory para demo y smoke local.
 - Efectos externos: desactivados (`NOAH_ENABLE_EXTERNAL_EFFECTS=false`).
@@ -52,6 +54,7 @@ a NVIDIA.
 | Aislamiento, aprobaciones e idempotencia | OK en tests | `services/api/test_main.py` |
 | Router Nebius/OpenCode2API | OK en vivo | Nebius primario conectado; OpenCode2API desactivado |
 | Nebius real | OK | Gate 1 probado con `nvidia/nemotron-3-super-120b-a12b` |
+| Demo manual live | OK | Gate 2 probado desde frontend Render; evidencia en `evidence/gate-2-render.md` |
 | OpenCode2API free | Opcional y sintético | No es el gate primario |
 | Google OAuth | Pendiente | Requiere cliente y cuenta de prueba |
 | Supabase | Diferido | No bloquear el MVP/demo actual |
@@ -86,12 +89,17 @@ Estado: **cerrado — aprobado**.
 
 ### Gate 2 — Demo manual reproducible
 
-Estado: **siguiente**.
+Estado: **cerrado — aprobado**.
 
-- Configurar manualmente el backend y frontend en el host elegido.
-- Alinear `VITE_API_BASE_URL` y `NOAH_CORS_ORIGINS`.
-- Repetir bootstrap, mensaje, aprobación y recibo desde un navegador limpio.
-- No crear proyecto ni workflow en Vercel.
+- Frontend creado manualmente como Static Site `noah-nvidia-web` en Render.
+- Build verificado con `npm ci && npm run build` y publicación `apps/web/dist`.
+- `VITE_API_BASE_URL` apunta a `https://noah-nvidia-api.onrender.com`.
+- `NOAH_CORS_ORIGINS` contiene `https://noah-nvidia-web.onrender.com`.
+- Desde un tab Chrome sin estado previo del frontend se verificaron bootstrap,
+  un mensaje controlado a Nebius, una aprobación y el recibo de ejecución.
+- Efectos externos permanecieron apagados; no se envió correo ni se modificó
+  Calendar, dinero o documentos.
+- Evidencia: `docs/implementation/evidence/gate-2-render.md`.
 
 ### Gate 3 — OpenCode2API sandbox (opcional)
 
@@ -127,7 +135,10 @@ Estado: **diferido**.
 - `ProviderResult` es contrato de transporte, no una tercera ruta.
 - Toda ruta nueva debe actualizar `providers.py`, `provider-manifest.md`, una
   prueba en `services/api/test_providers.py` y esta tabla.
-- Ningún secreto va al repo, al frontend, al graphify o a este archivo.
+- Ninguna clave de proveedor, OAuth, persistencia o cifrado va al repo, al
+  frontend, al graphify o a este archivo. `VITE_NOAH_AUTH_TOKEN` es únicamente
+  el bearer de demo del Static Site; no debe reutilizarse como credencial de
+  producción y debe rotarse si el demo deja de ser privado.
 - Ningún efecto externo se considera exitoso sin recibo verificable.
 - Si cambia el commit base, actualizar el baseline y repetir las verificaciones.
 - Antes de activar una integración, comparar este archivo con `.env.example`,
@@ -135,7 +146,8 @@ Estado: **diferido**.
 
 ## Próximo paso exacto
 
-Ejecutar Gate 2 manual: desplegar el frontend, apuntarlo a
-`https://noah-nvidia-api.onrender.com`, configurar CORS en el backend y repetir
-bootstrap/mensaje desde un navegador limpio. No activar Supabase, Vercel,
-OpenCode2API ni efectos externos todavía.
+Gate 2 está cerrado. El siguiente paso opcional es Gate 3: aislar y comparar la
+ruta sintética OpenCode2API, verificando explícitamente `provider=opencode2api`
+sin enviar datos privados. Si no se necesita esa comparación, continuar con el
+gate de Google OAuth usando cuenta de prueba. No activar Supabase, Vercel ni
+efectos externos por inferencia.
