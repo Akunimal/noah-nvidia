@@ -6,8 +6,8 @@
 
 - Repositorio: `Akunimal/noah-nvidia`
 - Rama: `main`
-- Código funcional live verificado: `1d0c3f2`; el frontend tuvo además un
-  rebuild documental en `6b5f7f3`.
+- Commit live actual en API y frontend: `cecabcd`; el último cambio funcional
+  fue `1d0c3f2` y `cecabcd` solo actualiza estado/documentación.
 - Despliegue: manual; Auto-Deploy está en `Off` en API y frontend; Vercel queda
   fuera del flujo.
 - Backend live: `https://noah-nvidia-api.onrender.com` (Render Web Service, plan Free).
