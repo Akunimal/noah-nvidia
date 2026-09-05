@@ -60,7 +60,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Build Render del API | OK tras fijar Python 3.12.10 | El primer deploy de `8af42c3` falló por Python 3.14; evidencia en `evidence/render-build-incident-2026-09-05.md` |
 | Política de deploy | OK | Auto-Deploy desactivado en ambos servicios; los próximos releases se disparan manualmente |
 | OpenCode2API free | Contrato local OK; Nemotron-only enforced; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
-| Google OAuth | En preparación | Proyecto y consentimiento configurados; falta cliente web y verificación de APIs |
+| Google OAuth | En preparación | Proyecto, consentimiento y Gmail/Calendar APIs configurados; falta cliente web |
 | Supabase | Fuera de alcance | No se provisiona ni se usa en este flujo |
 | Vercel | Fuera de alcance | No importar ni desplegar proyectos |
 
@@ -124,15 +124,14 @@ Estado: **contrato local cerrado; gateway live pendiente**.
 
 ### Gate 4 — Google OAuth y efectos externos
 
-Estado: **proyecto y consentimiento configurados; cliente pendiente**.
+Estado: **proyecto, consentimiento y APIs configurados; cliente pendiente**.
 
 - Cuenta operadora verificada: `gesecseguridad@gmail.com`.
 - Proyecto de pruebas: `Noah Nvidia OAuth Test`
   (`noah-nvidia-oauth-test-507713`).
 - Google Auth Platform quedó configurado como aplicación externa en modo
   Testing, con `Noah Nvidia` y `gesecseguridad@gmail.com` como contacto.
-- Gmail API y Google Calendar API tienen la habilitación solicitada; queda
-  pendiente verificar que ambas tareas terminen.
+- Gmail API y Google Calendar API están habilitadas y verificadas en el proyecto.
 - Callback web preparado: `https://noah-nvidia-api.onrender.com/api/v1/connections/google/callback`.
 - No se inició la prueba gratuita, no se creó ni modificó una cuenta de
   facturación y no se habilitaron servicios de cómputo o almacenamiento. No se
@@ -199,7 +198,6 @@ Estado: **fuera de alcance para esta entrega**.
 ## Próximo paso exacto
 
 La demo ya es entregable. Para continuar hacia producción, el siguiente paso
-es Gate 4: confirmar si se crea el cliente web OAuth en el proyecto de prueba
-actualmente ligado a una cuenta de facturación; luego cargar sus valores solo
-en Render y probar lectura/sync con efectos todavía apagados. No activar
-Supabase, Vercel ni efectos externos por inferencia.
+es crear el cliente web OAuth ya preparado en el proyecto de prueba; luego
+cargar sus valores solo en Render y probar lectura/sync con efectos todavía
+apagados. No activar Supabase, Vercel ni efectos externos por inferencia.
