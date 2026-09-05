@@ -13,7 +13,8 @@
 The runtime manifest is returned by GET /api/v1/bootstrap and
 GET /api/v1/providers/health. Missing keys are reported as configuration
 state. No non-NVIDIA model fallback is present. A deterministic demo response
-is clearly labeled when no model is configured.
+is clearly labeled when no model is configured. `NOAH_MODEL_USAGE_LIMIT` can
+stop new model calls before they consume the reserved demo budget.
 
 OpenCode2API is a gateway, not an NVIDIA product. It is included only because
 the operator supplied it as an endpoint to a free Nemotron pool. The route is

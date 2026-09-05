@@ -7,12 +7,12 @@ hackathon. Each phase has an observable exit condition and a truthful status.
 |---|---|---|---|
 | 0 · Viability | Nebius/NVIDIA provider manifest, free-route policy, hosting limits | Real provider smoke tests recorded without secrets | Contract ready; credentials required |
 | 1 · Extraction | Independent repository, new UI, fixtures, license, CI | App builds without donor imports or credentials | Implemented |
-| 2 · Foundations | Tenant boundary, typed runs/actions, approval and idempotency | Duplicate approval/retry cannot duplicate a decision | Implemented in API and SQL baseline |
-| 3 · NVIDIA agent | NeMo Agent Toolkit seam, NeMo Guardrails boundary, Nemotron router | Normal requests produce proposals and injection is blocked | Deterministic guardrail and optional Toolkit registration implemented |
-| 4 · Google | Gmail read/draft/send and Calendar freebusy/events | Read, propose, approve, execute, reconcile with external receipt | Connector boundaries ready; OAuth smoke test pending |
-| 5 · Administration | Quotes, ledger, receivables, CSV, document retrieval | Decimal-safe totals and source evidence | SQL schema, fixture, and UI slice implemented |
-| 6 · Product | Summary, assistant, approvals, mail, agenda, finance, knowledge, settings | Five demo paths are usable from a clean browser | UI vertical slice implemented |
-| 7 · Hardening | E2E, concurrency, prompt injection, cost and memory checks | No critical isolation or duplicate-effect failures | API/UI deterministic tests implemented; external tests pending |
+| 2 · Foundations | Tenant boundary, typed runs/actions, approval and idempotency | Duplicate approval/retry cannot duplicate a decision | API contracts, leases, cancel/advance, CRUD, audit and SQL baseline implemented |
+| 3 · NVIDIA agent | NeMo Agent Toolkit seam, NeMo Guardrails boundary, Nemotron router | Normal requests produce proposals and injection is blocked | NVIDIA tool manifest, action guardrail, embedding/rerank/Parse seams and provider errors implemented |
+| 4 · Google | Gmail read/draft/send and Calendar freebusy/events | Read, propose, approve, execute, reconcile with external receipt | OAuth+PKCE, encrypted server tokens, sync, freebusy, draft, send, create/update/delete connector paths; live credentials pending |
+| 5 · Administration | Quotes, ledger, receivables, CSV, document retrieval | Decimal-safe totals and source evidence | Integer-safe quotes, non-fiscal quote PDF, idempotent payments, ledger CSV, document limits/quarantine/chunks, optional NVIDIA embeddings/rerank and grounded search |
+| 6 · Product | Summary, assistant, approvals, mail, agenda, finance, knowledge, settings | Five demo paths are usable from a clean browser | UI vertical slice reads bootstrap, approvals, mail, calendar, ledger, quotes, and documents from the API with safe fallbacks |
+| 7 · Hardening | E2E, concurrency, prompt injection, cost and memory checks | No critical isolation or duplicate-effect failures | Deterministic API tests cover auth tenants, isolation, leases, cancellation, approval hashes, receipts, documents, OAuth, money and replay; live-provider tests pending |
 | 8–9 · Presentation | README, demo script, public video, reviewer account | Links work and connected demo is reproducible | README and script prepared; operator credentials/video pending |
 
 ## Requirement to evidence map

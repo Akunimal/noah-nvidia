@@ -22,7 +22,8 @@ create table if not exists public.services (
   price_minor bigint not null check (price_minor >= 0),
   duration_minutes integer not null check (duration_minutes > 0),
   active boolean not null default true,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  unique (tenant_id, id)
 );
 
 create table if not exists public.contacts (
@@ -32,19 +33,21 @@ create table if not exists public.contacts (
   email text,
   company text,
   notes text not null default '',
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  unique (tenant_id, id)
 );
 
 create table if not exists public.connections (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references auth.users(id) on delete cascade,
-  provider text not null check (provider in ('gmail','google-calendar','nebius','nvidia-nim')),
+  provider text not null check (provider in ('google','gmail','google-calendar','nebius','nvidia-nim')),
   account_label text,
   scopes text[] not null default '{}',
   status text not null default 'disconnected',
   expires_at timestamptz,
   created_at timestamptz not null default now(),
-  unique (tenant_id, provider)
+  unique (tenant_id, provider),
+  unique (tenant_id, id)
 );
 
 create table if not exists public.connection_secrets (
@@ -53,14 +56,16 @@ create table if not exists public.connection_secrets (
   ciphertext text not null,
   key_version text not null,
   expires_at timestamptz,
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  foreign key (tenant_id, connection_id) references public.connections(tenant_id, id) on delete cascade
 );
 
 create table if not exists public.conversations (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references auth.users(id) on delete cascade,
   title text not null default 'Operations desk',
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  unique (tenant_id, id)
 );
 
 create table if not exists public.messages (
@@ -70,7 +75,8 @@ create table if not exists public.messages (
   role text not null check (role in ('owner','noah','system','tool')),
   content text not null,
   provenance jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  foreign key (tenant_id, conversation_id) references public.conversations(tenant_id, id) on delete cascade
 );
 
 create table if not exists public.runs (
@@ -84,7 +90,9 @@ create table if not exists public.runs (
   model text,
   provider_error text,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique (tenant_id, id),
+  foreign key (tenant_id, conversation_id) references public.conversations(tenant_id, id) on delete set null
 );
 
 create table if not exists public.actions (
@@ -97,7 +105,8 @@ create table if not exists public.actions (
   authority text not null check (authority in ('allow','ask','deny')),
   status text not null check (status in ('proposed','awaiting_approval','approved','rejected','executing','succeeded','failed','needs_reconciliation')),
   created_at timestamptz not null default now(),
-  unique (tenant_id, arguments_hash)
+  unique (tenant_id, arguments_hash),
+  foreign key (tenant_id, run_id) references public.runs(tenant_id, id) on delete cascade
 );
 
 create table if not exists public.approvals (
@@ -108,7 +117,8 @@ create table if not exists public.approvals (
   approved_by uuid not null references auth.users(id),
   expires_at timestamptz not null,
   created_at timestamptz not null default now(),
-  unique (action_id, arguments_hash)
+  unique (action_id, arguments_hash),
+  foreign key (tenant_id, action_id) references public.actions(tenant_id, id) on delete cascade
 );
 
 create table if not exists public.external_effects (
@@ -121,7 +131,8 @@ create table if not exists public.external_effects (
   status text not null check (status in ('pending','succeeded','failed','uncertain')),
   result jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
-  unique (tenant_id, idempotency_key)
+  unique (tenant_id, idempotency_key),
+  foreign key (tenant_id, action_id) references public.actions(tenant_id, id) on delete cascade
 );
 
 create table if not exists public.mail_items (
@@ -147,8 +158,9 @@ create table if not exists public.calendar_items (
   starts_at timestamptz not null,
   ends_at timestamptz not null,
   etag text,
-  local_action_id uuid references public.actions(id),
-  unique (tenant_id, provider_id)
+  local_action_id uuid,
+  unique (tenant_id, provider_id),
+  foreign key (tenant_id, local_action_id) references public.actions(tenant_id, id)
 );
 
 create table if not exists public.quotes (
@@ -159,9 +171,12 @@ create table if not exists public.quotes (
   status text not null check (status in ('draft','approved','sent','accepted','rejected','expired')),
   currency char(3) not null default 'USD',
   subtotal_minor bigint not null default 0 check (subtotal_minor >= 0),
+  discount_minor bigint not null default 0 check (discount_minor >= 0 and discount_minor <= subtotal_minor),
   total_minor bigint not null default 0 check (total_minor >= 0),
   valid_until date,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  unique (tenant_id, id),
+  foreign key (tenant_id, contact_id) references public.contacts(tenant_id, id)
 );
 
 create table if not exists public.quote_lines (
@@ -172,7 +187,9 @@ create table if not exists public.quote_lines (
   description text not null,
   quantity integer not null check (quantity > 0),
   unit_price_minor bigint not null check (unit_price_minor >= 0),
-  line_total_minor bigint not null check (line_total_minor >= 0)
+  line_total_minor bigint not null check (line_total_minor >= 0),
+  foreign key (tenant_id, quote_id) references public.quotes(tenant_id, id) on delete cascade,
+  foreign key (tenant_id, service_id) references public.services(tenant_id, id)
 );
 
 create table if not exists public.ledger_entries (
@@ -198,7 +215,9 @@ create table if not exists public.receivables (
   amount_paid_minor bigint not null default 0 check (amount_paid_minor >= 0),
   due_on date,
   status text not null check (status in ('open','partially_paid','paid','written_off')),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  foreign key (tenant_id, contact_id) references public.contacts(tenant_id, id),
+  foreign key (tenant_id, quote_id) references public.quotes(tenant_id, id)
 );
 
 create table if not exists public.tasks (
@@ -219,10 +238,23 @@ create table if not exists public.documents (
   content_type text not null,
   sha256 text not null,
   status text not null check (status in ('uploaded','extracting','indexed','review','failed')),
-  page_count integer,
+  page_count integer check (page_count is null or page_count between 1 and 10),
+  storage_path text,
   created_at timestamptz not null default now(),
-  unique (tenant_id, sha256)
+  unique (tenant_id, sha256),
+  unique (tenant_id, id)
 );
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'ledger_entries_source_document_fk'
+  ) then
+    alter table public.ledger_entries
+      add constraint ledger_entries_source_document_fk
+      foreign key (tenant_id, source_document_id) references public.documents(tenant_id, id);
+  end if;
+end $$;
 
 create table if not exists public.document_chunks (
   id uuid primary key default gen_random_uuid(),
@@ -231,7 +263,8 @@ create table if not exists public.document_chunks (
   page integer,
   content text not null,
   embedding vector(2048),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  foreign key (tenant_id, document_id) references public.documents(tenant_id, id) on delete cascade
 );
 
 create table if not exists public.audit_events (
@@ -254,7 +287,19 @@ create table if not exists public.usage_reservations (
   estimated_units integer not null check (estimated_units > 0),
   consumed_units integer not null default 0 check (consumed_units >= 0),
   status text not null check (status in ('reserved','consumed','released','blocked')),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  foreign key (tenant_id, run_id) references public.runs(tenant_id, id) on delete set null
+);
+
+create table if not exists public.receivable_payments (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references auth.users(id) on delete cascade,
+  receivable_id uuid not null,
+  amount_minor bigint not null check (amount_minor > 0),
+  paid_on date not null default current_date,
+  note text not null default '',
+  created_at timestamptz not null default now(),
+  foreign key (tenant_id, receivable_id) references public.receivables(tenant_id, id) on delete cascade
 );
 
 alter table public.business_profiles enable row level security;
@@ -279,6 +324,7 @@ alter table public.documents enable row level security;
 alter table public.document_chunks enable row level security;
 alter table public.audit_events enable row level security;
 alter table public.usage_reservations enable row level security;
+alter table public.receivable_payments enable row level security;
 
 create policy business_owner on public.business_profiles for all using (id = auth.uid()) with check (id = auth.uid());
 
@@ -290,7 +336,7 @@ begin
     'services','contacts','connections','connection_secrets','conversations',
     'messages','runs','actions','approvals','external_effects','mail_items',
     'calendar_items','quotes','quote_lines','ledger_entries','receivables',
-    'tasks','documents','document_chunks','audit_events','usage_reservations'
+    'tasks','documents','document_chunks','audit_events','usage_reservations','receivable_payments'
   ]
   loop
     execute format(
@@ -308,3 +354,42 @@ revoke all on public.connection_secrets from anon, authenticated;
 revoke all on public.external_effects from anon, authenticated;
 revoke all on public.approvals from anon, authenticated;
 revoke all on public.usage_reservations from anon, authenticated;
+revoke all on public.receivable_payments from anon, authenticated;
+-- Execution state is owned by the server-side executor. The browser may read
+-- its own projections through API routes, but cannot forge a run or receipt.
+revoke insert, update, delete on public.runs from authenticated;
+revoke insert, update, delete on public.actions from authenticated;
+revoke insert, update, delete on public.external_effects from authenticated;
+revoke insert, update, delete on public.approvals from authenticated;
+revoke insert, update, delete on public.usage_reservations from authenticated;
+revoke insert, update, delete on public.quotes from authenticated;
+revoke insert, update, delete on public.quote_lines from authenticated;
+revoke insert, update, delete on public.ledger_entries from authenticated;
+revoke insert, update, delete on public.receivables from authenticated;
+revoke insert, update, delete on public.receivable_payments from authenticated;
+
+-- Documents live in a private bucket. The API uses the service role to write
+-- and returns only tenant-scoped metadata; an authenticated owner can read a
+-- path whose first folder is their own user id.
+insert into storage.buckets (id, name, public)
+values ('noah-documents', 'noah-documents', false)
+on conflict (id) do update set public = false;
+
+alter table storage.objects enable row level security;
+drop policy if exists noah_documents_owner_read on storage.objects;
+create policy noah_documents_owner_read
+  on storage.objects for select to authenticated
+  using (
+    bucket_id = 'noah-documents'
+    and (storage.foldername(name))[1] = (select auth.uid()::text)
+  );
+
+create index if not exists services_tenant_active_idx on public.services (tenant_id, active);
+create index if not exists contacts_tenant_email_idx on public.contacts (tenant_id, email);
+create index if not exists runs_tenant_status_idx on public.runs (tenant_id, status, updated_at);
+create index if not exists actions_tenant_status_idx on public.actions (tenant_id, status, created_at);
+create index if not exists mail_items_tenant_received_idx on public.mail_items (tenant_id, received_at desc);
+create index if not exists calendar_items_tenant_window_idx on public.calendar_items (tenant_id, starts_at, ends_at);
+create index if not exists document_chunks_tenant_doc_idx on public.document_chunks (tenant_id, document_id, page);
+create index if not exists audit_events_tenant_created_idx on public.audit_events (tenant_id, created_at desc);
+create index if not exists receivable_payments_tenant_created_idx on public.receivable_payments (tenant_id, created_at desc);

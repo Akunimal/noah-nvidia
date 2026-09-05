@@ -15,6 +15,30 @@ try:
 except ImportError:
     NAT_AVAILABLE = False
 
+try:
+    import nemoguardrails  # type: ignore
+
+    GUARDRAILS_AVAILABLE = True
+except ImportError:
+    GUARDRAILS_AVAILABLE = False
+
+
+TOOL_NAMES = (
+    "business.get_profile",
+    "services.search",
+    "contacts.search",
+    "knowledge.search",
+    "mail.search",
+    "mail.read",
+    "mail.prepare_draft",
+    "calendar.list",
+    "calendar.find_slots",
+    "quotes.prepare",
+    "ledger.propose_entry",
+    "tasks.create",
+    "actions.propose",
+)
+
 
 def workflow_status() -> dict[str, Any]:
     return {
@@ -23,6 +47,15 @@ def workflow_status() -> dict[str, Any]:
         "version": "1.8.x",
         "installed": NAT_AVAILABLE,
         "registration": "available" if NAT_AVAILABLE else "optional-runtime-dependency",
+        "tool_count": len(TOOL_NAMES),
+        "tools": list(TOOL_NAMES),
+        "effects": "executor-only",
+        "guardrails": {
+            "package": "nemoguardrails",
+            "version": "0.24.x",
+            "installed": GUARDRAILS_AVAILABLE,
+            "registration": "deterministic-boundary" if not GUARDRAILS_AVAILABLE else "runtime-ready",
+        },
     }
 
 

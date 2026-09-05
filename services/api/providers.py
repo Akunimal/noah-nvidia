@@ -13,6 +13,11 @@ from typing import Any
 
 import httpx
 
+try:
+    from providers_nim import nim_manifest
+except ImportError:
+    from .providers_nim import nim_manifest
+
 
 @dataclass(frozen=True)
 class ProviderResult:
@@ -135,20 +140,14 @@ class NvidiaRouter:
         return {
             "primary": self.nebius.manifest(),
             "free_sandbox": self.free.manifest(),
-            "embeddings": {
-                "provider": "nvidia-nim",
-                "model": os.getenv("NOAH_EMBEDDING_MODEL", "nvidia/nemotron-3-embed-1b"),
-                "endpoint": os.getenv("NOAH_EMBEDDING_BASE_URL", "https://integrate.api.nvidia.com/v1"),
-                "dimensions": 2048,
-                "status": "configured-by-environment",
-            },
+            "embeddings": nim_manifest(),
             "guardrails": {"provider": "nvidia-nemo-guardrails", "status": "deterministic-boundary"},
             "orchestration": {"provider": "nvidia-nemo-agent-toolkit", "status": "workflow-compatible"},
         }
 
-    async def complete(self, prompt: str, system: str) -> ProviderResult:
+    async def complete(self, prompt: str, system: str, *, allow_free_synthetic: bool = False) -> ProviderResult:
         if self.nebius.configured():
             return await self.nebius.complete(prompt, system)
-        if self.free.configured() and os.getenv("NOAH_ALLOW_FREE_SYNTHETIC", "true").lower() == "true":
+        if allow_free_synthetic and self.free.configured() and os.getenv("NOAH_ALLOW_FREE_SYNTHETIC", "true").lower() == "true":
             return await self.free.complete(prompt, system)
         return ProviderResult("deterministic-demo", "no-model-call", None, "NO_NVIDIA_PROVIDER_CONFIGURED")

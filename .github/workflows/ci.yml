@@ -36,3 +36,12 @@ jobs:
       - run: uv pip install -r requirements-dev.txt --python .venv/bin/python
       - run: .venv/bin/python -m pytest -q
       - run: .venv/bin/python -m compileall -q .
+      - run: .venv/bin/python ../../scripts/smoke_api.py
+      - run: .venv/bin/python ../../scripts/export_openapi.py
+      - run: git diff --exit-code -- contracts/openapi.yaml
+  repository:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: git diff --check
+      - run: python scripts/check_secrets.py

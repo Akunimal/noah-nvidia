@@ -1,3 +1,6 @@
+# Optional connected deployment dependencies. The CPU demo intentionally does
+# not install these packages so a free Render instance can start under its
+# memory limit. Install this file only when running the NVIDIA workflow worker.
 -r requirements.txt
 nvidia-nat==1.8.0
 nemoguardrails==0.24.0

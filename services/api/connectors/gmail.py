@@ -30,6 +30,19 @@ class GmailConnector:
         response.raise_for_status()
         return {"status": "ok", "items": response.json().get("messages", [])}
 
+    async def get_message(self, message_id: str, format: str = "metadata") -> dict[str, Any]:
+        if not self.configured:
+            return {"status": "not_configured", "id": message_id}
+        headers = {"Authorization": "Bearer " + str(self.access_token)}
+        async with httpx.AsyncClient(timeout=20) as client:
+            response = await client.get(
+                self.base_url + "/messages/" + message_id,
+                headers=headers,
+                params={"format": format, "metadataHeaders": ["From", "To", "Subject", "Date"]},
+            )
+        response.raise_for_status()
+        return {"status": "ok", "message": response.json()}
+
     async def create_draft(self, raw_message: str) -> dict[str, Any]:
         if not self.configured:
             return {"status": "not_configured"}

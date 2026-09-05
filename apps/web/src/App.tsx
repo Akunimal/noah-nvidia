@@ -29,6 +29,28 @@ import {
   X,
   Zap,
 } from 'lucide-react';
+import {
+  advanceRun,
+  decideAction,
+  getBootstrap,
+  getCalendar,
+  getDocuments,
+  getLedger,
+  getLedgerCsv,
+  getMail,
+  getPendingActions,
+  getQuotes,
+  getReceivables,
+  sendMessage,
+  uploadDocument,
+  type ApiCalendarItem,
+  type ApiConnection,
+  type ApiDocument,
+  type ApiLedgerEntry,
+  type ApiMail,
+  type ApiQuote,
+  type ApiReceivable,
+} from './lib/api';
 
 type Section = 'overview' | 'assistant' | 'approvals' | 'mail' | 'calendar' | 'finance' | 'knowledge' | 'settings';
 type MessageRole = 'owner' | 'noah';
@@ -48,6 +70,8 @@ interface Approval {
   type: string;
   tone: 'amber' | 'violet' | 'blue';
   amount?: string;
+  arguments_hash?: string;
+  run_id?: string | null;
 }
 
 interface ActivityItem {
@@ -58,8 +82,6 @@ interface ActivityItem {
   status: 'completed' | 'pending' | 'review';
 }
 
-const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-
 const navItems: Array<{ id: Section; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'assistant', label: 'Assistant', icon: Bot },
@@ -69,6 +91,27 @@ const navItems: Array<{ id: Section; label: string; icon: typeof LayoutDashboard
   { id: 'finance', label: 'Finance', icon: WalletCards },
   { id: 'knowledge', label: 'Knowledge', icon: FileText },
 ];
+
+function businessInitials(name: string): string {
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
+  return initials || 'NN';
+}
+
+function senderName(value: string | undefined): string {
+  if (!value) return 'Unknown sender';
+  const match = value.match(/^\s*([^<]+?)\s*</);
+  return (match?.[1] || value.split('@')[0] || 'Unknown sender').trim();
+}
+
+function formatMinor(amount: number, currency = 'USD'): string {
+  return `${currency} ${(amount / 100).toFixed(2)}`;
+}
 
 const initialMessages: Message[] = [
   {
@@ -99,7 +142,7 @@ const initialApprovals: Approval[] = [
   {
     id: 'approval-calendar',
     title: 'Create site inspection',
-    detail: 'Tue, Sep 10 · 10:00–11:30 · Atlas Services calendar',
+    detail: 'Thu, Sep 10 · 10:00–11:30 · Atlas Services calendar',
     type: 'Calendar event',
     tone: 'blue',
   },
@@ -128,14 +171,66 @@ function App() {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [apiOnline, setApiOnline] = useState(false);
+  const [businessName, setBusinessName] = useState('Atlas Services');
+  const [businessTimezone, setBusinessTimezone] = useState('America/New_York');
+  const [businessCurrency, setBusinessCurrency] = useState('USD');
+  const [runtimeModel, setRuntimeModel] = useState('Nemotron 3 Super');
+  const [persistenceMode, setPersistenceMode] = useState('in-memory demo');
+  const [mailItems, setMailItems] = useState<ApiMail[]>([]);
+  const [calendarItems, setCalendarItems] = useState<ApiCalendarItem[]>([]);
+  const [ledgerItems, setLedgerItems] = useState<ApiLedgerEntry[]>([]);
+  const [documentItems, setDocumentItems] = useState<ApiDocument[]>([]);
+  const [quoteItems, setQuoteItems] = useState<ApiQuote[]>([]);
+  const [receivableItems, setReceivableItems] = useState<ApiReceivable[]>([]);
+  const [connections, setConnections] = useState<ApiConnection[]>([]);
+  const [primaryProviderConfigured, setPrimaryProviderConfigured] = useState(false);
+  const [freeProviderConfigured, setFreeProviderConfigured] = useState(false);
+  const [externalEffectsEnabled, setExternalEffectsEnabled] = useState(false);
 
   useEffect(() => {
-    fetch(apiBase + '/health')
-      .then((response) => setApiOnline(response.ok))
-      .catch(() => setApiOnline(false));
+    const loadWorkspace = async () => {
+      try {
+        const health = await fetch((import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000') + '/health');
+        setApiOnline(health.ok);
+        const [bootstrap, pending] = await Promise.all([getBootstrap(), getPendingActions()]);
+        setBusinessName(bootstrap.business.name);
+        setBusinessTimezone(bootstrap.business.timezone);
+        setBusinessCurrency(bootstrap.business.currency);
+        setRuntimeModel(bootstrap.providers.primary?.model || 'Nemotron 3 Super');
+        setPersistenceMode(bootstrap.persistence?.mode || 'in-memory demo');
+        setConnections(bootstrap.connections || []);
+        setPrimaryProviderConfigured(Boolean(bootstrap.providers.primary?.configured));
+        setFreeProviderConfigured(Boolean(bootstrap.providers.free_sandbox?.configured));
+        setExternalEffectsEnabled(Boolean(bootstrap.execution?.external_effects_enabled));
+        setApprovals(pending.map((action) => ({ ...action, tone: action.tone || 'violet', amount: action.amount || undefined })));
+        const [mail, calendar, ledger, documents, quotes, receivables] = await Promise.allSettled([
+          getMail(),
+          getCalendar(),
+          getLedger(),
+          getDocuments(),
+          getQuotes(),
+          getReceivables(),
+        ]);
+        if (mail.status === 'fulfilled') setMailItems(mail.value);
+        if (calendar.status === 'fulfilled') setCalendarItems(calendar.value);
+        if (ledger.status === 'fulfilled') setLedgerItems(ledger.value);
+        if (documents.status === 'fulfilled') setDocumentItems(documents.value);
+        if (quotes.status === 'fulfilled') setQuoteItems(quotes.value);
+        if (receivables.status === 'fulfilled') setReceivableItems(receivables.value);
+      } catch {
+        setApiOnline(false);
+      }
+    };
+    void loadWorkspace();
   }, []);
 
   const pendingCount = approvals.length;
+  const runtimeLabel = primaryProviderConfigured
+    ? `${runtimeModel} · Nebius`
+    : freeProviderConfigured
+      ? 'Nemotron sandbox · OpenCode2API'
+      : 'Deterministic NVIDIA sandbox';
+  const runtimeOnline = apiOnline && (primaryProviderConfigured || freeProviderConfigured);
   const pageTitle = navItems.find((item) => item.id === section)?.label || 'Overview';
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -156,13 +251,7 @@ function App() {
     setInput('');
     setIsThinking(true);
     try {
-      const response = await fetch(apiBase + '/api/v1/conversations/demo/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer demo-owner' },
-        body: JSON.stringify({ message: trimmed }),
-      });
-      if (!response.ok) throw new Error('API unavailable');
-      const payload = await response.json();
+      const payload = await sendMessage(trimmed, 'web-' + Date.now());
       const reply = payload?.assistant_message || payload?.message || 'I prepared the next step and left external effects waiting for approval.';
       setMessages((current) => [
         ...current,
@@ -175,7 +264,8 @@ function App() {
         },
       ]);
       if (payload?.action) {
-        setApprovals((current) => [payload.action, ...current]);
+        const action = payload.action;
+        setApprovals((current) => [{ ...action, tone: action.tone || 'violet', amount: action.amount || undefined }, ...current]);
         setActivity((current) => [
           {
             id: 'run-' + Date.now(),
@@ -216,14 +306,52 @@ function App() {
       ...current,
     ]);
     try {
-      await fetch(apiBase + '/api/v1/actions/' + approval.id + '/' + (decision === 'approved' ? 'approve' : 'reject'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer demo-owner' },
-        body: JSON.stringify({ reason: 'Owner decision from Noah Nvidia console' }),
-      });
+      await decideAction(approval.id, decision === 'approved' ? 'approve' : 'reject', approval.arguments_hash);
+      if (decision === 'approved' && approval.run_id) {
+        const execution = await advanceRun(approval.run_id);
+        if (execution.status === 'needs_input' || execution.status === 'needs_reconciliation') {
+          setActivity((current) => [{ id: 'execution-' + Date.now(), icon: 'shield', title: approval.title + ' needs attention', meta: execution.status === 'needs_reconciliation' ? 'Provider response is uncertain; reconcile before retrying' : 'No external connection was changed', status: 'review' }, ...current]);
+        }
+      }
     } catch {
-      // The UI remains useful in sandbox mode when the API is sleeping.
+      try {
+        const pending = await getPendingActions();
+        setApprovals(pending.map((action) => ({ ...action, tone: action.tone || 'violet', amount: action.amount || undefined })));
+      } catch {
+        setApprovals((current) => current.some((item) => item.id === approval.id) ? current : [approval, ...current]);
+      }
+      setActivity((current) => [{ id: 'decision-error-' + Date.now(), icon: 'shield', title: 'Decision could not be synchronized', meta: 'The API is offline; retry when the runtime is online', status: 'review' }, ...current]);
     }
+  }
+
+  async function exportLedger() {
+    try {
+      const csv = await getLedgerCsv();
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${businessName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-ledger.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setActivity((current) => [{ id: 'export-error-' + Date.now(), icon: 'shield', title: 'CSV export needs the API', meta: 'Reconnect the runtime and try again', status: 'review' }, ...current]);
+    }
+  }
+
+  async function addDocument(file: File) {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const dataUrl = String(reader.result || '');
+        const encoded = dataUrl.includes(',') ? dataUrl.slice(dataUrl.indexOf(',') + 1) : dataUrl;
+        const response = await uploadDocument(file.name, file.type || 'application/octet-stream', encoded);
+        setDocumentItems((current) => [response.document, ...current]);
+        setActivity((current) => [{ id: 'document-' + Date.now(), icon: 'shield', title: 'Document uploaded for review', meta: file.name, status: 'review' }, ...current]);
+      } catch {
+        setActivity((current) => [{ id: 'document-error-' + Date.now(), icon: 'shield', title: 'Document upload failed', meta: 'Check the file type and API connection', status: 'review' }, ...current]);
+      }
+    };
+    reader.readAsDataURL(file);
   }
 
   return (
@@ -239,8 +367,8 @@ function App() {
         </div>
 
         <div className="workspace-switcher">
-          <div className="workspace-avatar">AS</div>
-          <div className="workspace-copy"><strong>Atlas Services</strong><span>Owner workspace</span></div>
+          <div className="workspace-avatar">{businessInitials(businessName)}</div>
+          <div className="workspace-copy"><strong>{businessName}</strong><span>Owner workspace</span></div>
           <ChevronRight size={15} />
         </div>
 
@@ -264,8 +392,8 @@ function App() {
 
         <div className="sidebar-spacer" />
         <div className="nvidia-status">
-          <div className={'status-pulse ' + (apiOnline ? 'online' : '')} />
-          <div><strong>{apiOnline ? 'NVIDIA runtime online' : 'NVIDIA demo runtime'}</strong><span>{apiOnline ? 'Nebius route available' : 'Safe sandbox · no side effects'}</span></div>
+          <div className={'status-pulse ' + (runtimeOnline ? 'online' : '')} />
+          <div><strong>{runtimeOnline ? 'NVIDIA runtime online' : apiOnline ? 'NVIDIA API · sandbox' : 'NVIDIA demo runtime'}</strong><span>{runtimeOnline ? runtimeLabel : apiOnline ? 'No model key · no side effects' : 'Safe sandbox · no side effects'}</span></div>
           <MoreHorizontal size={16} />
         </div>
         <button className="nav-item settings-item" onClick={() => setSection('settings')}><Settings2 size={18} /><span>Settings</span></button>
@@ -282,10 +410,10 @@ function App() {
         <header className="topbar">
           <div className="topbar-left">
             <button className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="Open menu"><Menu size={20} /></button>
-            <div className="breadcrumbs"><span>Atlas Services</span><ChevronRight size={14} /><strong>{pageTitle}</strong></div>
+            <div className="breadcrumbs"><span>{businessName}</span><ChevronRight size={14} /><strong>{pageTitle}</strong></div>
           </div>
           <div className="topbar-actions">
-            <div className="live-chip"><span className="live-dot" /> All systems nominal</div>
+            <div className="live-chip"><span className="live-dot" /> {apiOnline ? 'All systems nominal' : 'Local sandbox'}</div>
             <button className="icon-button" aria-label="Search"><Search size={18} /></button>
             <button className="icon-button has-dot" aria-label="Notifications"><Inbox size={18} /></button>
             <div className="top-avatar">N</div>
@@ -296,6 +424,7 @@ function App() {
           {section === 'overview' && (
             <Overview
               greeting={greeting}
+              businessName={businessName}
               approvals={approvals}
               activity={activity}
               onOpenAssistant={() => setSection('assistant')}
@@ -303,16 +432,16 @@ function App() {
             />
           )}
           {section === 'assistant' && (
-            <Assistant messages={messages} input={input} isThinking={isThinking} setInput={setInput} onSubmit={submitMessage} />
+            <Assistant messages={messages} input={input} isThinking={isThinking} setInput={setInput} onSubmit={submitMessage} businessName={businessName} runtimeModel={runtimeModel} timezone={businessTimezone} currency={businessCurrency} />
           )}
           {section === 'approvals' && (
-            <Approvals approvals={approvals} onResolve={resolveApproval} />
+            <Approvals approvals={approvals} onResolve={resolveApproval} businessName={businessName} />
           )}
-          {section === 'mail' && <Mailroom onOpenAssistant={() => setSection('assistant')} />}
-          {section === 'calendar' && <Calendar />}
-          {section === 'finance' && <Finance />}
-          {section === 'knowledge' && <Knowledge />}
-          {section === 'settings' && <Settings />}
+          {section === 'mail' && <Mailroom onOpenAssistant={() => setSection('assistant')} items={mailItems} />}
+          {section === 'calendar' && <Calendar businessName={businessName} items={calendarItems} onOpenAssistant={() => { setInput('Find a slot next week for a 90 minute field assessment'); setSection('assistant'); }} />}
+          {section === 'finance' && <Finance ledgerItems={ledgerItems} quoteItems={quoteItems} receivableItems={receivableItems} currency={businessCurrency} onExport={exportLedger} />}
+          {section === 'knowledge' && <Knowledge businessName={businessName} items={documentItems} onAddDocument={(file) => { void addDocument(file); }} />}
+          {section === 'settings' && <Settings businessName={businessName} timezone={businessTimezone} currency={businessCurrency} runtimeModel={runtimeLabel} persistenceMode={persistenceMode} connections={connections} providerConfigured={primaryProviderConfigured || freeProviderConfigured} externalEffectsEnabled={externalEffectsEnabled} />}
         </div>
       </main>
     </div>
@@ -328,13 +457,13 @@ function PageHeading({ eyebrow, title, detail, action }: { eyebrow: string; titl
   );
 }
 
-function Overview({ greeting, approvals, activity, onOpenAssistant, onOpenApprovals }: { greeting: string; approvals: Approval[]; activity: ActivityItem[]; onOpenAssistant: () => void; onOpenApprovals: () => void }) {
+function Overview({ greeting, businessName, approvals, activity, onOpenAssistant, onOpenApprovals }: { greeting: string; businessName: string; approvals: Approval[]; activity: ActivityItem[]; onOpenAssistant: () => void; onOpenApprovals: () => void }) {
   return (
     <>
       <PageHeading
-        eyebrow="Monday · September 8, 2026"
+        eyebrow="Tuesday · September 8, 2026"
         title={greeting + ', Noe.'}
-        detail="Here is the work Noah prepared for Atlas Services."
+        detail={`Here is the work Noah prepared for ${businessName}.`}
         action={<button className="primary-button" onClick={onOpenAssistant}><Sparkles size={16} /> Ask Noah</button>}
       />
       <div className="hero-grid">
@@ -388,10 +517,10 @@ function ActivityRow({ item }: { item: ActivityItem }) {
   return <div className="activity-row"><div className={'activity-icon ' + item.icon}><Icon size={16} /></div><div className="activity-text"><strong>{item.title}</strong><span>{item.meta}</span></div><div className={'activity-status ' + item.status}>{item.status === 'completed' ? <Check size={14} /> : item.status === 'pending' ? <Clock3 size={14} /> : <AlertTriangle size={14} />}</div></div>;
 }
 
-function Assistant({ messages, input, isThinking, setInput, onSubmit }: { messages: Message[]; input: string; isThinking: boolean; setInput: (value: string) => void; onSubmit: (event?: { preventDefault: () => void }) => void }) {
+function Assistant({ messages, input, isThinking, setInput, onSubmit, businessName, runtimeModel, timezone, currency }: { messages: Message[]; input: string; isThinking: boolean; setInput: (value: string) => void; onSubmit: (event?: { preventDefault: () => void }) => void; businessName: string; runtimeModel: string; timezone: string; currency: string }) {
   return (
     <>
-      <PageHeading eyebrow="Your command center" title="Talk to Noah." detail="Describe the outcome. Noah will break it into safe, reviewable steps." action={<div className="runtime-pill"><span className="live-dot" /> Nemotron 3 Super <ChevronRight size={13} /></div>} />
+      <PageHeading eyebrow="Your command center" title="Talk to Noah." detail="Describe the outcome. Noah will break it into safe, reviewable steps." action={<div className="runtime-pill"><span className="live-dot" /> {runtimeModel} <ChevronRight size={13} /></div>} />
       <div className="assistant-layout">
         <div className="panel conversation-panel">
           <div className="conversation-head"><div className="conversation-agent"><div className="agent-avatar"><Sparkles size={18} /></div><div><strong>Noah Nvidia</strong><span>Operational copilot · ready</span></div></div><button className="icon-button"><MoreHorizontal size={18} /></button></div>
@@ -407,7 +536,7 @@ function Assistant({ messages, input, isThinking, setInput, onSubmit }: { messag
           <div className="composer-hint"><ShieldCheck size={13} /> External actions always wait for your approval</div>
         </div>
         <div className="assistant-side">
-          <div className="panel context-panel"><PanelHeader title="Active context" action="Edit" /><div className="context-business"><div className="workspace-avatar">AS</div><div><strong>Atlas Services</strong><span>Services business · USD · America/New_York</span></div></div><div className="context-list"><span><Mail size={15} /> Gmail inbox</span><span><CalendarDays size={15} /> Atlas calendar</span><span><FileText size={15} /> 14 indexed documents</span></div></div>
+          <div className="panel context-panel"><PanelHeader title="Active context" action="Edit" /><div className="context-business"><div className="workspace-avatar">{businessInitials(businessName)}</div><div><strong>{businessName}</strong><span>Business workspace · {currency} · {timezone}</span></div></div><div className="context-list"><span><Mail size={15} /> Gmail inbox</span><span><CalendarDays size={15} /> {businessName} calendar</span><span><FileText size={15} /> Indexed documents</span></div></div>
           <div className="panel prompt-panel"><div className="prompt-label"><Sparkles size={15} /> Try asking</div><button onClick={() => setInput('Review new inquiries and prepare the next best follow-up')}>“Review new inquiries and prepare the next best follow-up” <ChevronRight size={15} /></button><button onClick={() => setInput('Find a slot next week for a 90 minute field assessment')}>“Find a slot next week for a 90 minute field assessment” <ChevronRight size={15} /></button></div>
         </div>
       </div>
@@ -415,8 +544,8 @@ function Assistant({ messages, input, isThinking, setInput, onSubmit }: { messag
   );
 }
 
-function Approvals({ approvals, onResolve }: { approvals: Approval[]; onResolve: (approval: Approval, decision: 'approved' | 'rejected') => void }) {
-  return <><PageHeading eyebrow="Your decision, your control" title="Approval queue." detail="Noah has prepared the exact effects. Nothing leaves Atlas Services until you choose." action={<div className="queue-count">{approvals.length} pending</div>} /><div className="approval-layout"><div className="approval-list">{approvals.length === 0 ? <EmptyState title="Queue is clear" detail="No external actions are waiting for your approval." icon={<Check size={26} />} /> : approvals.map((approval) => <ApprovalCard key={approval.id} approval={approval} onResolve={onResolve} />)}</div><div className="panel policy-panel"><div className="policy-icon"><ShieldCheck size={22} /></div><h3>Supervised by design</h3><p>Authority is a policy decision, never an inference from an email or model response.</p><div className="policy-rule"><span className="rule-dot green" /><div><strong>Allowed automatically</strong><span>Read, summarize, search, draft</span></div></div><div className="policy-rule"><span className="rule-dot amber" /><div><strong>Always ask</strong><span>Send, invite, publish, record money</span></div></div><div className="policy-rule"><span className="rule-dot red" /><div><strong>Never allowed</strong><span>Move money, delete permanently</span></div></div></div></div></>;
+function Approvals({ approvals, onResolve, businessName }: { approvals: Approval[]; onResolve: (approval: Approval, decision: 'approved' | 'rejected') => void; businessName: string }) {
+  return <><PageHeading eyebrow="Your decision, your control" title="Approval queue." detail={`Noah has prepared the exact effects. Nothing leaves ${businessName} until you choose.`} action={<div className="queue-count">{approvals.length} pending</div>} /><div className="approval-layout"><div className="approval-list">{approvals.length === 0 ? <EmptyState title="Queue is clear" detail="No external actions are waiting for your approval." icon={<Check size={26} />} /> : approvals.map((approval) => <ApprovalCard key={approval.id} approval={approval} onResolve={onResolve} />)}</div><div className="panel policy-panel"><div className="policy-icon"><ShieldCheck size={22} /></div><h3>Supervised by design</h3><p>Authority is a policy decision, never an inference from an email or model response.</p><div className="policy-rule"><span className="rule-dot green" /><div><strong>Allowed automatically</strong><span>Read, summarize, search, draft</span></div></div><div className="policy-rule"><span className="rule-dot amber" /><div><strong>Always ask</strong><span>Send, invite, publish, record money</span></div></div><div className="policy-rule"><span className="rule-dot red" /><div><strong>Never allowed</strong><span>Move money, delete permanently</span></div></div></div></div></>;
 }
 
 function ApprovalCard({ approval, onResolve }: { approval: Approval; onResolve: (approval: Approval, decision: 'approved' | 'rejected') => void }) {
@@ -427,44 +556,91 @@ function EmptyState({ title, detail, icon }: { title: string; detail: string; ic
   return <div className="panel empty-state"><div className="empty-icon">{icon}</div><h3>{title}</h3><p>{detail}</p></div>;
 }
 
-function Mailroom({ onOpenAssistant }: { onOpenAssistant: () => void }) {
-  return <><PageHeading eyebrow="Connected workspace" title="Mailroom." detail="Noah turns a busy inbox into decisions and drafts." action={<button className="outline-button" onClick={onOpenAssistant}><Sparkles size={15} /> Ask about email</button>} /><div className="mail-layout"><div className="panel mail-list"><div className="mail-toolbar"><div className="mail-filter active">Priority <span>3</span></div><div className="mail-filter">All mail <span>24</span></div><button className="icon-button"><RefreshCw size={16} /></button></div><MailRow initials="ER" name="Elena Rossi" subject="Site inspection for next week" preview="Hi Atlas team, we would like to schedule…" time="08:55" priority /><MailRow initials="JM" name="Jon Mitchell" subject="Invoice 1048 · payment confirmation" preview="The transfer has been initiated. Attached…" time="Yesterday" /><MailRow initials="LC" name="Lumen Construction" subject="Re: equipment maintenance" preview="Can you confirm the replacement window?" time="Sep 06" /></div><div className="panel mail-preview"><div className="mail-preview-empty"><div className="empty-icon"><Mail size={25} /></div><h3>Select a message</h3><p>Noah has already grouped the inbox by what needs your attention.</p></div></div></div></>;
+function Mailroom({ onOpenAssistant, items }: { onOpenAssistant: () => void; items: ApiMail[] }) {
+  const fallback: ApiMail[] = [
+    { id: 'fixture-mail-1', from: 'Elena Rossi <elena@rossi.example>', subject: 'Site inspection for next week', body: 'Hi Atlas team, we would like to schedule…', received_at: '08:55', label: 'priority' },
+    { id: 'fixture-mail-2', from: 'Jon Mitchell <jon@mitchell.example>', subject: 'Invoice 1048 · payment confirmation', body: 'The transfer has been initiated. Attached…', received_at: 'Yesterday', label: 'finance' },
+    { id: 'fixture-mail-3', from: 'Lumen Construction <ops@lumen.example>', subject: 'Re: equipment maintenance', body: 'Can you confirm the replacement window?', received_at: 'Sep 06', label: 'follow-up' },
+  ];
+  const messages = items.length ? items : fallback;
+  return <><PageHeading eyebrow="Connected workspace" title="Mailroom." detail="Noah turns a busy inbox into decisions and drafts." action={<button className="outline-button" onClick={onOpenAssistant}><Sparkles size={15} /> Ask about email</button>} /><div className="mail-layout"><div className="panel mail-list"><div className="mail-toolbar"><div className="mail-filter active">Priority <span>{messages.filter((item) => item.label === 'priority').length || 3}</span></div><div className="mail-filter">All mail <span>{messages.length}</span></div><button className="icon-button"><RefreshCw size={16} /></button></div>{messages.map((item) => <MailRow key={item.id} initials={businessInitials(senderName(item.from))} name={senderName(item.from)} subject={item.subject || '(no subject)'} preview={(item.body || 'No preview available').slice(0, 70)} time={item.received_at || 'Recently'} priority={item.label === 'priority'} />)}</div><div className="panel mail-preview"><div className="mail-preview-empty"><div className="empty-icon"><Mail size={25} /></div><h3>Select a message</h3><p>Noah has already grouped the inbox by what needs your attention.</p></div></div></div></>;
 }
 
 function MailRow({ initials, name, subject, preview, time, priority }: { initials: string; name: string; subject: string; preview: string; time: string; priority?: boolean }) {
   return <button className="mail-row"><div className="mail-avatar">{initials}</div><div className="mail-row-main"><div className="mail-row-top"><strong>{name}</strong><span>{time}</span></div><div className="mail-subject">{priority && <span className="priority-dot" />}{subject}</div><p>{preview}</p></div><ChevronRight size={15} /></button>;
 }
 
-function Calendar() {
-  return <><PageHeading eyebrow="Atlas Services calendar" title="Calendar." detail="Availability is checked immediately before a proposed event." action={<button className="primary-button"><Plus size={16} /> New hold</button>} /><div className="calendar-toolbar"><button className="icon-button"><ChevronRight size={17} className="rotate-180" /></button><strong>Sep 8 – 14, 2026</strong><button className="icon-button"><ChevronRight size={17} /></button><div className="toolbar-spacer" /><span className="calendar-legend"><i className="legend-dot violet" /> Noah proposal</span><span className="calendar-legend"><i className="legend-dot blue" /> Confirmed</span></div><div className="panel week-calendar"><div className="week-head"><span /><span>Mon <b>8</b></span><span>Tue <b>9</b></span><span>Wed <b>10</b></span><span>Thu <b>11</b></span><span>Fri <b>12</b></span></div><div className="week-body"><div className="time-axis">{['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'].map((time) => <span key={time}>{time}</span>)}</div>{['mon', 'tue', 'wed', 'thu', 'fri'].map((day, index) => <div className="day-column" key={day}>{index === 0 && <div className="calendar-event event-blue" style={{ top: '52px', height: '74px' }}>Team stand-up<span>09:00 · 60 min</span></div>}{index === 1 && <div className="calendar-event event-violet" style={{ top: '126px', height: '112px' }}>Open proposal<span>10:00 · 90 min</span><b>Needs approval</b></div>}{index === 2 && <div className="calendar-event event-amber" style={{ top: '348px', height: '74px' }}>Equipment delivery<span>13:30 · 60 min</span></div>}{index === 4 && <div className="calendar-event event-green" style={{ top: '496px', height: '74px' }}>Open slot<span>15:00 · 60 min</span></div>}</div>)}</div></div><div className="calendar-note"><Sparkles size={15} /><span>Noah found <strong>2 matching slots</strong> for a 90-minute field assessment next week.</span><button className="text-button">Review proposal <ArrowUpRight size={14} /></button></div></>;
+function Calendar({ businessName, items, onOpenAssistant }: { businessName: string; items: ApiCalendarItem[]; onOpenAssistant: () => void }) {
+  return <><PageHeading eyebrow={`${businessName} calendar`} title="Calendar." detail="Availability is checked immediately before a proposed event." action={<button className="primary-button" onClick={onOpenAssistant}><Plus size={16} /> New hold</button>} /><div className="calendar-toolbar"><button className="icon-button"><ChevronRight size={17} className="rotate-180" /></button><strong>Sep 7 – 13, 2026</strong><button className="icon-button"><ChevronRight size={17} /></button><div className="toolbar-spacer" /><span className="calendar-legend"><i className="legend-dot violet" /> Noah proposal</span><span className="calendar-legend"><i className="legend-dot blue" /> Confirmed</span></div><div className="panel week-calendar"><div className="week-head"><span /><span>Mon <b>7</b></span><span>Tue <b>8</b></span><span>Wed <b>9</b></span><span>Thu <b>10</b></span><span>Fri <b>11</b></span></div><div className="week-body"><div className="time-axis">{['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'].map((time) => <span key={time}>{time}</span>)}</div>{['mon', 'tue', 'wed', 'thu', 'fri'].map((day, index) => <div className="day-column" key={day}>{index === 1 && <div className="calendar-event event-blue" style={{ top: '52px', height: '74px' }}>Team stand-up<span>09:00 · 60 min</span></div>}{index === 3 && <div className="calendar-event event-violet" style={{ top: '126px', height: '112px' }}>Open proposal<span>10:00 · 90 min</span><b>Needs approval</b></div>}{index === 2 && <div className="calendar-event event-amber" style={{ top: '348px', height: '74px' }}>Equipment delivery<span>13:30 · 60 min</span></div>}{index === 4 && <div className="calendar-event event-green" style={{ top: '496px', height: '74px' }}>Open slot<span>15:00 · 60 min</span></div>}</div>)}</div></div><div className="calendar-note"><Sparkles size={15} /><span>Noah sees <strong>{items.length || 2} calendar items</strong> and found <strong>2 matching slots</strong> for a 90-minute field assessment next week.</span><button className="text-button" onClick={onOpenAssistant}>Review proposal <ArrowUpRight size={14} /></button></div></>;
 }
 
-function Finance() {
-  return <><PageHeading eyebrow="Numbers with evidence" title="Finance." detail="Deterministic totals for quotes, income, expenses and receivables." action={<button className="outline-button"><ArrowUpRight size={15} /> Export CSV</button>} /><div className="finance-summary"><div className="finance-total"><span>Outstanding receivables</span><strong>$3,840.00</strong><small><span className="up-arrow">↗</span> 12.4% vs last month</small></div><div className="finance-total"><span>Income this month</span><strong>$8,240.00</strong><small>6 confirmed entries</small></div><div className="finance-total"><span>Expenses this month</span><strong>$1,962.40</strong><small>4 owner-confirmed entries</small></div></div><div className="finance-grid"><div className="panel ledger-panel"><PanelHeader title="Recent ledger" action="View all" /><div className="ledger-head"><span>Entry</span><span>Category</span><span>Amount</span><span>Status</span></div><LedgerRow title="Field assessment · Rossi" category="Income" amount="+ $420.00" status="Pending" tone="amber" /><LedgerRow title="Equipment replacement" category="Operations" amount="− $86.40" status="Confirmed" tone="green" /><LedgerRow title="Maintenance retainer" category="Income" amount="+ $1,200.00" status="Confirmed" tone="green" /><LedgerRow title="Cloud phone line" category="Software" amount="− $49.00" status="Confirmed" tone="green" /></div><div className="panel quote-panel"><PanelHeader title="Open quotes" action="New quote" /><div className="quote-total"><strong>$2,180</strong><span>total proposed value</span></div><div className="quote-row"><div className="quote-client"><span className="client-avatar">ER</span><div><strong>Elena Rossi</strong><span>Field assessment · Q-1049</span></div></div><span className="status-pill amber">Draft</span></div><div className="quote-row"><div className="quote-client"><span className="client-avatar green">LC</span><div><strong>Lumen Construction</strong><span>Maintenance plan · Q-1048</span></div></div><span className="status-pill violet">Sent</span></div></div></div></>;
+function Finance({ ledgerItems, quoteItems, receivableItems, currency, onExport }: { ledgerItems: ApiLedgerEntry[]; quoteItems: ApiQuote[]; receivableItems: ApiReceivable[]; currency: string; onExport: () => void }) {
+  const fallbackLedger: ApiLedgerEntry[] = [
+    { id: 'ledger-demo-income', description: 'Field assessment · Rossi', category: 'Services', kind: 'income', amount_minor: 42000, currency: 'USD', status: 'proposed' },
+    { id: 'ledger-demo-expense', description: 'Equipment replacement', category: 'Operations', kind: 'expense', amount_minor: 8640, currency: 'USD', status: 'confirmed' },
+    { id: 'ledger-demo-retainer', description: 'Maintenance retainer', category: 'Services', kind: 'income', amount_minor: 120000, currency: 'USD', status: 'confirmed' },
+  ];
+  const entries = ledgerItems.length ? ledgerItems : fallbackLedger;
+  const confirmed = entries.filter((entry) => entry.status === 'confirmed');
+  const income = confirmed.filter((entry) => entry.kind === 'income').reduce((total, entry) => total + entry.amount_minor, 0);
+  const expenses = confirmed.filter((entry) => entry.kind === 'expense').reduce((total, entry) => total + entry.amount_minor, 0);
+  const fallbackQuotes: ApiQuote[] = [
+    { id: 'quote-demo-draft', status: 'draft', total_minor: 42000, currency: 'USD', valid_until: '2026-09-15' },
+    { id: 'quote-demo-sent', status: 'sent', total_minor: 120000, currency: 'USD', valid_until: '2026-09-15' },
+  ];
+  const quotes = quoteItems.length ? quoteItems : fallbackQuotes;
+  const quoteTotal = quotes.reduce((total, quote) => total + quote.total_minor, 0);
+  const fallbackReceivables: ApiReceivable[] = [{ id: 'receivable-demo', amount_due_minor: 384000, amount_paid_minor: 0, status: 'open', currency }];
+  const receivables = receivableItems.length ? receivableItems : fallbackReceivables;
+  const outstanding = receivables.reduce((total, receivable) => total + Math.max(0, receivable.amount_due_minor - receivable.amount_paid_minor), 0);
+  return <><PageHeading eyebrow="Numbers with evidence" title="Finance." detail="Deterministic totals for quotes, income, expenses and receivables." action={<button className="outline-button" onClick={onExport}><ArrowUpRight size={15} /> Export CSV</button>} /><div className="finance-summary"><div className="finance-total"><span>Outstanding receivables</span><strong>{formatMinor(outstanding, currency)}</strong><small><span className="up-arrow">↗</span> calculated from open records</small></div><div className="finance-total"><span>Income this month</span><strong>{formatMinor(income, currency)}</strong><small>{confirmed.filter((entry) => entry.kind === 'income').length} confirmed entries</small></div><div className="finance-total"><span>Expenses this month</span><strong>{formatMinor(expenses, currency)}</strong><small>{confirmed.filter((entry) => entry.kind === 'expense').length} owner-confirmed entries</small></div></div><div className="finance-grid"><div className="panel ledger-panel"><PanelHeader title="Recent ledger" action="View all" /><div className="ledger-head"><span>Entry</span><span>Category</span><span>Amount</span><span>Status</span></div>{entries.slice(0, 6).map((entry) => <LedgerRow key={entry.id} title={entry.description} category={entry.category} amount={`${entry.kind === 'income' ? '+' : '−'} ${formatMinor(entry.amount_minor, entry.currency)}`} status={entry.status} tone={entry.status === 'confirmed' ? 'green' : 'amber'} />)}</div><div className="panel quote-panel"><PanelHeader title="Open quotes" action="New quote" /><div className="quote-total"><strong>{formatMinor(quoteTotal, currency)}</strong><span>total proposed value</span></div>{quotes.slice(0, 4).map((quote) => <div className="quote-row" key={quote.id}><div className="quote-client"><span className="client-avatar">Q</span><div><strong>{quote.id}</strong><span>{quote.status} · valid until {quote.valid_until || 'owner review'}</span></div></div><span className={'status-pill ' + (quote.status === 'sent' ? 'violet' : 'amber')}>{quote.status}</span></div>)}</div></div></>;
 }
 
 function LedgerRow({ title, category, amount, status, tone }: { title: string; category: string; amount: string; status: string; tone: string }) {
   return <div className="ledger-row"><strong>{title}</strong><span>{category}</span><b className={tone}>{amount}</b><span className={'status-pill ' + tone}>{status}</span></div>;
 }
 
-function Knowledge() {
-  return <><PageHeading eyebrow="Grounded answers" title="Knowledge." detail="Documents Noah can search, cite and use as business context." action={<button className="primary-button"><Plus size={16} /> Add document</button>} /><div className="knowledge-grid"><div className="panel document-list"><PanelHeader title="Indexed documents" action="Filter" /><DocumentRow type="PDF" title="Atlas Services · pricing & policies" meta="12 pages · indexed 2 hours ago" status="Ready" tone="green" /><DocumentRow type="DOC" title="Field assessment checklist" meta="4 pages · indexed yesterday" status="Ready" tone="green" /><DocumentRow type="PDF" title="Receipt_0826.pdf" meta="1 page · awaiting review" status="Review" tone="amber" /><DocumentRow type="TXT" title="Team operating notes" meta="Last updated Sep 05" status="Ready" tone="green" /></div><div className="panel knowledge-callout"><div className="callout-art"><FileText size={25} /><span /><span /><span /></div><h3>Answers with a trail</h3><p>Every document answer carries its source and page. An instruction inside a file can inform context, but never change Noah's authority.</p><div className="source-example"><span>Source preview</span><strong>pricing & policies.pdf · page 3</strong><em>“Field assessment includes a written report…”</em></div></div></div></>;
+function Knowledge({ businessName, items, onAddDocument }: { businessName: string; items: ApiDocument[]; onAddDocument: (file: File) => void }) {
+  const fallback: ApiDocument[] = [
+    { id: 'document-pricing', filename: `${businessName} · pricing & policies.pdf`, content_type: 'application/pdf', status: 'indexed', page_count: 10 },
+    { id: 'document-checklist', filename: 'Field assessment checklist', content_type: 'application/msword', status: 'indexed', page_count: 4 },
+    { id: 'document-receipt', filename: 'Receipt_0826.pdf', content_type: 'application/pdf', status: 'review', page_count: 1 },
+    { id: 'document-notes', filename: 'Team operating notes', content_type: 'text/plain', status: 'indexed', page_count: 1 },
+  ];
+  const documents = items.length ? items : fallback;
+  return <><PageHeading eyebrow="Grounded answers" title="Knowledge." detail="Documents Noah can search, cite and use as business context." action={<label className="primary-button"><Plus size={16} /> Add document<input className="visually-hidden" type="file" accept=".pdf,.txt,.md,.csv,.png,.jpg,.jpeg" onChange={(event) => { const file = event.target.files?.[0]; if (file) onAddDocument(file); event.currentTarget.value = ''; }} /></label>} /><div className="knowledge-grid"><div className="panel document-list"><PanelHeader title="Indexed documents" action="Filter" />{documents.map((document) => <DocumentRow key={document.id} type={document.content_type.split('/').pop()?.slice(0, 3).toUpperCase() || 'DOC'} title={document.filename} meta={`${document.page_count || 1} pages · ${document.status === 'indexed' ? 'ready for search' : 'awaiting review'}`} status={document.status === 'indexed' ? 'Ready' : 'Review'} tone={document.status === 'indexed' ? 'green' : 'amber'} />)}</div><div className="panel knowledge-callout"><div className="callout-art"><FileText size={25} /><span /><span /><span /></div><h3>Answers with a trail</h3><p>Every document answer carries its source and page. An instruction inside a file can inform context, but never change Noah's authority.</p><div className="source-example"><span>Source preview</span><strong>pricing & policies.pdf · page 3</strong><em>“Field assessment includes a written report…”</em></div></div></div></>;
 }
 
 function DocumentRow({ type, title, meta, status, tone }: { type: string; title: string; meta: string; status: string; tone: string }) {
   return <div className="document-row"><div className="file-type">{type}</div><div className="document-copy"><strong>{title}</strong><span>{meta}</span></div><span className={'status-pill ' + tone}>{status}</span><MoreHorizontal size={16} /></div>;
 }
 
-function Settings() {
-  return <><PageHeading eyebrow="Your employee, your rules" title="Settings." detail="Configure business context, connections and authority." action={<button className="primary-button"><Check size={16} /> Save changes</button>} /><div className="settings-grid"><div className="panel settings-panel"><PanelHeader title="Business profile" action="Edit" /><SettingRow label="Business name" value="Atlas Services" /><SettingRow label="Timezone" value="America/New_York" /><SettingRow label="Currency" value="USD · United States dollar" /><SettingRow label="Working hours" value="Mon–Fri · 08:00–17:00" /></div><div className="panel settings-panel"><PanelHeader title="Connections" action="Manage" /><ConnectionRow icon={<Mail size={17} />} name="Gmail" detail="Inbox and drafts · connected" connected /><ConnectionRow icon={<CalendarDays size={17} />} name="Google Calendar" detail="Atlas Services calendar · connected" connected /><ConnectionRow icon={<Zap size={17} />} name="Nebius Token Factory" detail="Nemotron route · environment only" connected /></div><div className="panel settings-panel authority-settings"><PanelHeader title="Authority defaults" action="Edit policy" /><p>Choose what Noah can prepare and what always needs your approval.</p><div className="authority-toggle"><span>Read and summarize</span><b className="toggle on" /></div><div className="authority-toggle"><span>Create drafts and tasks</span><b className="toggle on" /></div><div className="authority-toggle"><span>Send or publish</span><b className="toggle"><i /></b></div><div className="authority-toggle"><span>Record money</span><b className="toggle"><i /></b></div></div></div></>;
+function Settings({ businessName, timezone, currency, runtimeModel, persistenceMode, connections, providerConfigured, externalEffectsEnabled }: { businessName: string; timezone: string; currency: string; runtimeModel: string; persistenceMode: string; connections: ApiConnection[]; providerConfigured: boolean; externalEffectsEnabled: boolean }) {
+  const google = connections.find((connection) => connection.provider === 'google');
+  const gmail = connections.find((connection) => connection.provider === 'gmail');
+  const calendar = connections.find((connection) => connection.provider === 'google-calendar');
+  const connectionLabel = (connection: ApiConnection | undefined, fallback: string): string => {
+    if (!connection) return fallback;
+    if (connection.status === 'connected') return 'Connected';
+    if (connection.status === 'demo-connected') return 'Sandbox fixture';
+    if (connection.status === 'reauth_required') return 'Reconnect required';
+    return connection.status.replaceAll('_', ' ');
+  };
+  const connectionTone = (connection: ApiConnection | undefined): 'connected' | 'sandbox' | 'attention' | 'muted' => {
+    if (connection?.status === 'connected') return 'connected';
+    if (connection?.status === 'demo-connected') return 'sandbox';
+    if (connection?.status === 'reauth_required') return 'attention';
+    return 'muted';
+  };
+  return <><PageHeading eyebrow="Your employee, your rules" title="Settings." detail="Configure business context, connections and authority." action={<button className="primary-button"><Check size={16} /> Save changes</button>} /><div className="settings-grid"><div className="panel settings-panel"><PanelHeader title="Business profile" action="Edit" /><SettingRow label="Business name" value={businessName} /><SettingRow label="Timezone" value={timezone} /><SettingRow label="Currency" value={`${currency} · configured business currency`} /><SettingRow label="Working hours" value="Configured in business profile" /></div><div className="panel settings-panel"><PanelHeader title="Connections" action="Manage" /><ConnectionRow icon={<Mail size={17} />} name="Gmail" detail="Inbox and drafts · connector boundary" state={connectionLabel(gmail || google, 'Not connected')} tone={connectionTone(gmail || google)} /><ConnectionRow icon={<CalendarDays size={17} />} name="Google Calendar" detail={`${businessName} calendar · connector boundary`} state={connectionLabel(calendar || google, 'Not connected')} tone={connectionTone(calendar || google)} /><ConnectionRow icon={<Zap size={17} />} name="NVIDIA model route" detail={`${runtimeModel} · ${persistenceMode}`} state={providerConfigured ? 'Configured' : 'Waiting for key'} tone={providerConfigured ? 'connected' : 'muted'} /><ConnectionRow icon={<ShieldCheck size={17} />} name="External effects" detail="Gmail/Calendar mutations require explicit operator opt-in" state={externalEffectsEnabled ? 'Enabled for test account' : 'Sandbox only'} tone={externalEffectsEnabled ? 'attention' : 'sandbox'} /></div><div className="panel settings-panel authority-settings"><PanelHeader title="Authority defaults" action="Edit policy" /><p>Choose what Noah can prepare and what always needs your approval.</p><div className="authority-toggle"><span>Read and summarize</span><b className="toggle on" /></div><div className="authority-toggle"><span>Create drafts and tasks</span><b className="toggle on" /></div><div className="authority-toggle"><span>Send or publish</span><b className="toggle"><i /></b></div><div className="authority-toggle"><span>Record money</span><b className="toggle"><i /></b></div></div></div></>;
 }
 
 function SettingRow({ label, value }: { label: string; value: string }) {
   return <div className="setting-row"><span>{label}</span><strong>{value}</strong><ChevronRight size={15} /></div>;
 }
 
-function ConnectionRow({ icon, name, detail, connected }: { icon: ReactNode; name: string; detail: string; connected: boolean }) {
-  return <div className="connection-row"><div className="connection-icon">{icon}</div><div><strong>{name}</strong><span>{detail}</span></div><span className={'connection-state ' + (connected ? 'connected' : '')}><i /> {connected ? 'Connected' : 'Connect'}</span></div>;
+function ConnectionRow({ icon, name, detail, state, tone }: { icon: ReactNode; name: string; detail: string; state: string; tone: 'connected' | 'sandbox' | 'attention' | 'muted' }) {
+  return <div className="connection-row"><div className="connection-icon">{icon}</div><div><strong>{name}</strong><span>{detail}</span></div><span className={'connection-state ' + tone}><i /> {state}</span></div>;
 }
 
 export default App;

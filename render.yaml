@@ -1,5 +1,15 @@
 services:
   - type: web
+    name: noah-nvidia-web
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: apps/web/dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false
+      - key: VITE_NOAH_AUTH_TOKEN
+        sync: false
+  - type: web
     name: noah-nvidia-api
     runtime: python
     rootDir: services/api
@@ -9,5 +19,31 @@ services:
     envVars:
       - key: NOAH_REQUIRE_AUTH
         value: "true"
+      - key: NOAH_DEMO_TOKEN
+        sync: false
+      - key: NOAH_DEMO_AUTH
+        value: "true"
+      - key: NOAH_ALLOW_SYNTHETIC_TENANTS
+        value: "false"
+      - key: NOAH_NEBIUS_API_KEY
+        sync: false
+      - key: NOAH_OPENCODE2API_BASE_URL
+        sync: false
+      - key: NOAH_OPENCODE2API_KEY
+        sync: false
+      - key: NOAH_ENABLE_EXTERNAL_EFFECTS
+        value: "false"
+      - key: NOAH_ALLOWED_RECIPIENTS
+        sync: false
+      - key: NOAH_MODEL_USAGE_LIMIT
+        value: "0"
+      - key: NOAH_SUPABASE_URL
+        sync: false
+      - key: NOAH_SUPABASE_SERVICE_KEY
+        sync: false
+      - key: NOAH_CONNECTION_ENCRYPTION_KEY
+        sync: false
+      - key: NOAH_SUPABASE_JWT_SECRET
+        sync: false
       - key: NOAH_CORS_ORIGINS
         sync: false
