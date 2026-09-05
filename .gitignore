@@ -19,3 +19,5 @@ test-results/
 *.pem
 *.key
 *.tsbuildinfo
+# Local knowledge graph; keep source-derived artifacts out of deploys.
+graphify-out/
