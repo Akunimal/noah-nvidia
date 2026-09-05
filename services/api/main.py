@@ -29,6 +29,7 @@ import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, Response
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field, field_validator
 
 try:
@@ -84,6 +85,7 @@ app.add_middleware(
 router = NvidiaRouter()
 TENANTS: dict[str, dict[str, Any]] = {}
 OAUTH_STATES: dict[str, dict[str, Any]] = {}
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def now() -> str:
@@ -702,7 +704,8 @@ def ensure_tenant(tenant_id: str) -> dict[str, Any]:
     return TENANTS[tenant_id]
 
 
-def tenant_from_auth(authorization: str | None = Header(default=None)) -> str:
+def tenant_from_auth(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme)) -> str:
+    authorization = f"{credentials.scheme} {credentials.credentials}" if credentials else None
     if authorization and authorization.startswith("Bearer "):
         token = authorization[7:].strip()
         demo_token = os.getenv("NOAH_DEMO_TOKEN", "demo-owner")
