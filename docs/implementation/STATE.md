@@ -6,8 +6,10 @@
 
 - Repositorio: `Akunimal/noah-nvidia`
 - Rama: `main`
-- Commit verificado: `e80fe82`
+- Commit de aplicación verificado: `9a2d6d8`
 - Despliegue: manual; Vercel queda fuera del flujo.
+- Backend live: `https://noah-nvidia-api.onrender.com` (Render Web Service, plan Free).
+- Runtime del backend: Python `3.12.10` configurado en Render.
 - Persistencia actual: memoria/in-memory para demo y smoke local.
 - Efectos externos: desactivados (`NOAH_ENABLE_EXTERNAL_EFFECTS=false`).
 - Supabase: opcional y diferido; no es requisito del siguiente gate.
@@ -44,12 +46,12 @@ a NVIDIA.
 
 | Área | Estado | Evidencia |
 |---|---|---|
-| API determinista | OK | 28 tests Python pasan |
+| API determinista | OK | 26 tests Python pasan en `services/api/.venv` |
 | Frontend | OK | typecheck, lint, Vitest y build pasan |
 | Smoke local | OK | Atlas Services, run succeeded, receipt generado |
 | Aislamiento, aprobaciones e idempotencia | OK en tests | `services/api/test_main.py` |
-| Router Nebius/OpenCode2API | Implementado, no conectado en vivo | `services/api/providers.py` |
-| Nebius real | Pendiente | Requiere clave del operador |
+| Router Nebius/OpenCode2API | OK en vivo | Nebius primario conectado; OpenCode2API desactivado |
+| Nebius real | OK | Gate 1 probado con `nvidia/nemotron-3-super-120b-a12b` |
 | OpenCode2API free | Opcional y sintético | No es el gate primario |
 | Google OAuth | Pendiente | Requiere cliente y cuenta de prueba |
 | Supabase | Diferido | No bloquear el MVP/demo actual |
@@ -67,7 +69,7 @@ Estado: **cerrado**.
 
 ### Gate 1 — Nebius conectado
 
-Estado: **siguiente**. Bloqueo único: clave real del operador.
+Estado: **cerrado — aprobado**.
 
 - Configurar solo en el entorno del backend:
   - `NOAH_NEBIUS_API_KEY`
@@ -75,14 +77,16 @@ Estado: **siguiente**. Bloqueo único: clave real del operador.
   - `NOAH_NEBIUS_MODEL`
   - `NOAH_MODEL_USAGE_LIMIT` con límite conservador
 - Mantener `NOAH_ENABLE_EXTERNAL_EFFECTS=false`.
-- Verificar `/health`, `/api/v1/bootstrap` y un mensaje controlado.
-- Confirmar `provider=nebius`, `provider_error=null` y registrar timestamp,
-  modelo y consumo fuera del repositorio.
-- Guardar evidencia en `docs/implementation/evidence/` sin incluir secretos.
+- Verificados en Render: `/health` 200, `/api/v1/bootstrap` autenticado 200,
+  `/api/v1/providers/health` 200 y un único mensaje controlado 200.
+- Confirmados `provider=nebius`, modelo `nvidia/nemotron-3-super-120b-a12b`,
+  `provider_error=null`, límite 1 y consumo 1.
+- Efectos externos apagados; persistencia continúa in-memory.
+- Evidencia: `docs/implementation/evidence/gate-1-render.md`.
 
 ### Gate 2 — Demo manual reproducible
 
-Estado: **después del Gate 1**.
+Estado: **siguiente**.
 
 - Configurar manualmente el backend y frontend en el host elegido.
 - Alinear `VITE_API_BASE_URL` y `NOAH_CORS_ORIGINS`.
@@ -131,5 +135,7 @@ Estado: **diferido**.
 
 ## Próximo paso exacto
 
-No tocar código ni Supabase todavía. Cargar la clave de Nebius en el entorno
-privado del backend y ejecutar el Gate 1. La clave no debe pegarse en el chat.
+Ejecutar Gate 2 manual: desplegar el frontend, apuntarlo a
+`https://noah-nvidia-api.onrender.com`, configurar CORS en el backend y repetir
+bootstrap/mensaje desde un navegador limpio. No activar Supabase, Vercel,
+OpenCode2API ni efectos externos todavía.
