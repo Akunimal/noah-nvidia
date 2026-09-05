@@ -6,18 +6,18 @@
 
 - Repositorio: `Akunimal/noah-nvidia`
 - Rama: `main`
-- Código funcional live verificado: `1d0c3f2`; el release manual `337badf`
-  desplegó además el estado/documentación en ambos servicios.
+- Código funcional live verificado: `d371955`; deploy manual
+  `dep-dae5eve1egvs73b233v0` completado para el API.
 - Despliegue: manual; Auto-Deploy está en `Off` en API y frontend; Vercel queda
   fuera del flujo.
 - Backend live: `https://noah-nvidia-api.onrender.com` (Render Web Service, plan Free).
 - Frontend live: `https://noah-nvidia-web.onrender.com` (Render Static Site, plan Free).
 - Runtime del backend: Python `3.12.10` configurado en Render.
 - Persistencia actual: memoria/in-memory en Render; el repositorio PostgreSQL
-  JSONB queda listo en código, pero `NOAH_DATABASE_URL` aún no está configurada.
+  JSONB está desplegado, pero `NOAH_DATABASE_URL` aún no está configurada.
 - Efectos externos: desactivados (`NOAH_ENABLE_EXTERNAL_EFFECTS=false`).
-- Persistencia durable: Gate 5 implementado localmente; falta configurar una
-  base PostgreSQL y repetir el deploy manual para cerrarlo live.
+- Persistencia durable: Gate 5 implementado y desplegado; falta configurar una
+  base PostgreSQL y verificar recuperación para cerrarlo durable live.
 
 ## Qué significa `ProviderResult`
 
@@ -63,7 +63,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Política de deploy | OK | Auto-Deploy desactivado en ambos servicios; los próximos releases se disparan manualmente |
 | OpenCode2API free | Contrato local OK; Nemotron-only enforced; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
 | Google OAuth | OK — lectura verificada | Consentimiento real, callback, token cifrado y sync de lectura verificados con `gesecseguridad@gmail.com`; efectos externos siguen apagados |
-| PostgreSQL durable | Código listo; live pendiente | `NOAH_DATABASE_URL` privado, `storage_schema.sql`, pruebas de serialización y aislamiento |
+| PostgreSQL durable | Código/deploy OK; durable live pendiente | `NOAH_DATABASE_URL` privado, `storage_schema.sql`, pruebas de serialización y aislamiento |
 | Vercel | Fuera de alcance | No importar ni desplegar proyectos |
 
 ## Roadmap por gates
@@ -157,7 +157,7 @@ Estado: **cerrado — consentimiento, callback y sync de lectura aprobados; efec
 
 ### Gate 5 — Persistencia durable
 
-Estado: **implementado localmente; cierre live pendiente de configuración**.
+Estado: **código y deploy cerrados; persistencia durable live pendiente de configuración**.
 
 - `PostgresTenantRepository` guarda un snapshot JSONB completo por tenant y
   aplica la validación `state.tenant_id == tenant_id` antes de escribir.
@@ -167,6 +167,8 @@ Estado: **implementado localmente; cierre live pendiente de configuración**.
   request. Si `NOAH_DATABASE_URL` está vacío, el fallback in-memory no cambia.
 - La API crea ambas tablas de forma idempotente; el SQL revisable está en
   `services/api/storage_schema.sql`.
+- Deploy manual verificado en Render desde `d371955`, con `psycopg3` instalado y
+  `Deploy succeeded | Live`.
 - Nebius sigue siendo el proveedor de inferencia. PostgreSQL solo persiste
   estado; Vercel queda fuera del flujo.
 
@@ -191,15 +193,15 @@ Estado: **implementado localmente; cierre live pendiente de configuración**.
 
 ### Demo controlada — alcanzada
 
-- `main` sincronizada con GitHub y el commit `1d0c3f2` live en ambos servicios
-  de Render.
+- `main` sincronizada con GitHub y el commit `d371955` live en el API de Render;
+  el frontend live continúa en su último deploy verificado.
 - Nebius es la ruta primaria y el modelo está limitado al Nemotron declarado.
 - OpenCode2API solo existe como sandbox Nemotron-only; en Render permanece
   desactivado (`NOAH_ALLOW_FREE_SYNTHETIC=false`).
 - Frontend, `/health` y `/openapi.json` responden 200.
 - Efectos Gmail/Calendar, pagos y demás mutaciones externas permanecen
   desactivados.
-- Pruebas locales: 31 Python, Vitest, typecheck, lint y build pasan.
+- Pruebas locales: 34 Python, Vitest, typecheck, lint y build pasan.
 
 ### Producción — todavía no declarar
 
@@ -214,6 +216,7 @@ Estado: **implementado localmente; cierre live pendiente de configuración**.
 ## Próximo paso exacto
 
 La demo sigue siendo entregable en modo in-memory y el slice OAuth de lectura
-está verificado. Para cerrar producción, el siguiente paso exacto es configurar
-una base PostgreSQL server-only, desplegar manualmente y probar recuperación
-tras reinicio. No activar Vercel ni efectos externos por inferencia.
+está verificado. Para cerrar producción, el siguiente paso exacto es conectar
+una base PostgreSQL server-only, cargar su URL privada en Render, desplegar
+manualmente y probar recuperación tras reinicio. No activar Vercel ni efectos
+externos por inferencia.
