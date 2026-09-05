@@ -17,7 +17,7 @@ URL: https://noah-nvidia-api.onrender.com
   que impide cruzar `tenant_id`; `noah_oauth_state` conserva el PKCE de un solo
   uso durante diez minutos.
 - La suite local cubre round-trip de estado, aislamiento del tenant y consumo
-  único de OAuth; 34 pruebas Python pasan.
+  único de OAuth; 36 pruebas Python pasan.
 - `NOAH_DATABASE_URL` permanece vacío en Render. Por eso esta evidencia cierra
   código y deploy, pero no reclama todavía persistencia durable live ni una
   prueba de recuperación tras reinicio.

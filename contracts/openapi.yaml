@@ -21,112 +21,64 @@ paths:
     get:
       summary: Bootstrap
       operationId: bootstrap_api_v1_bootstrap_get
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: object
                 additionalProperties: true
+                type: object
                 title: Response Bootstrap Api V1 Bootstrap Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /api/v1/providers/health:
     get:
       summary: Providers Health
       operationId: providers_health_api_v1_providers_health_get
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: object
                 additionalProperties: true
+                type: object
                 title: Response Providers Health Api V1 Providers Health Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /api/v1/business:
     get:
       summary: Get Business
       operationId: get_business_api_v1_business_get
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: object
                 additionalProperties: true
+                type: object
                 title: Response Get Business Api V1 Business Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
     patch:
       summary: Update Business
       operationId: update_business_api_v1_business_patch
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
-        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/BusinessPatch'
+        required: true
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: object
                 additionalProperties: true
+                type: object
                 title: Response Update Business Api V1 Business Patch
         '422':
           description: Validation Error
@@ -134,62 +86,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /api/v1/conversations:
     get:
       summary: List Conversations
       operationId: list_conversations_api_v1_conversations_get
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: array
                 items:
-                  type: object
                   additionalProperties: true
+                  type: object
+                type: array
                 title: Response List Conversations Api V1 Conversations Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
     post:
       summary: Create Conversation
       operationId: create_conversation_api_v1_conversations_post
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
-        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/ConversationCreate'
+        required: true
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: object
                 additionalProperties: true
+                type: object
                 title: Response Create Conversation Api V1 Conversations Post
         '422':
           description: Validation Error
@@ -197,10 +129,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /api/v1/conversations/{conversation_id}:
     get:
       summary: Get Conversation
       operationId: get_conversation_api_v1_conversations__conversation_id__get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: conversation_id
         in: path
@@ -208,14 +144,6 @@ paths:
         schema:
           type: string
           title: Conversation Id
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -236,6 +164,8 @@ paths:
     post:
       summary: Create Message
       operationId: create_message_api_v1_conversations__conversation_id__messages_post
+      security:
+      - HTTPBearer: []
       parameters:
       - name: conversation_id
         in: path
@@ -251,14 +181,6 @@ paths:
           - type: string
           - type: 'null'
           title: Idempotency-Key
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -285,6 +207,8 @@ paths:
     get:
       summary: Get Run
       operationId: get_run_api_v1_runs__run_id__get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: run_id
         in: path
@@ -292,14 +216,6 @@ paths:
         schema:
           type: string
           title: Run Id
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -319,6 +235,8 @@ paths:
     post:
       summary: Advance Run
       operationId: advance_run_api_v1_runs__run_id__advance_post
+      security:
+      - HTTPBearer: []
       parameters:
       - name: run_id
         in: path
@@ -326,14 +244,6 @@ paths:
         schema:
           type: string
           title: Run Id
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -353,6 +263,8 @@ paths:
     post:
       summary: Cancel Run
       operationId: cancel_run_api_v1_runs__run_id__cancel_post
+      security:
+      - HTTPBearer: []
       parameters:
       - name: run_id
         in: path
@@ -360,14 +272,6 @@ paths:
         schema:
           type: string
           title: Run Id
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -387,6 +291,8 @@ paths:
     get:
       summary: List Actions
       operationId: list_actions_api_v1_actions_get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: status
         in: query
@@ -396,14 +302,6 @@ paths:
           - type: string
           - type: 'null'
           title: Status
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -425,6 +323,8 @@ paths:
     post:
       summary: Decide Action
       operationId: decide_action_api_v1_actions__action_id___decision__post
+      security:
+      - HTTPBearer: []
       parameters:
       - name: action_id
         in: path
@@ -441,14 +341,6 @@ paths:
           - reject
           type: string
           title: Decision
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -474,6 +366,8 @@ paths:
     get:
       summary: List Services
       operationId: list_services_api_v1_services_get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: active
         in: query
@@ -483,14 +377,6 @@ paths:
           - type: boolean
           - type: 'null'
           title: Active
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -511,15 +397,8 @@ paths:
     post:
       summary: Create Service
       operationId: create_service_api_v1_services_post
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
+      security:
+      - HTTPBearer: []
       requestBody:
         required: true
         content:
@@ -545,6 +424,8 @@ paths:
     get:
       summary: Search Services
       operationId: search_services_api_v1_services_search_get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: query
         in: query
@@ -554,14 +435,6 @@ paths:
           minLength: 1
           maxLength: 200
           title: Query
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -583,6 +456,8 @@ paths:
     get:
       summary: Get Service
       operationId: get_service_api_v1_services__service_id__get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: service_id
         in: path
@@ -590,14 +465,6 @@ paths:
         schema:
           type: string
           title: Service Id
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -616,6 +483,8 @@ paths:
     patch:
       summary: Update Service
       operationId: update_service_api_v1_services__service_id__patch
+      security:
+      - HTTPBearer: []
       parameters:
       - name: service_id
         in: path
@@ -623,14 +492,6 @@ paths:
         schema:
           type: string
           title: Service Id
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -655,6 +516,8 @@ paths:
     delete:
       summary: Delete Service
       operationId: delete_service_api_v1_services__service_id__delete
+      security:
+      - HTTPBearer: []
       parameters:
       - name: service_id
         in: path
@@ -662,14 +525,6 @@ paths:
         schema:
           type: string
           title: Service Id
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -689,6 +544,8 @@ paths:
     get:
       summary: List Contacts
       operationId: list_contacts_api_v1_contacts_get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: query
         in: query
@@ -698,14 +555,6 @@ paths:
           - type: string
           - type: 'null'
           title: Query
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -726,15 +575,8 @@ paths:
     post:
       summary: Create Contact
       operationId: create_contact_api_v1_contacts_post
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
+      security:
+      - HTTPBearer: []
       requestBody:
         required: true
         content:
@@ -760,6 +602,8 @@ paths:
     get:
       summary: Search Contacts
       operationId: search_contacts_api_v1_contacts_search_get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: query
         in: query
@@ -769,14 +613,6 @@ paths:
           minLength: 1
           maxLength: 200
           title: Query
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -798,6 +634,8 @@ paths:
     get:
       summary: Get Contact
       operationId: get_contact_api_v1_contacts__contact_id__get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: contact_id
         in: path
@@ -805,14 +643,6 @@ paths:
         schema:
           type: string
           title: Contact Id
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -831,6 +661,8 @@ paths:
     patch:
       summary: Update Contact
       operationId: update_contact_api_v1_contacts__contact_id__patch
+      security:
+      - HTTPBearer: []
       parameters:
       - name: contact_id
         in: path
@@ -838,14 +670,6 @@ paths:
         schema:
           type: string
           title: Contact Id
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -870,6 +694,8 @@ paths:
     delete:
       summary: Delete Contact
       operationId: delete_contact_api_v1_contacts__contact_id__delete
+      security:
+      - HTTPBearer: []
       parameters:
       - name: contact_id
         in: path
@@ -877,14 +703,6 @@ paths:
         schema:
           type: string
           title: Contact Id
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -904,6 +722,8 @@ paths:
     get:
       summary: List Tasks
       operationId: list_tasks_api_v1_tasks_get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: status
         in: query
@@ -913,14 +733,6 @@ paths:
           - type: string
           - type: 'null'
           title: Status
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -941,15 +753,8 @@ paths:
     post:
       summary: Create Task
       operationId: create_task_api_v1_tasks_post
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
+      security:
+      - HTTPBearer: []
       requestBody:
         required: true
         content:
@@ -975,6 +780,8 @@ paths:
     patch:
       summary: Update Task
       operationId: update_task_api_v1_tasks__task_id__patch
+      security:
+      - HTTPBearer: []
       parameters:
       - name: task_id
         in: path
@@ -982,14 +789,6 @@ paths:
         schema:
           type: string
           title: Task Id
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -1014,6 +813,8 @@ paths:
     delete:
       summary: Delete Task
       operationId: delete_task_api_v1_tasks__task_id__delete
+      security:
+      - HTTPBearer: []
       parameters:
       - name: task_id
         in: path
@@ -1021,14 +822,6 @@ paths:
         schema:
           type: string
           title: Task Id
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -1048,6 +841,8 @@ paths:
     get:
       summary: List Quotes
       operationId: list_quotes_api_v1_quotes_get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: status
         in: query
@@ -1057,14 +852,6 @@ paths:
           - type: string
           - type: 'null'
           title: Status
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -1085,6 +872,8 @@ paths:
     post:
       summary: Create Quote
       operationId: create_quote_api_v1_quotes_post
+      security:
+      - HTTPBearer: []
       parameters:
       - name: Idempotency-Key
         in: header
@@ -1094,14 +883,6 @@ paths:
           - type: string
           - type: 'null'
           title: Idempotency-Key
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -1127,6 +908,8 @@ paths:
     get:
       summary: Get Quote
       operationId: get_quote_api_v1_quotes__quote_id__get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: quote_id
         in: path
@@ -1134,14 +917,6 @@ paths:
         schema:
           type: string
           title: Quote Id
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -1161,6 +936,8 @@ paths:
     get:
       summary: Quote Pdf
       operationId: quote_pdf_api_v1_quotes__quote_id__pdf_get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: quote_id
         in: path
@@ -1168,14 +945,6 @@ paths:
         schema:
           type: string
           title: Quote Id
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -1192,6 +961,8 @@ paths:
     post:
       summary: Send Quote
       operationId: send_quote_api_v1_quotes__quote_id__send_post
+      security:
+      - HTTPBearer: []
       parameters:
       - name: quote_id
         in: path
@@ -1207,14 +978,6 @@ paths:
           - type: string
           - type: 'null'
           title: Idempotency-Key
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -1234,6 +997,8 @@ paths:
     post:
       summary: Accept Quote
       operationId: accept_quote_api_v1_quotes__quote_id__accept_post
+      security:
+      - HTTPBearer: []
       parameters:
       - name: quote_id
         in: path
@@ -1249,14 +1014,6 @@ paths:
           - type: string
           - type: 'null'
           title: Idempotency-Key
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -1276,6 +1033,8 @@ paths:
     get:
       summary: List Ledger
       operationId: list_ledger_api_v1_ledger_get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: kind
         in: query
@@ -1285,14 +1044,6 @@ paths:
           - type: string
           - type: 'null'
           title: Kind
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -1313,6 +1064,8 @@ paths:
     post:
       summary: Create Ledger Entry
       operationId: create_ledger_entry_api_v1_ledger_post
+      security:
+      - HTTPBearer: []
       parameters:
       - name: Idempotency-Key
         in: header
@@ -1322,14 +1075,6 @@ paths:
           - type: string
           - type: 'null'
           title: Idempotency-Key
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -1355,6 +1100,8 @@ paths:
     post:
       summary: Confirm Ledger Entry
       operationId: confirm_ledger_entry_api_v1_ledger__entry_id__confirm_post
+      security:
+      - HTTPBearer: []
       parameters:
       - name: entry_id
         in: path
@@ -1362,14 +1109,6 @@ paths:
         schema:
           type: string
           title: Entry Id
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -1390,43 +1129,21 @@ paths:
     get:
       summary: Ledger Summary
       operationId: ledger_summary_api_v1_ledger_summary_get
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: object
                 additionalProperties: true
+                type: object
                 title: Response Ledger Summary Api V1 Ledger Summary Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /api/v1/ledger/export.csv:
     get:
       summary: Export Ledger
       operationId: export_ledger_api_v1_ledger_export_csv_get
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -1434,16 +1151,14 @@ paths:
             text/plain:
               schema:
                 type: string
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /api/v1/receivables:
     get:
       summary: List Receivables
       operationId: list_receivables_api_v1_receivables_get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: status
         in: query
@@ -1453,14 +1168,6 @@ paths:
           - type: string
           - type: 'null'
           title: Status
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -1481,15 +1188,8 @@ paths:
     post:
       summary: Create Receivable
       operationId: create_receivable_api_v1_receivables_post
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
+      security:
+      - HTTPBearer: []
       requestBody:
         required: true
         content:
@@ -1515,6 +1215,8 @@ paths:
     get:
       summary: Get Receivable
       operationId: get_receivable_api_v1_receivables__receivable_id__get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: receivable_id
         in: path
@@ -1522,14 +1224,6 @@ paths:
         schema:
           type: string
           title: Receivable Id
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -1549,6 +1243,8 @@ paths:
     post:
       summary: Record Payment
       operationId: record_payment_api_v1_receivables__receivable_id__payments_post
+      security:
+      - HTTPBearer: []
       parameters:
       - name: receivable_id
         in: path
@@ -1564,14 +1260,6 @@ paths:
           - type: string
           - type: 'null'
           title: Idempotency-Key
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -1595,32 +1283,39 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/documents:
-    post:
-      summary: Create Document
-      operationId: create_document_api_v1_documents_post
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DocumentCreate'
+    get:
+      summary: List Documents
+      operationId: list_documents_api_v1_documents_get
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: object
+                items:
+                  additionalProperties: true
+                  type: object
+                type: array
+                title: Response List Documents Api V1 Documents Get
+      security:
+      - HTTPBearer: []
+    post:
+      summary: Create Document
+      operationId: create_document_api_v1_documents_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentCreate'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
                 additionalProperties: true
+                type: object
                 title: Response Create Document Api V1 Documents Post
         '422':
           description: Validation Error
@@ -1628,39 +1323,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-    get:
-      summary: List Documents
-      operationId: list_documents_api_v1_documents_get
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  additionalProperties: true
-                title: Response List Documents Api V1 Documents Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /api/v1/documents/{document_id}/advance:
     post:
       summary: Advance Document
       operationId: advance_document_api_v1_documents__document_id__advance_post
+      security:
+      - HTTPBearer: []
       parameters:
       - name: document_id
         in: path
@@ -1668,14 +1338,6 @@ paths:
         schema:
           type: string
           title: Document Id
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -1696,6 +1358,8 @@ paths:
     get:
       summary: Search Knowledge
       operationId: search_knowledge_api_v1_knowledge_search_get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: query
         in: query
@@ -1705,14 +1369,6 @@ paths:
           minLength: 1
           maxLength: 500
           title: Query
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -1732,6 +1388,8 @@ paths:
     get:
       summary: List Mail
       operationId: list_mail_api_v1_mail_get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: query
         in: query
@@ -1741,14 +1399,6 @@ paths:
           - type: string
           - type: 'null'
           title: Query
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -1770,6 +1420,8 @@ paths:
     get:
       summary: Get Mail
       operationId: get_mail_api_v1_mail__mail_id__get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: mail_id
         in: path
@@ -1777,14 +1429,6 @@ paths:
         schema:
           type: string
           title: Mail Id
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -1804,29 +1448,20 @@ paths:
     post:
       summary: Create Mail Draft
       operationId: create_mail_draft_api_v1_mail_drafts_post
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
-        required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/DraftCreate'
+        required: true
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: object
                 additionalProperties: true
+                type: object
                 title: Response Create Mail Draft Api V1 Mail Drafts Post
         '422':
           description: Validation Error
@@ -1834,40 +1469,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /api/v1/calendar:
     get:
       summary: List Calendar
       operationId: list_calendar_api_v1_calendar_get
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: array
                 items:
-                  type: object
                   additionalProperties: true
+                  type: object
+                type: array
                 title: Response List Calendar Api V1 Calendar Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /api/v1/calendar/find-slots:
     get:
       summary: Find Calendar Slots
       operationId: find_calendar_slots_api_v1_calendar_find_slots_get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: date
         in: query
@@ -1885,14 +1511,6 @@ paths:
           minimum: 15
           default: 60
           title: Duration Minutes
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -1912,30 +1530,17 @@ paths:
     post:
       summary: Google Start
       operationId: google_start_api_v1_connections_google_start_post
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: object
                 additionalProperties: true
+                type: object
                 title: Response Google Start Api V1 Connections Google Start Post
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /api/v1/connections/google/callback:
     get:
       summary: Google Callback
@@ -1975,62 +1580,38 @@ paths:
     post:
       summary: Google Sync
       operationId: google_sync_api_v1_connections_google_sync_post
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: object
                 additionalProperties: true
+                type: object
                 title: Response Google Sync Api V1 Connections Google Sync Post
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /api/v1/connections/google:
     delete:
       summary: Google Disconnect
       operationId: google_disconnect_api_v1_connections_google_delete
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: object
                 additionalProperties: true
+                type: object
                 title: Response Google Disconnect Api V1 Connections Google Delete
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /api/v1/audit:
     get:
       summary: List Audit
       operationId: list_audit_api_v1_audit_get
+      security:
+      - HTTPBearer: []
       parameters:
       - name: limit
         in: query
@@ -2049,14 +1630,6 @@ paths:
           minimum: 0
           default: 0
           title: Cursor
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: Successful Response
@@ -2509,3 +2082,7 @@ components:
       - msg
       - type
       title: ValidationError
+  securitySchemes:
+    HTTPBearer:
+      type: http
+      scheme: bearer

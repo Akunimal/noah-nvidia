@@ -52,7 +52,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 
 | Área | Estado | Evidencia |
 |---|---|---|
-| API determinista | OK | 33 tests Python pasan en `services/api/.venv` |
+| API determinista | OK | 36 tests Python pasan en `services/api/.venv` |
 | Frontend | OK | typecheck, lint, Vitest y build pasan |
 | Smoke local | OK | Atlas Services, run succeeded, receipt generado |
 | Aislamiento, aprobaciones e idempotencia | OK en tests | `services/api/test_main.py` |
@@ -201,7 +201,7 @@ Estado: **código y deploy cerrados; persistencia durable live pendiente de conf
 - Frontend, `/health` y `/openapi.json` responden 200.
 - Efectos Gmail/Calendar, pagos y demás mutaciones externas permanecen
   desactivados.
-- Pruebas locales: 34 Python, Vitest, typecheck, lint y build pasan.
+- Pruebas locales: 36 Python, Vitest, typecheck, lint y build pasan.
 
 ### Producción — todavía no declarar
 
