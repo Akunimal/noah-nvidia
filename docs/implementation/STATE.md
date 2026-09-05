@@ -6,8 +6,8 @@
 
 - Repositorio: `Akunimal/noah-nvidia`
 - Rama: `main`
-- Commit de aplicación verificado en API: `9a2d6d8`; frontend desplegado desde
-  `9b6dbdd`.
+- Commit de aplicación verificado en API: `bd45712`; frontend desplegado desde
+  `b760e9b` (este gate no cambia el código web).
 - Despliegue: manual; Vercel queda fuera del flujo.
 - Backend live: `https://noah-nvidia-api.onrender.com` (Render Web Service, plan Free).
 - Frontend live: `https://noah-nvidia-web.onrender.com` (Render Static Site, plan Free).
@@ -56,7 +56,7 @@ a NVIDIA.
 | Nebius real | OK | Gate 1 probado con `nvidia/nemotron-3-super-120b-a12b` |
 | Demo manual live | OK | Gate 2 probado desde frontend Render; evidencia en `evidence/gate-2-render.md` |
 | OpenCode2API free | Contrato local OK; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
-| Google OAuth | Pendiente | Requiere cliente y cuenta de prueba |
+| Google OAuth | En preparación | Proyecto de prueba creado; falta cliente web, scopes y consentimiento |
 | Supabase | Diferido | No bloquear el MVP/demo actual |
 | Vercel | Fuera de alcance | No importar ni desplegar proyectos |
 
@@ -120,13 +120,25 @@ Estado: **contrato local cerrado; gateway live pendiente**.
 
 ### Gate 4 — Google OAuth y efectos externos
 
-Estado: **posterior**.
+Estado: **preparación iniciada; cliente y consentimiento pendientes**.
 
-- Usar cuenta de prueba.
-- Leer/sincronizar primero; crear borrador después.
-- Revisar payload exacto antes de aprobar.
-- Mantener efectos externos apagados hasta que exista evidencia de recibo y
-  reconciliación.
+- Proyecto de pruebas: `noah-nvidia-oauth-test`.
+- Google Auth Platform quedó configurado como aplicación externa en modo
+  Testing, con `Noah Nvidia` y la cuenta del operador como contacto.
+- Gmail API y Google Calendar API quedaron habilitadas en ese proyecto.
+- Callback web preparado: `https://noah-nvidia-api.onrender.com/api/v1/connections/google/callback`.
+- La consola muestra una cuenta de facturación existente vinculada al proyecto;
+  no se creó ni modificó una cuenta de facturación. El uso estándar de Gmail y
+  Calendar figura sin costo adicional, pero no se promete costo cero absoluto
+  mientras esa vinculación exista.
+- Aún no se creó el cliente OAuth, no se guardó `GOOGLE_CLIENT_ID`/secret y no
+  se concedió acceso a Gmail/Calendar. Esa creación requiere confirmación
+  explícita inmediatamente antes de ejecutarla.
+- Secuencia segura posterior: crear cliente web, cargar las credenciales solo
+  en Render, agregar únicamente la cuenta de prueba, consentir lectura/sync,
+  verificar y recién después probar borradores. `NOAH_ENABLE_EXTERNAL_EFFECTS`
+  continúa en `false`.
+- Evidencia: `docs/implementation/evidence/gate-4-google-oauth-setup.md`.
 
 ### Gate 5 — Persistencia durable
 
@@ -153,8 +165,8 @@ Estado: **diferido**.
 
 ## Próximo paso exacto
 
-Gate 3 de contrato está cerrado. El siguiente paso recomendado es preparar
-Google OAuth en modo Testing con una cuenta de prueba y scopes mínimos, sin
-activar todavía efectos externos. El Gate 3 live solo se completa si se decide
-operar un gateway OpenCode2API real y se cargan su URL y clave de forma privada.
-No activar Supabase, Vercel ni efectos externos por inferencia.
+Gate 3 de contrato está cerrado. Gate 4 está preparado hasta el formulario de
+cliente OAuth. Falta decidir si aceptamos usar el proyecto actualmente ligado a
+facturación o si primero desvinculamos esa cuenta; luego crear el cliente web,
+cargar sus valores solo en Render y recién ahí iniciar consentimiento con la
+cuenta de prueba. No activar Supabase, Vercel ni efectos externos por inferencia.
