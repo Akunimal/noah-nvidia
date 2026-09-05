@@ -27,9 +27,10 @@ the boundary.
 - NVIDIA NeMo Agent Toolkit and NeMo Guardrails registration seams. The CPU
   demo applies deterministic guardrails and can boot without optional packages;
   connected deployments can install the pinned NVIDIA extras.
-- Supabase/Postgres baseline with RLS, tenant composite foreign keys, private
-  connection secrets, typed actions, external effect receipts, administrative
-  money records, documents, payments, audit events, and usage reservations.
+- Server-only PostgreSQL JSONB tenant snapshots, one-use OAuth PKCE state,
+  private encrypted connection secrets, typed actions, external effect
+  receipts, administrative money records, documents, payments, audit events,
+  and usage reservations.
 - Server-only AES-GCM envelope for Google tokens. The browser never receives a
   service key or encrypted credential.
 - Synthetic Atlas Services fixtures and reproducible tests. When a connector
@@ -84,16 +85,17 @@ Google OAuth requires server-only `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
 the exact approval payloads. The default is false, so an approved action in a
 local demo produces a failed sandbox receipt rather than a false success.
 
-`NOAH_SUPABASE_URL` and `NOAH_SUPABASE_SERVICE_KEY` expose the optional
-server-side PostgREST persistence adapter. Apply the baseline migration only
-to a new project:
+For durable state, set server-only `NOAH_DATABASE_URL` to a PostgreSQL
+connection string. The API creates the two small tables it needs on first use;
+the equivalent reviewable SQL is:
 
 ```text
-supabase/migrations/0001_noah_baseline.sql
+services/api/storage_schema.sql
 ```
 
-The in-memory mode remains the reproducible default for local evaluation. It
-does not replace the RLS schema in a connected deployment.
+The in-memory mode remains the reproducible default when the variable is
+empty. The database URL and encrypted token envelopes never reach Vite or the
+browser. Nebius remains the inference provider; PostgreSQL only stores state.
 
 Uploaded documents stay server-side; the browser receives metadata only. Text
 files can be indexed when NVIDIA embeddings are configured, while image pages
@@ -148,7 +150,7 @@ and provider URL normalization.
 The project is prepared for the Nebius Global AI Hackathon Best Apps and Agents
 category. The code contains the NVIDIA/Nebius seams and the full deterministic
 demo circuit. A connected submission still requires operator-supplied Nebius,
-Google OAuth, Supabase, Render, and NVIDIA NIM credentials plus real smoke
+Google OAuth, PostgreSQL, Render, and NVIDIA NIM credentials plus real smoke
 evidence. WhatsApp, voice, bank movement, fiscal filing, autonomous browsing,
 and always-on background work remain outside this delivery.
 

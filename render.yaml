@@ -39,13 +39,11 @@ services:
         sync: false
       - key: NOAH_MODEL_USAGE_LIMIT
         value: "0"
-      - key: NOAH_SUPABASE_URL
-        sync: false
-      - key: NOAH_SUPABASE_SERVICE_KEY
+      - key: NOAH_DATABASE_URL
         sync: false
       - key: NOAH_CONNECTION_ENCRYPTION_KEY
         sync: false
-      - key: NOAH_SUPABASE_JWT_SECRET
+      - key: NOAH_JWT_SECRET
         sync: false
       - key: NOAH_CORS_ORIGINS
         sync: false

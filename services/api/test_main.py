@@ -24,12 +24,12 @@ def test_required_auth_rejects_missing_token(monkeypatch) -> None:
     assert response.status_code == 401
 
 
-def test_supabase_jwt_subject_becomes_tenant(monkeypatch) -> None:
+def test_jwt_subject_becomes_tenant(monkeypatch) -> None:
     import jwt
 
     monkeypatch.setenv("NOAH_REQUIRE_AUTH", "true")
     monkeypatch.setenv("NOAH_DEMO_AUTH", "false")
-    monkeypatch.setenv("NOAH_SUPABASE_JWT_SECRET", "test-secret")
+    monkeypatch.setenv("NOAH_JWT_SECRET", "test-secret")
     token = jwt.encode({"sub": "tenant-jwt"}, "test-secret", algorithm="HS256")
     response = client.get("/api/v1/business", headers={"Authorization": "Bearer " + token})
     assert response.status_code == 200

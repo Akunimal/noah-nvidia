@@ -17,7 +17,7 @@ same receipt contract and can complete in the synthetic demo.
 - The new display name is Noah Nvidia.
 - The local project directory is C:\Noe\noah-nvidia and the repository slug is
   noah-nvidia.
-- React and Postgres/Supabase are infrastructure. AI generation, embeddings,
+- React and PostgreSQL are infrastructure. AI generation, embeddings,
   guardrails, and agent orchestration use NVIDIA technology.
 - Nebius is the preferred connected route. OpenCode2API is an explicit,
   synthetic-only free route supplied by the operator.
@@ -34,7 +34,7 @@ same receipt contract and can complete in the synthetic demo.
 Phase 0 is represented by provider manifest and environment contracts. Phase 1
 is the independent repository and new UI. Phase 2 is the API lifecycle,
 tenant-derived auth boundary, idempotency fingerprinting, leases, cancellation,
-and SQL baseline. Phases 3–5 now include deterministic Guardrails, NVIDIA
+and tenant-safe persistence contracts. Phases 3–5 now include deterministic Guardrails, NVIDIA
 embedding/rerank/Parse adapters, Google OAuth+PKCE exchange, server-side token
 envelopes, Gmail/Calendar connector execution, documents, quotes, receivables,
 payments, and CSV export. Real Nebius, Google, embeddings, parse, and reranking
@@ -53,7 +53,7 @@ The active order is:
 3. Optionally test OpenCode2API as the synthetic-only free sandbox and verify
    its `ProviderResult` provenance.
 4. Add Google OAuth test users and smoke-test Gmail/Calendar behind approval.
-5. Defer Supabase durable persistence until the demo explicitly needs state
-   across restarts.
+5. Configure a server-only PostgreSQL URL and verify restart recovery; Nebius
+   remains the inference provider and no database credential reaches the web.
 6. Run the tenant, approval, retry, calendar, monetary, document, and
    prompt-injection evaluations after connected evidence exists.

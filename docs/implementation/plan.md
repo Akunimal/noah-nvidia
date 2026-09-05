@@ -28,10 +28,10 @@ hackathon. Each phase has an observable exit condition and a truthful status.
 | Nebius hackathon route | NOAH_NEBIUS_* environment contract and provider manifest |
 | Gmail and Calendar seam | services/api/connectors/gmail.py and calendar.py |
 | Administrative money safety | integer minor units in SQL and Atlas fixture |
-| Tenant isolation | tenant-derived dependency, RLS policies, API tests |
+| Tenant isolation | tenant-derived dependency, PostgreSQL tenant key checks, API tests |
 | Reproducibility | package locks, pinned requirements, render.yaml, fixtures |
 
 The remaining statuses are intentionally explicit. A model key, Google OAuth
-client, Supabase project, Render service, or public video cannot be fabricated
+client, PostgreSQL database, Render service, or public video cannot be fabricated
 inside source control. Once those are supplied, the smoke tests in the plan
 must be run and their evidence added under docs/implementation/evidence/.

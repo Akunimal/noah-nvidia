@@ -34,10 +34,15 @@
 ## Persistence and recovery
 
 - The local/default store is an in-memory reproducibility mode. Restarting it
-  resets synthetic state.
-- A connected Supabase project must be new, use the baseline migration, keep
-  Storage private, and expose the service key only to the backend.
+  resets synthetic state when `NOAH_DATABASE_URL` is empty.
+- A durable deployment sets `NOAH_DATABASE_URL` to a PostgreSQL database on the
+  server only. The API creates `noah_tenant_state` and `noah_oauth_state` on
+  first use; review the checked-in `services/api/storage_schema.sql` before
+  applying it manually.
+- The tenant snapshot contains encrypted OAuth envelopes, never plaintext
+  tokens. The database URL and all credentials stay in Render environment
+  variables and are never sent to the frontend.
 - Review `/api/v1/audit` after a restart or provider failure. Every completed
   effect must have an effect key and receipt before it is shown as succeeded.
-- Review Supabase and Render activity at least every five days during
+- Review PostgreSQL and Render activity at least every five days during
   development, and daily during the evaluation window.

@@ -1,7 +1,7 @@
 # Noah Nvidia demo script (2:45)
 
 This script uses only Atlas Services synthetic data until the operator connects
-the separate Gmail, Calendar, Supabase, and Nebius accounts.
+the separate Gmail, Calendar, PostgreSQL, and Nebius accounts.
 
 1. 0:00–0:20 — Show Overview. Explain that Noah is a supervised employee:
    it can prepare work, but the owner controls every external effect.

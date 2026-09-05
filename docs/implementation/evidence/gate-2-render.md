@@ -44,7 +44,7 @@ API con código conectado: `9a2d6d8`
 - `NOAH_NEBIUS_API_KEY` permaneció únicamente en el Environment privado del
   backend Render.
 - Efectos externos: `false`.
-- Persistencia: in-memory demo; Supabase no se usó.
+- Persistencia: in-memory demo; `NOAH_DATABASE_URL` no estaba configurada.
 - OpenCode2API: desactivado; no participó en la prueba.
 - Vercel: no se importó ni se desplegó ningún proyecto.
 - El navegador embebido IAB bloqueó el dominio con `ERR_BLOCKED_BY_CLIENT`; la

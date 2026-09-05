@@ -13,9 +13,10 @@ uv pip install -r requirements-dev.txt --python .venv\Scripts\python.exe
 ```
 
 Use `services/api/.env.example` as the server-only configuration template. The
-default process uses synthetic Atlas Services fixtures and an in-memory store.
-Set `NOAH_SUPABASE_URL` and `NOAH_SUPABASE_SERVICE_KEY` to expose the optional
-PostgREST persistence adapter, and keep the service key out of the browser.
+default process uses synthetic Atlas Services fixtures and an in-memory
+store. Set the server-only `NOAH_DATABASE_URL` to enable the PostgreSQL JSONB
+repository; the API creates its tables on first use. Keep the database URL out
+of the browser. The schema is also checked in at `storage_schema.sql`.
 
 ## Provider policy
 

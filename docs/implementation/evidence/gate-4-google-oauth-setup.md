@@ -57,4 +57,4 @@ compose, send, escritura de eventos ni Drive.
 2. Sync de lectura verificado: 20 mensajes, 0 eventos, fuente `google-api`;
    no hubo efectos externos.
 3. La persistencia sigue siendo in-memory: cada deploy exige reconectar hasta
-   definir una base durable separada de Supabase.
+   configurar `NOAH_DATABASE_URL` y verificar la recuperación durable.

@@ -13,9 +13,11 @@
 - Backend live: `https://noah-nvidia-api.onrender.com` (Render Web Service, plan Free).
 - Frontend live: `https://noah-nvidia-web.onrender.com` (Render Static Site, plan Free).
 - Runtime del backend: Python `3.12.10` configurado en Render.
-- Persistencia actual: memoria/in-memory para demo y smoke local.
+- Persistencia actual: memoria/in-memory en Render; el repositorio PostgreSQL
+  JSONB queda listo en código, pero `NOAH_DATABASE_URL` aún no está configurada.
 - Efectos externos: desactivados (`NOAH_ENABLE_EXTERNAL_EFFECTS=false`).
-- Persistencia durable: fuera de este flujo; no se provisiona Supabase.
+- Persistencia durable: Gate 5 implementado localmente; falta configurar una
+  base PostgreSQL y repetir el deploy manual para cerrarlo live.
 
 ## Qué significa `ProviderResult`
 
@@ -50,7 +52,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 
 | Área | Estado | Evidencia |
 |---|---|---|
-| API determinista | OK | 31 tests Python pasan en `services/api/.venv` |
+| API determinista | OK | 33 tests Python pasan en `services/api/.venv` |
 | Frontend | OK | typecheck, lint, Vitest y build pasan |
 | Smoke local | OK | Atlas Services, run succeeded, receipt generado |
 | Aislamiento, aprobaciones e idempotencia | OK en tests | `services/api/test_main.py` |
@@ -61,7 +63,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Política de deploy | OK | Auto-Deploy desactivado en ambos servicios; los próximos releases se disparan manualmente |
 | OpenCode2API free | Contrato local OK; Nemotron-only enforced; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
 | Google OAuth | OK — lectura verificada | Consentimiento real, callback, token cifrado y sync de lectura verificados con `gesecseguridad@gmail.com`; efectos externos siguen apagados |
-| Supabase | Fuera de alcance | No se provisiona ni se usa en este flujo |
+| PostgreSQL durable | Código listo; live pendiente | `NOAH_DATABASE_URL` privado, `storage_schema.sql`, pruebas de serialización y aislamiento |
 | Vercel | Fuera de alcance | No importar ni desplegar proyectos |
 
 ## Roadmap por gates
@@ -155,12 +157,18 @@ Estado: **cerrado — consentimiento, callback y sync de lectura aprobados; efec
 
 ### Gate 5 — Persistencia durable
 
-Estado: **fuera de alcance para esta entrega**.
+Estado: **implementado localmente; cierre live pendiente de configuración**.
 
-- La demo continúa con memoria/in-memory y no provisiona Supabase.
-- Si más adelante se requiere sobrevivir reinicios, se decidirá una base
-  PostgreSQL separada; Nebius seguirá siendo el proveedor de inferencia, no la
-  base de datos.
+- `PostgresTenantRepository` guarda un snapshot JSONB completo por tenant y
+  aplica la validación `state.tenant_id == tenant_id` antes de escribir.
+- `noah_oauth_state` conserva el estado PKCE de un solo uso para que el
+  callback sobreviva un reinicio; los tokens siguen dentro de sobres AES-GCM.
+- El middleware copia y persiste únicamente los tenants tocados por cada
+  request. Si `NOAH_DATABASE_URL` está vacío, el fallback in-memory no cambia.
+- La API crea ambas tablas de forma idempotente; el SQL revisable está en
+  `services/api/storage_schema.sql`.
+- Nebius sigue siendo el proveedor de inferencia. PostgreSQL solo persiste
+  estado; Vercel queda fuera del flujo.
 
 ## Reglas anti-drift
 
@@ -195,18 +203,17 @@ Estado: **fuera de alcance para esta entrega**.
 
 ### Producción — todavía no declarar
 
-1. OAuth Google de lectura ya está verificado solo en backend; antes de
-   producción falta sacar el almacenamiento de tokens del proceso en memoria.
-2. Definir persistencia durable por separado. Nebius resuelve inferencia, no
-   base de datos; Supabase no es requisito ni está activo en este flujo.
+1. Configurar `NOAH_DATABASE_URL` privado en el backend y verificar recuperación
+   de tenant/OAuth tras reinicio.
+2. Nebius resuelve inferencia y PostgreSQL persistencia; ninguna clave llega al
+   navegador.
 3. Rotar el token de demo, revisar dominios/CORS y agregar monitoreo/alertas.
 4. Mantener `NOAH_ENABLE_EXTERNAL_EFFECTS=false` hasta completar pruebas de
    borrador, aprobación, recibo y reversión con datos de prueba.
 
 ## Próximo paso exacto
 
-La demo ya es entregable y el slice OAuth de lectura está verificado. Para
-continuar hacia producción, el siguiente paso es definir persistencia durable
-sin Supabase y conservar los efectos externos apagados hasta completar un plan
-de pruebas de mutaciones con aprobación y recibo. No activar Vercel ni efectos
-externos por inferencia.
+La demo sigue siendo entregable en modo in-memory y el slice OAuth de lectura
+está verificado. Para cerrar producción, el siguiente paso exacto es configurar
+una base PostgreSQL server-only, desplegar manualmente y probar recuperación
+tras reinicio. No activar Vercel ni efectos externos por inferencia.

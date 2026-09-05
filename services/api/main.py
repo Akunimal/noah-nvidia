@@ -1,9 +1,9 @@
 """Noah Nvidia business API.
 
 The service deliberately keeps a small in-memory repository for the free demo,
-while exposing the same tenant-scoped contracts used by the Supabase schema.
-Every write is validated here first; external effects remain behind approval
-and an explicit deterministic executor.
+while exposing the same tenant-scoped contracts used by the PostgreSQL
+snapshot. Every write is validated here first; external effects remain behind
+approval and an explicit deterministic executor.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ import json
 import os
 import re
 import secrets
+from contextvars import ContextVar
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
@@ -31,6 +32,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field, field_validator
+from starlette.concurrency import run_in_threadpool
 
 try:
     from providers import NvidiaRouter, ProviderResult
@@ -42,14 +44,14 @@ except ImportError:  # Allows uvicorn services.api.main:app from repository root
 try:
     from policies.guardrails import inspect_action, inspect_external_text, inspect_prompt, sanitize_external_text
     from workflows.nvidia_workflow import workflow_status
-    from storage import persistence_manifest
+    from storage import PostgresTenantRepository, persistence_manifest
     from connectors.calendar import GoogleCalendarConnector
     from connectors.gmail import GmailConnector
     from secrets_store import decrypt_secret, encrypt_secret
 except ImportError:  # Allows package execution from repository root.
     from .policies.guardrails import inspect_action, inspect_external_text, inspect_prompt, sanitize_external_text
     from .workflows.nvidia_workflow import workflow_status
-    from .storage import persistence_manifest
+    from .storage import PostgresTenantRepository, persistence_manifest
     from .connectors.calendar import GoogleCalendarConnector
     from .connectors.gmail import GmailConnector
     from .secrets_store import decrypt_secret, encrypt_secret
@@ -83,9 +85,32 @@ app.add_middleware(
 )
 
 router = NvidiaRouter()
+persistence = PostgresTenantRepository()
 TENANTS: dict[str, dict[str, Any]] = {}
 OAUTH_STATES: dict[str, dict[str, Any]] = {}
+REQUEST_TENANTS: ContextVar[set[str] | None] = ContextVar("noah_request_tenants", default=None)
 bearer_scheme = HTTPBearer(auto_error=False)
+
+
+@app.middleware("http")
+async def persist_tenant_state(request, call_next):
+    """Flush touched tenant snapshots after each request when PostgreSQL is on."""
+
+    request_token = REQUEST_TENANTS.set(set())
+    try:
+        response = await call_next(request)
+        return response
+    finally:
+        try:
+            touched = REQUEST_TENANTS.get() or set()
+            if persistence.configured:
+                for tenant_id in touched:
+                    store = TENANTS.get(tenant_id)
+                    if store is not None:
+                        snapshot = deepcopy(store)
+                        await run_in_threadpool(persistence.save_tenant, tenant_id, snapshot)
+        finally:
+            REQUEST_TENANTS.reset(request_token)
 
 
 def now() -> str:
@@ -698,9 +723,13 @@ def seed_demo(store: dict[str, Any]) -> None:
 
 def ensure_tenant(tenant_id: str) -> dict[str, Any]:
     if tenant_id not in TENANTS:
-        TENANTS[tenant_id] = blank_tenant(tenant_id)
-        if tenant_id == TENANT_ID:
+        persisted = persistence.load_tenant(tenant_id)
+        TENANTS[tenant_id] = persisted or blank_tenant(tenant_id)
+        if persisted is None and tenant_id == TENANT_ID:
             seed_demo(TENANTS[tenant_id])
+    request_tenants = REQUEST_TENANTS.get()
+    if request_tenants is not None:
+        request_tenants.add(tenant_id)
     return TENANTS[tenant_id]
 
 
@@ -716,7 +745,7 @@ def tenant_from_auth(credentials: HTTPAuthorizationCredentials | None = Depends(
             return token
         if synthetic_allowed and token.startswith("demo-") and len(token) <= 80:
             return "tenant-" + token[5:]
-        jwt_secret = os.getenv("NOAH_SUPABASE_JWT_SECRET", "")
+        jwt_secret = os.getenv("NOAH_JWT_SECRET", "")
         if jwt_secret:
             try:
                 import jwt
@@ -1049,7 +1078,7 @@ async def bootstrap(tenant_id: str = Depends(tenant_from_auth)) -> dict[str, Any
         "pending_approvals": sum(1 for action in store["actions"].values() if action["status"] == "awaiting_approval"),
         "providers": router.manifest(),
         "workflow": workflow_status(),
-        "persistence": persistence_manifest(),
+        "persistence": persistence_manifest(persistence),
         "usage": deepcopy(store["usage"]),
     }
 
@@ -1927,7 +1956,11 @@ async def google_start(tenant_id: str = Depends(tenant_from_auth)) -> dict[str, 
     code_verifier = secrets.token_urlsafe(64)
     code_challenge = base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode("ascii")).digest()).decode("ascii").rstrip("=")
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
-    OAUTH_STATES[state] = {"tenant_id": tenant_id, "expires_at": expires_at, "code_verifier": code_verifier}
+    context = {"tenant_id": tenant_id, "expires_at": expires_at, "code_verifier": code_verifier}
+    if persistence.configured:
+        persistence.save_oauth_state(state, context)
+    else:
+        OAUTH_STATES[state] = context
     client_id = os.getenv("GOOGLE_CLIENT_ID", "")
     redirect_uri = os.getenv("GOOGLE_REDIRECT_URI", "")
     configured = bool(client_id and redirect_uri)
@@ -1953,7 +1986,7 @@ async def google_start(tenant_id: str = Depends(tenant_from_auth)) -> dict[str, 
 
 @app.get("/api/v1/connections/google/callback")
 async def google_callback(state: str, code: str | None = None) -> dict[str, Any]:
-    context = OAUTH_STATES.pop(state, None)
+    context = persistence.consume_oauth_state(state) if persistence.configured else OAUTH_STATES.pop(state, None)
     if not context or context["expires_at"] <= datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail={"code": "OAUTH_STATE_INVALID"})
     if not code:

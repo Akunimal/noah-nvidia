@@ -14,7 +14,7 @@ URL: https://noah-nvidia-api.onrender.com
   `nvidia/nemotron-3-super-120b-a12b`, `provider_error=null`, run `ready`.
 - Presupuesto de modelo: límite 1, consumo 1.
 - Efectos externos: desactivados.
-- Persistencia: `in-memory-demo`; Supabase no se usó.
+- Persistencia: `in-memory-demo`; `NOAH_DATABASE_URL` no estaba configurada.
 - OpenCode2API: sandbox free configurado como `false`; no participó en la
   prueba.
 

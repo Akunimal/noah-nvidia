@@ -7,7 +7,7 @@ Estado: **contrato local cerrado; gateway live pendiente**
 
 Este gate valida solamente la ruta free sintética y su procedencia. Nebius
 continúa siendo la ruta primaria de Render. No se cambiaron variables de Render,
-no se utilizó Supabase/Vercel y los efectos externos siguen apagados.
+no se utilizó una base externa ni Vercel y los efectos externos siguen apagados.
 
 ## Validación ejecutada
 
