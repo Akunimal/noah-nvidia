@@ -40,15 +40,16 @@ En cualquier otro caso
 ```
 
 OpenCode2API solo entra si tiene `NOAH_OPENCODE2API_BASE_URL`, el tenant es el
-demo autorizado y `NOAH_ALLOW_FREE_SYNTHETIC=true`. Esa vía es sintética,
-opt-in y no debe recibir datos privados. No existe fallback a un modelo ajeno
-a NVIDIA.
+demo autorizado, `NOAH_ALLOW_FREE_SYNTHETIC=true` y el modelo configurado
+pertenece a la familia NVIDIA Nemotron. También se rechaza una respuesta cuyo
+campo `model` declare una familia ajena. Esa vía es sintética, opt-in y no debe
+recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 
 ## Estado comprobado
 
 | Área | Estado | Evidencia |
 |---|---|---|
-| API determinista | OK | 27 tests Python pasan en `services/api/.venv` |
+| API determinista | OK | 31 tests Python pasan en `services/api/.venv` |
 | Frontend | OK | typecheck, lint, Vitest y build pasan |
 | Smoke local | OK | Atlas Services, run succeeded, receipt generado |
 | Aislamiento, aprobaciones e idempotencia | OK en tests | `services/api/test_main.py` |
@@ -56,7 +57,7 @@ a NVIDIA.
 | Nebius real | OK | Gate 1 probado con `nvidia/nemotron-3-super-120b-a12b` |
 | Demo manual live | OK | Gate 2 probado desde frontend Render; evidencia en `evidence/gate-2-render.md` |
 | Build Render del API | OK tras fijar Python 3.12.10 | El primer deploy de `8af42c3` falló por Python 3.14; evidencia en `evidence/render-build-incident-2026-09-05.md` |
-| OpenCode2API free | Contrato local OK; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
+| OpenCode2API free | Contrato local OK; Nemotron-only enforced; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
 | Google OAuth | En preparación | Proyecto de prueba creado; falta cliente web, scopes y consentimiento |
 | Supabase | Diferido | No bloquear el MVP/demo actual |
 | Vercel | Fuera de alcance | No importar ni desplegar proyectos |

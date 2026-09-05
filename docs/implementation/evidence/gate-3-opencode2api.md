@@ -22,6 +22,9 @@ OpenAI-compatible sintética. El adaptador realiza el POST a
 - La URL, el modelo y los dos mensajes enviados son los esperados.
 - El bearer usado es una cadena ficticia exclusiva del test; no es una clave
   operativa.
+- El modelo solicitado debe pertenecer a la familia NVIDIA Nemotron; un modelo
+  ajeno se rechaza antes del POST y una respuesta que declare otro modelo
+  también se rechaza.
 - La ruta solo se habilita con `NOAH_ALLOW_FREE_SYNTHETIC=true` y
   `allow_free_synthetic=true`, sin fallback silencioso.
 
@@ -58,4 +61,3 @@ Mientras tanto, Render conserva:
 NOAH_ALLOW_FREE_SYNTHETIC=false
 NOAH_ENABLE_EXTERNAL_EFFECTS=false
 ```
-

@@ -66,8 +66,11 @@ The API returns OpenAPI at http://localhost:8000/docs.
 Copy `services/api/.env.example` into the server environment. Set
 `NOAH_NEBIUS_API_KEY` for the preferred Nebius route, or set
 `NOAH_OPENCODE2API_BASE_URL` for a synthetic-only free Nemotron gateway.
-OpenCode2API is a gateway supplied by the operator, not an NVIDIA product; do
-not send private customer data to it.
+Set `NOAH_OPENCODE2API_MODEL` only to an NVIDIA Nemotron identifier (the
+default is `nemotron-3-ultra-free`). The API rejects non-NVIDIA request or
+response model identifiers before accepting their text. OpenCode2API is a
+gateway supplied by the operator, not an NVIDIA product; do not send private
+customer data to it.
 
 For document retrieval, set `NOAH_NVIDIA_NIM_API_KEY`. The adapters enforce
 2048-dimensional Nemotron Embed 1B vectors and keep ranking on NVIDIA's

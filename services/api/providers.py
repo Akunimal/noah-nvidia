@@ -1,8 +1,9 @@
 """NVIDIA model routing for Noah Nvidia.
 
-The free OpenCode2API route is deliberately opt-in and synthetic-only. Nebius
-Token Factory is the production/demo route. Neither route is allowed to execute
-business side effects; the deterministic executor owns those transitions.
+The free OpenCode2API transport is deliberately opt-in, synthetic-only, and
+restricted to NVIDIA Nemotron model identifiers. Nebius Token Factory is the
+production/demo route. Neither route is allowed to execute business side
+effects; the deterministic executor owns those transitions.
 """
 
 from __future__ import annotations
@@ -41,17 +42,37 @@ class Provider:
         return {"name": self.name, "mode": self.mode, "configured": self.configured()}
 
 
+def is_nvidia_nemotron_model(model: str) -> bool:
+    """Return whether a model identifier belongs to the NVIDIA Nemotron family."""
+
+    normalized = model.strip().casefold()
+    return normalized.startswith("nemotron") or (
+        normalized.startswith("nvidia/") and "nemotron" in normalized
+    )
+
+
 class OpenCode2ApiProvider(Provider):
     name = "opencode2api"
     mode = "free-synthetic"
+    default_model = "nemotron-3-ultra-free"
 
     def __init__(self) -> None:
         self.base_url = os.getenv("NOAH_OPENCODE2API_BASE_URL", "").rstrip("/")
         self.api_key = os.getenv("NOAH_OPENCODE2API_KEY", "")
-        self.model = os.getenv("NOAH_OPENCODE2API_MODEL", "nemotron-3-ultra-free")
+        self.model = os.getenv("NOAH_OPENCODE2API_MODEL", self.default_model).strip() or self.default_model
+
+    def model_allowed(self) -> bool:
+        return is_nvidia_nemotron_model(self.model)
 
     def configured(self) -> bool:
-        return bool(self.base_url)
+        return bool(self.base_url) and self.model_allowed()
+
+    def manifest(self) -> dict[str, Any]:
+        return {
+            **super().manifest(),
+            "model_policy": "nvidia-nemotron-only",
+            "model_allowed": self.model_allowed(),
+        }
 
     def completions_url(self) -> str:
         if self.base_url.endswith("/chat/completions"):
@@ -62,6 +83,8 @@ class OpenCode2ApiProvider(Provider):
 
     async def complete(self, prompt: str, system: str) -> ProviderResult:
         if not self.configured():
+            if self.base_url and not self.model_allowed():
+                return ProviderResult(self.name, self.model, None, "OPENCODE2API_NON_NVIDIA_MODEL")
             return ProviderResult(self.name, self.model, None, "OPENCODE2API_NOT_CONFIGURED")
         headers = {"Content-Type": "application/json"}
         if self.api_key:
@@ -80,6 +103,9 @@ class OpenCode2ApiProvider(Provider):
                 response = await client.post(self.completions_url(), headers=headers, json=payload)
             response.raise_for_status()
             body = response.json()
+            response_model = body.get("model")
+            if response_model is not None and not is_nvidia_nemotron_model(str(response_model)):
+                return ProviderResult(self.name, self.model, None, "OPENCODE2API_NON_NVIDIA_RESPONSE_MODEL")
             text = body.get("choices", [{}])[0].get("message", {}).get("content")
             if not text:
                 return ProviderResult(self.name, self.model, None, "OPENCODE2API_EMPTY_RESPONSE")
