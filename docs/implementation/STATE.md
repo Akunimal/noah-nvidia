@@ -6,18 +6,22 @@
 
 - Repositorio: `Akunimal/noah-nvidia`
 - Rama: `main`
-- Código funcional live verificado: `d371955`; deploy manual
-  `dep-dae5eve1egvs73b233v0` completado para el API.
+- Código funcional live verificado: `5e01dc8`; deploy manual del API
+  `dep-dae5sm9t0dsc738v34s0` y del frontend `dep-dae5p42d0e5s73f8v70g`.
 - Despliegue: manual; Auto-Deploy está en `Off` en API y frontend; Vercel queda
   fuera del flujo.
 - Backend live: `https://noah-nvidia-api.onrender.com` (Render Web Service, plan Free).
 - Frontend live: `https://noah-nvidia-web.onrender.com` (Render Static Site, plan Free).
 - Runtime del backend: Python `3.12.10` configurado en Render.
-- Persistencia actual: memoria/in-memory en Render; el repositorio PostgreSQL
-  JSONB está desplegado, pero `NOAH_DATABASE_URL` aún no está configurada.
+- Persistencia actual: Render PostgreSQL Free `noah-nvidia-db` en Oregon,
+  1 GB, servicio `dpg-dae5lgf40ujc73dtvm9g-a`; expira el 5 de octubre de
+  2026 si no se cambia a un plan pago.
+- `NOAH_DATABASE_URL` está configurada solo en el API, enmascarada en Render;
+  el frontend nunca recibe la URL ni las credenciales.
 - Efectos externos: desactivados (`NOAH_ENABLE_EXTERNAL_EFFECTS=false`).
-- Persistencia durable: Gate 5 implementado y desplegado; falta configurar una
-  base PostgreSQL y verificar recuperación para cerrarlo durable live.
+- Persistencia durable: Gate 5 cerrado en validación live Free; la recuperación
+  tras reinicio fue verificada. No es todavía una decisión de producción
+  permanente porque la base gratuita expira.
 
 ## Qué significa `ProviderResult`
 
@@ -63,7 +67,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Política de deploy | OK | Auto-Deploy desactivado en ambos servicios; los próximos releases se disparan manualmente |
 | OpenCode2API free | Contrato local OK; Nemotron-only enforced; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
 | Google OAuth | OK — lectura verificada | Consentimiento real, callback, token cifrado y sync de lectura verificados con `gesecseguridad@gmail.com`; efectos externos siguen apagados |
-| PostgreSQL durable | Código/deploy OK; durable live pendiente | `NOAH_DATABASE_URL` privado, `storage_schema.sql`, pruebas de serialización y aislamiento |
+| PostgreSQL durable | OK live en Render Free; expira 2026-10-05 | `NOAH_DATABASE_URL` privado, `postgres-jsonb Configured` antes y después del reinicio, evidencia en `evidence/gate-5-postgresql.md` |
 | Vercel | Fuera de alcance | No importar ni desplegar proyectos |
 
 ## Roadmap por gates
@@ -90,7 +94,7 @@ Estado: **cerrado — aprobado**.
   `/api/v1/providers/health` 200 y un único mensaje controlado 200.
 - Confirmados `provider=nebius`, modelo `nvidia/nemotron-3-super-120b-a12b`,
   `provider_error=null`, límite 1 y consumo 1.
-- Efectos externos apagados; persistencia continúa in-memory.
+- Efectos externos apagados; la persistencia durable se habilitó después en Gate 5.
 - Evidencia: `docs/implementation/evidence/gate-1-render.md`.
 
 ### Gate 2 — Demo manual reproducible
@@ -157,7 +161,7 @@ Estado: **cerrado — consentimiento, callback y sync de lectura aprobados; efec
 
 ### Gate 5 — Persistencia durable
 
-Estado: **código y deploy cerrados; persistencia durable live pendiente de configuración**.
+Estado: **cerrado — validación live en Render Free aprobada; vence el 2026-10-05**.
 
 - `PostgresTenantRepository` guarda un snapshot JSONB completo por tenant y
   aplica la validación `state.tenant_id == tenant_id` antes de escribir.
@@ -167,8 +171,15 @@ Estado: **código y deploy cerrados; persistencia durable live pendiente de conf
   request. Si `NOAH_DATABASE_URL` está vacío, el fallback in-memory no cambia.
 - La API crea ambas tablas de forma idempotente; el SQL revisable está en
   `services/api/storage_schema.sql`.
-- Deploy manual verificado en Render desde `d371955`, con `psycopg3` instalado y
-  `Deploy succeeded | Live`.
+- Base creada manualmente en Render: `noah-nvidia-db`, PostgreSQL 18, región
+  Oregon, 1 GB Free, servicio `dpg-dae5lgf40ujc73dtvm9g-a`. Render informa
+  que será eliminada el 5 de octubre de 2026 si no se actualiza el plan.
+- `NOAH_DATABASE_URL` se cargó únicamente en el API mediante el panel de
+  Render y quedó enmascarada. El deploy manual `dep-dae5sm9t0dsc738v34s0`
+  terminó en `Deploy succeeded | Live`.
+- La consola Render mostró `postgres-jsonb Configured`; tras reiniciar el
+  servicio, volvió a mostrar el mismo modo y configuración. Esto verifica la
+  lectura del estado durable, no solo la configuración de la variable.
 - Nebius sigue siendo el proveedor de inferencia. PostgreSQL solo persiste
   estado; Vercel queda fuera del flujo.
 
@@ -193,8 +204,8 @@ Estado: **código y deploy cerrados; persistencia durable live pendiente de conf
 
 ### Demo controlada — alcanzada
 
-- `main` sincronizada con GitHub y el commit `d371955` live en el API de Render;
-  el frontend live continúa en su último deploy verificado.
+- `main` sincronizada con GitHub; API y frontend están live en Render Free con
+  deploys manuales desde `5e01dc8`.
 - Nebius es la ruta primaria y el modelo está limitado al Nemotron declarado.
 - OpenCode2API solo existe como sandbox Nemotron-only; en Render permanece
   desactivado (`NOAH_ALLOW_FREE_SYNTHETIC=false`).
@@ -205,8 +216,8 @@ Estado: **código y deploy cerrados; persistencia durable live pendiente de conf
 
 ### Producción — todavía no declarar
 
-1. Configurar `NOAH_DATABASE_URL` privado en el backend y verificar recuperación
-   de tenant/OAuth tras reinicio.
+1. Antes del 5 de octubre de 2026, elegir una base no-expirante y documentar
+   la decisión de costo; no actualizar automáticamente a un plan pago.
 2. Nebius resuelve inferencia y PostgreSQL persistencia; ninguna clave llega al
    navegador.
 3. Rotar el token de demo, revisar dominios/CORS y agregar monitoreo/alertas.
@@ -215,8 +226,8 @@ Estado: **código y deploy cerrados; persistencia durable live pendiente de conf
 
 ## Próximo paso exacto
 
-La demo sigue siendo entregable en modo in-memory y el slice OAuth de lectura
-está verificado. Para cerrar producción, el siguiente paso exacto es conectar
-una base PostgreSQL server-only, cargar su URL privada en Render, desplegar
-manualmente y probar recuperación tras reinicio. No activar Vercel ni efectos
-externos por inferencia.
+La demo es entregable con PostgreSQL Free server-only y el slice OAuth de
+lectura está verificado. El siguiente paso exacto es mantener el costo en cero
+y preparar, antes del 5 de octubre de 2026, una migración/decisión para una
+base no-expirante; no se habilitan planes pagos, Vercel ni efectos externos por
+inferencia.

@@ -1,8 +1,8 @@
 # Gate 5 — evidencia de PostgreSQL durable
 
-Fecha: 2026-09-05  
-Commit fuente: `d371955`  
-Deploy manual del API: `dep-dae5eve1egvs73b233v0`  
+Fecha: 2026-09-05
+Commit fuente: `5e01dc8`
+Deploy manual del API con persistencia: `dep-dae5sm9t0dsc738v34s0`
 Servicio: `noah-nvidia-api`  
 URL: https://noah-nvidia-api.onrender.com
 
@@ -18,23 +18,29 @@ URL: https://noah-nvidia-api.onrender.com
   uso durante diez minutos.
 - La suite local cubre round-trip de estado, aislamiento del tenant y consumo
   único de OAuth; 36 pruebas Python pasan.
-- `NOAH_DATABASE_URL` permanece vacío en Render. Por eso esta evidencia cierra
-  código y deploy, pero no reclama todavía persistencia durable live ni una
-  prueba de recuperación tras reinicio.
+- Se creó manualmente `noah-nvidia-db` en Render PostgreSQL Free, región
+  Oregon, 1 GB, servicio `dpg-dae5lgf40ujc73dtvm9g-a`. Render informa que el
+  recurso expira y será eliminado el 5 de octubre de 2026 si no se actualiza
+  a un plan pago.
+- `NOAH_DATABASE_URL` quedó configurada solo en el API mediante el panel de
+  Render y permanece enmascarada. El frontend no recibe esa URL.
+- La consola live mostró `postgres-jsonb Configured`; después de reiniciar el
+  servicio Free, la consola recuperó el mismo estado. Gate 5 queda cerrado
+  para validación durable live, con la limitación temporal indicada.
 
 ## Seguridad y límites
 
 - La URL de PostgreSQL, claves OAuth, clave Nebius y sobres AES-GCM son solo
   variables privadas del backend; no se imprimen ni llegan al frontend.
-- No se provisionó una base ni se inició billing en este gate.
+- No se inició billing ni se seleccionó un plan pago. La base utilizada es el
+  plan Free de prueba con vencimiento explícito.
 - Nebius continúa como ruta de inferencia primaria; OpenCode2API permanece
   desactivado y Nemotron-only.
 - `NOAH_ENABLE_EXTERNAL_EFFECTS=false` sigue vigente.
 
 ## Próximo paso exacto
 
-Si se decide habilitar persistencia durable, conectar una base PostgreSQL
-administrada por Render (o una alternativa elegida por el operador), cargar
-`NOAH_DATABASE_URL` solo en el API, hacer un deploy manual y verificar que un
-tenant y un estado OAuth sobrevivan al reinicio. Ese paso requiere una decisión
-separada sobre proveedor y costo.
+Antes del 5 de octubre de 2026, decidir una base PostgreSQL no-expirante y su
+costo, o migrar el snapshot a una alternativa compatible. No actualizar el
+plan automáticamente. Mientras tanto, mantener `NOAH_DATABASE_URL` solo en el
+API, observar el límite de 1 GB y conservar los efectos externos desactivados.
