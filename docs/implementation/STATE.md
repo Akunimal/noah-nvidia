@@ -6,8 +6,7 @@
 
 - Repositorio: `Akunimal/noah-nvidia`
 - Rama: `main`
-- Commit de aplicación verificado en API: `bd45712`; frontend desplegado desde
-  `b760e9b` (este gate no cambia el código web).
+- Commit live verificado en API y frontend: `1d0c3f2`.
 - Despliegue: manual; Vercel queda fuera del flujo.
 - Backend live: `https://noah-nvidia-api.onrender.com` (Render Web Service, plan Free).
 - Frontend live: `https://noah-nvidia-web.onrender.com` (Render Static Site, plan Free).
@@ -167,10 +166,34 @@ Estado: **diferido**.
 - Antes de activar una integración, comparar este archivo con `.env.example`,
   `render.yaml`, `provider-manifest.md` y `runbook.md`.
 
+## Definición de entregable
+
+### Demo controlada — alcanzada
+
+- `main` sincronizada con GitHub y el commit `1d0c3f2` live en ambos servicios
+  de Render.
+- Nebius es la ruta primaria y el modelo está limitado al Nemotron declarado.
+- OpenCode2API solo existe como sandbox Nemotron-only; en Render permanece
+  desactivado (`NOAH_ALLOW_FREE_SYNTHETIC=false`).
+- Frontend, `/health` y `/openapi.json` responden 200.
+- Efectos Gmail/Calendar, pagos y demás mutaciones externas permanecen
+  desactivados.
+- Pruebas locales: 31 Python, Vitest, typecheck, lint y build pasan.
+
+### Producción — todavía no declarar
+
+1. Decidir y configurar OAuth Google solo en backend; crear el cliente y
+   consentir scopes requiere una confirmación inmediata del operador.
+2. Definir persistencia durable por separado. Nebius resuelve inferencia, no
+   base de datos; Supabase no es requisito ni está activo en este flujo.
+3. Rotar el token de demo, revisar dominios/CORS y agregar monitoreo/alertas.
+4. Mantener `NOAH_ENABLE_EXTERNAL_EFFECTS=false` hasta completar pruebas de
+   borrador, aprobación, recibo y reversión con datos de prueba.
+
 ## Próximo paso exacto
 
-Gate 3 de contrato está cerrado. Gate 4 está preparado hasta el formulario de
-cliente OAuth. Falta decidir si aceptamos usar el proyecto actualmente ligado a
-facturación o si primero desvinculamos esa cuenta; luego crear el cliente web,
-cargar sus valores solo en Render y recién ahí iniciar consentimiento con la
-cuenta de prueba. No activar Supabase, Vercel ni efectos externos por inferencia.
+La demo ya es entregable. Para continuar hacia producción, el siguiente paso
+es Gate 4: confirmar si se crea el cliente web OAuth en el proyecto de prueba
+actualmente ligado a una cuenta de facturación; luego cargar sus valores solo
+en Render y probar lectura/sync con efectos todavía apagados. No activar
+Supabase, Vercel ni efectos externos por inferencia.
