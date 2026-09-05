@@ -1,5 +1,8 @@
 # Implementation record
 
+The current operational source of truth is [STATE.md](STATE.md). It defines
+the active provider route, integration order, gates, and anti-drift rules.
+
 ## Vertical slice
 
 The first slice proves the central behavior: an owner asks for work, Noah
@@ -40,13 +43,17 @@ connected demo.
 
 ## Next execution steps
 
-1. Create a separate Supabase project and wire the server-side repository into
-   production persistence.
-2. Add Google Cloud OAuth test users, run the sync path, and smoke-test Gmail/
-   Calendar receipts behind the existing approval boundary.
-3. Install the pinned NVIDIA extras on a connected worker and exercise the NeMo
-   Agent Toolkit/Guardrails registration path under its memory budget.
-4. Smoke-test Nebius `/v1/models` and a structured Nemotron response; record
-   model IDs and timestamps without committing keys.
-5. Run tenant, approval, retry, calendar conflict, monetary arithmetic,
-   document, and prompt-injection evaluations.
+Follow [STATE.md](STATE.md) instead of starting integrations from this record.
+The active order is:
+
+1. Configure Nebius server-side with a conservative usage limit and smoke-test
+   a real Nemotron response without enabling external effects.
+2. Reproduce the demo manually on the chosen host, aligning the API URL and
+   CORS origin; Vercel is out of scope.
+3. Optionally test OpenCode2API as the synthetic-only free sandbox and verify
+   its `ProviderResult` provenance.
+4. Add Google OAuth test users and smoke-test Gmail/Calendar behind approval.
+5. Defer Supabase durable persistence until the demo explicitly needs state
+   across restarts.
+6. Run the tenant, approval, retry, calendar, monetary, document, and
+   prompt-injection evaluations after connected evidence exists.
