@@ -15,7 +15,7 @@
 - Runtime del backend: Python `3.12.10` configurado en Render.
 - Persistencia actual: memoria/in-memory para demo y smoke local.
 - Efectos externos: desactivados (`NOAH_ENABLE_EXTERNAL_EFFECTS=false`).
-- Supabase: opcional y diferido; no es requisito del siguiente gate.
+- Persistencia durable: fuera de este flujo; no se provisiona Supabase.
 
 ## Qué significa `ProviderResult`
 
@@ -60,8 +60,8 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Build Render del API | OK tras fijar Python 3.12.10 | El primer deploy de `8af42c3` falló por Python 3.14; evidencia en `evidence/render-build-incident-2026-09-05.md` |
 | Política de deploy | OK | Auto-Deploy desactivado en ambos servicios; los próximos releases se disparan manualmente |
 | OpenCode2API free | Contrato local OK; Nemotron-only enforced; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
-| Google OAuth | En preparación | Proyecto de prueba creado; falta cliente web, scopes y consentimiento |
-| Supabase | Diferido | No bloquear el MVP/demo actual |
+| Google OAuth | En preparación | Proyecto y consentimiento configurados; falta cliente web y verificación de APIs |
+| Supabase | Fuera de alcance | No se provisiona ni se usa en este flujo |
 | Vercel | Fuera de alcance | No importar ni desplegar proyectos |
 
 ## Roadmap por gates
@@ -124,17 +124,19 @@ Estado: **contrato local cerrado; gateway live pendiente**.
 
 ### Gate 4 — Google OAuth y efectos externos
 
-Estado: **preparación iniciada; cliente y consentimiento pendientes**.
+Estado: **proyecto y consentimiento configurados; cliente pendiente**.
 
-- Proyecto de pruebas: `noah-nvidia-oauth-test`.
+- Cuenta operadora verificada: `gesecseguridad@gmail.com`.
+- Proyecto de pruebas: `Noah Nvidia OAuth Test`
+  (`noah-nvidia-oauth-test-507713`).
 - Google Auth Platform quedó configurado como aplicación externa en modo
-  Testing, con `Noah Nvidia` y la cuenta del operador como contacto.
-- Gmail API y Google Calendar API quedaron habilitadas en ese proyecto.
+  Testing, con `Noah Nvidia` y `gesecseguridad@gmail.com` como contacto.
+- Gmail API y Google Calendar API tienen la habilitación solicitada; queda
+  pendiente verificar que ambas tareas terminen.
 - Callback web preparado: `https://noah-nvidia-api.onrender.com/api/v1/connections/google/callback`.
-- La consola muestra una cuenta de facturación existente vinculada al proyecto;
-  no se creó ni modificó una cuenta de facturación. El uso estándar de Gmail y
-  Calendar figura sin costo adicional, pero no se promete costo cero absoluto
-  mientras esa vinculación exista.
+- No se inició la prueba gratuita, no se creó ni modificó una cuenta de
+  facturación y no se habilitaron servicios de cómputo o almacenamiento. No se
+  promete costo cero absoluto porque cuotas y políticas pueden cambiar.
 - Aún no se creó el cliente OAuth, no se guardó `GOOGLE_CLIENT_ID`/secret y no
   se concedió acceso a Gmail/Calendar. Esa creación requiere confirmación
   explícita inmediatamente antes de ejecutarla.
@@ -146,11 +148,12 @@ Estado: **preparación iniciada; cliente y consentimiento pendientes**.
 
 ### Gate 5 — Persistencia durable
 
-Estado: **diferido**.
+Estado: **fuera de alcance para esta entrega**.
 
-- Solo abrirlo si la demo necesita sobrevivir reinicios.
-- Si se activa, usar un proyecto Supabase nuevo, migración base, RLS y Storage
-  privado; nunca exponer la service key al frontend.
+- La demo continúa con memoria/in-memory y no provisiona Supabase.
+- Si más adelante se requiere sobrevivir reinicios, se decidirá una base
+  PostgreSQL separada; Nebius seguirá siendo el proveedor de inferencia, no la
+  base de datos.
 
 ## Reglas anti-drift
 
