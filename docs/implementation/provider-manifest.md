@@ -1,0 +1,20 @@
+# NVIDIA provider manifest
+
+| Capability | Provider | Default model or package | Runtime contract |
+|---|---|---|---|
+| Planning and drafting | Nebius Token Factory | nvidia/nemotron-3-super-120b-a12b | OpenAI-compatible chat completions |
+| Free synthetic planning | OpenCode2API supplied by operator | nemotron-3-ultra-free | OpenAI-compatible chat completions |
+| Embeddings | NVIDIA NIM | nvidia/nemotron-3-embed-1b | input_type query/passage, 2048 dimensions |
+| Orchestration | NVIDIA NeMo Agent Toolkit | 1.8.x | registered tools and typed workflow |
+| Guardrails | NVIDIA NeMo Guardrails | 0.24.x | policy boundary before tool execution |
+| Document parsing | NVIDIA Nemotron Parse | operator-selected NIM route | parser contract, human review for scans |
+| Optional ranking | NVIDIA Llama Nemotron Rerank | operator-selected NIM route | dedicated reranking endpoint |
+
+The runtime manifest is returned by GET /api/v1/bootstrap and
+GET /api/v1/providers/health. Missing keys are reported as configuration
+state. No non-NVIDIA model fallback is present. A deterministic demo response
+is clearly labeled when no model is configured.
+
+OpenCode2API is a gateway, not an NVIDIA product. It is included only because
+the operator supplied it as an endpoint to a free Nemotron pool. The route is
+synthetic-only, opt-in, and must never receive private customer data.

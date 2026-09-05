@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: noah-nvidia-api
+    runtime: python
+    rootDir: services/api
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: NOAH_REQUIRE_AUTH
+        value: "true"
+      - key: NOAH_CORS_ORIGINS
+        sync: false

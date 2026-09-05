@@ -1,0 +1,31 @@
+{
+  "business": {
+    "name": "Atlas Services",
+    "timezone": "America/New_York",
+    "currency": "USD",
+    "working_hours": "Mon-Fri 08:00-17:00"
+  },
+  "services": [
+    {"name": "Field assessment", "description": "On-site review and written report", "price_minor": 42000, "duration_minutes": 90},
+    {"name": "Equipment maintenance", "description": "Preventive maintenance visit", "price_minor": 28500, "duration_minutes": 120},
+    {"name": "Remote advisory", "description": "Video consultation with a specialist", "price_minor": 15000, "duration_minutes": 60}
+  ],
+  "contacts": [
+    {"name": "Elena Rossi", "email": "elena@rossi.example", "company": "Rossi Design"},
+    {"name": "Jon Mitchell", "email": "jon@mitchell.example", "company": "Mitchell & Co"},
+    {"name": "Lumen Construction", "email": "ops@lumen.example", "company": "Lumen Construction"}
+  ],
+  "mail": [
+    {"id": "fixture-mail-1", "from": "elena@rossi.example", "subject": "Site inspection for next week", "label": "priority"},
+    {"id": "fixture-mail-2", "from": "jon@mitchell.example", "subject": "Invoice 1048 - payment confirmation", "label": "finance"},
+    {"id": "fixture-mail-3", "from": "ops@lumen.example", "subject": "Re: equipment maintenance", "label": "follow-up"}
+  ],
+  "calendar": [
+    {"id": "fixture-event-1", "start": "2026-09-08T09:00:00-04:00", "minutes": 60, "title": "Team stand-up"},
+    {"id": "fixture-event-2", "start": "2026-09-10T13:30:00-04:00", "minutes": 60, "title": "Equipment delivery"}
+  ],
+  "ledger": [
+    {"description": "Maintenance retainer", "kind": "income", "amount_minor": 120000, "status": "confirmed"},
+    {"description": "Equipment replacement", "kind": "expense", "amount_minor": 8640, "status": "confirmed"}
+  ]
+}
