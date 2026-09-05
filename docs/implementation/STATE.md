@@ -6,22 +6,27 @@
 
 - Repositorio: `Akunimal/noah-nvidia`
 - Rama: `main`
-- Código funcional live verificado: `5e01dc8`; deploy manual del API
-  `dep-dae5sm9t0dsc738v34s0` y del frontend `dep-dae5p42d0e5s73f8v70g`.
+- Código funcional live verificado: `5e01dc8`; documentación/estado actual en
+  `201541d`; deploy manual del API `dep-dae6npm1egvs73b5eqp0` y del frontend
+  `dep-dae5p42d0e5s73f8v70g`.
 - Despliegue: manual; Auto-Deploy está en `Off` en API y frontend; Vercel queda
   fuera del flujo.
 - Backend live: `https://noah-nvidia-api.onrender.com` (Render Web Service, plan Free).
 - Frontend live: `https://noah-nvidia-web.onrender.com` (Render Static Site, plan Free).
 - Runtime del backend: Python `3.12.10` configurado en Render.
-- Persistencia actual: Render PostgreSQL Free `noah-nvidia-db` en Oregon,
-  1 GB, servicio `dpg-dae5lgf40ujc73dtvm9g-a`; expira el 5 de octubre de
-  2026 si no se cambia a un plan pago.
+- Persistencia primaria actual: Neon Free, proyecto `Noah Nvidia Admin`
+  (`damp-bonus-89686151`), rama `production`, base `neondb`, región AWS
+  US West 2 (Oregon). El plan Free muestra 0.5 GB, 100 CU-horas mensuales y
+  5 GB de transferencia; no se habilitó ningún plan pago.
+- Persistencia legacy: Render PostgreSQL Free `noah-nvidia-db` en Oregon,
+  1 GB, servicio `dpg-dae5lgf40ujc73dtvm9g-a`; queda fuera de la ruta activa
+  y expira el 5 de octubre de 2026. No se actualizará a un plan pago.
 - `NOAH_DATABASE_URL` está configurada solo en el API, enmascarada en Render;
   el frontend nunca recibe la URL ni las credenciales.
 - Efectos externos: desactivados (`NOAH_ENABLE_EXTERNAL_EFFECTS=false`).
-- Persistencia durable: Gate 5 cerrado en validación live Free; la recuperación
-  tras reinicio fue verificada. No es todavía una decisión de producción
-  permanente porque la base gratuita expira.
+- Persistencia durable: Gate 5 cerrado en Neon Free; el esquema se creó de
+  forma idempotente, `tenant-demo` quedó guardado y la lectura sobrevivió un
+  reinicio del API. Render queda solo como recurso legacy temporal.
 
 ## Qué significa `ProviderResult`
 
@@ -67,7 +72,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Política de deploy | OK | Auto-Deploy desactivado en ambos servicios; los próximos releases se disparan manualmente |
 | OpenCode2API free | Contrato local OK; Nemotron-only enforced; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
 | Google OAuth | OK — lectura verificada | Consentimiento real, callback, token cifrado y sync de lectura verificados con `gesecseguridad@gmail.com`; efectos externos siguen apagados |
-| PostgreSQL durable | OK live en Render Free; expira 2026-10-05 | `NOAH_DATABASE_URL` privado, `postgres-jsonb Configured` antes y después del reinicio, evidencia en `evidence/gate-5-postgresql.md` |
+| PostgreSQL durable | OK live en Neon Free; Render legacy expira 2026-10-05 | `NOAH_DATABASE_URL` privado, `postgres-jsonb Configured`, esquema Neon con 2 tablas y `tenant-demo` persistido tras reinicio; evidencia en `evidence/gate-5-postgresql.md` |
 | Vercel | Fuera de alcance | No importar ni desplegar proyectos |
 
 ## Roadmap por gates
@@ -161,7 +166,7 @@ Estado: **cerrado — consentimiento, callback y sync de lectura aprobados; efec
 
 ### Gate 5 — Persistencia durable
 
-Estado: **cerrado — validación live en Render Free aprobada; vence el 2026-10-05**.
+Estado: **cerrado — Neon Free live aprobado; Render legacy expira el 2026-10-05**.
 
 - `PostgresTenantRepository` guarda un snapshot JSONB completo por tenant y
   aplica la validación `state.tenant_id == tenant_id` antes de escribir.
@@ -171,15 +176,20 @@ Estado: **cerrado — validación live en Render Free aprobada; vence el 2026-10
   request. Si `NOAH_DATABASE_URL` está vacío, el fallback in-memory no cambia.
 - La API crea ambas tablas de forma idempotente; el SQL revisable está en
   `services/api/storage_schema.sql`.
-- Base creada manualmente en Render: `noah-nvidia-db`, PostgreSQL 18, región
-  Oregon, 1 GB Free, servicio `dpg-dae5lgf40ujc73dtvm9g-a`. Render informa
-  que será eliminada el 5 de octubre de 2026 si no se actualiza el plan.
-- `NOAH_DATABASE_URL` se cargó únicamente en el API mediante el panel de
-  Render y quedó enmascarada. El deploy manual `dep-dae5sm9t0dsc738v34s0`
+- La base primaria se creó manualmente en Neon Free: proyecto
+  `damp-bonus-89686151`, rama `production`, base `neondb`, PostgreSQL 18,
+  región AWS US West 2 (Oregon). Solo se habilitó PostgreSQL; Object Storage,
+  Functions, AI Gateway y Neon Auth quedaron apagados.
+- `NOAH_DATABASE_URL` se reemplazó únicamente en el API mediante el panel de
+  Render y quedó enmascarada. El deploy manual `dep-dae6npm1egvs73b5eqp0`
   terminó en `Deploy succeeded | Live`.
-- La consola Render mostró `postgres-jsonb Configured`; tras reiniciar el
-  servicio, volvió a mostrar el mismo modo y configuración. Esto verifica la
-  lectura del estado durable, no solo la configuración de la variable.
+- La API creó idempotentemente las tablas `noah_oauth_state` y
+  `noah_tenant_state`. La consulta live mostró un snapshot `tenant-demo`
+  (versión 16) en Neon; después se reinició el API y el frontend volvió a
+  responder con el mismo estado. Esto verifica persistencia fuera del
+  proceso, no solo configuración de la variable.
+- La base Render `noah-nvidia-db` queda como legacy temporal durante la
+  transición y no es la fuente de verdad. No se mezclan datos con Supabase.
 - Nebius sigue siendo el proveedor de inferencia. PostgreSQL solo persiste
   estado; Vercel queda fuera del flujo.
 
@@ -205,7 +215,7 @@ Estado: **cerrado — validación live en Render Free aprobada; vence el 2026-10
 ### Demo controlada — alcanzada
 
 - `main` sincronizada con GitHub; API y frontend están live en Render Free con
-  deploys manuales desde `5e01dc8`.
+  deploys manuales. La persistencia primaria está en Neon Free.
 - Nebius es la ruta primaria y el modelo está limitado al Nemotron declarado.
 - OpenCode2API solo existe como sandbox Nemotron-only; en Render permanece
   desactivado (`NOAH_ALLOW_FREE_SYNTHETIC=false`).
@@ -216,8 +226,9 @@ Estado: **cerrado — validación live en Render Free aprobada; vence el 2026-10
 
 ### Producción — todavía no declarar
 
-1. Antes del 5 de octubre de 2026, elegir una base no-expirante y documentar
-   la decisión de costo; no actualizar automáticamente a un plan pago.
+1. Mantener Neon Free dentro de sus límites y retirar la base Render legacy
+   cuando se confirme que no hay datos pendientes; no actualizarla a un plan
+   pago.
 2. Nebius resuelve inferencia y PostgreSQL persistencia; ninguna clave llega al
    navegador.
 3. Rotar el token de demo, revisar dominios/CORS y agregar monitoreo/alertas.
@@ -226,8 +237,8 @@ Estado: **cerrado — validación live en Render Free aprobada; vence el 2026-10
 
 ## Próximo paso exacto
 
-La demo es entregable con PostgreSQL Free server-only y el slice OAuth de
-lectura está verificado. El siguiente paso exacto es mantener el costo en cero
-y preparar, antes del 5 de octubre de 2026, una migración/decisión para una
-base no-expirante; no se habilitan planes pagos, Vercel ni efectos externos por
-inferencia.
+La demo es entregable con Neon Free server-only y el slice OAuth de lectura
+está verificado. El siguiente paso exacto es observar los límites de Neon,
+confirmar que no quedan datos pendientes en Render legacy y retirar esa base
+sin activar billing; no se habilitan planes pagos, Vercel ni efectos externos
+por inferencia.
