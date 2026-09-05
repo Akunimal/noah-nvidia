@@ -6,8 +6,10 @@
 
 - Repositorio: `Akunimal/noah-nvidia`
 - Rama: `main`
-- Commit live verificado en API y frontend: `1d0c3f2`.
-- Despliegue: manual; Vercel queda fuera del flujo.
+- Código funcional live verificado: `1d0c3f2`; el frontend tuvo además un
+  rebuild documental en `6b5f7f3`.
+- Despliegue: manual; Auto-Deploy está en `Off` en API y frontend; Vercel queda
+  fuera del flujo.
 - Backend live: `https://noah-nvidia-api.onrender.com` (Render Web Service, plan Free).
 - Frontend live: `https://noah-nvidia-web.onrender.com` (Render Static Site, plan Free).
 - Runtime del backend: Python `3.12.10` configurado en Render.
@@ -56,6 +58,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Nebius real | OK | Gate 1 probado con `nvidia/nemotron-3-super-120b-a12b` |
 | Demo manual live | OK | Gate 2 probado desde frontend Render; evidencia en `evidence/gate-2-render.md` |
 | Build Render del API | OK tras fijar Python 3.12.10 | El primer deploy de `8af42c3` falló por Python 3.14; evidencia en `evidence/render-build-incident-2026-09-05.md` |
+| Política de deploy | OK | Auto-Deploy desactivado en ambos servicios; los próximos releases se disparan manualmente |
 | OpenCode2API free | Contrato local OK; Nemotron-only enforced; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
 | Google OAuth | En preparación | Proyecto de prueba creado; falta cliente web, scopes y consentimiento |
 | Supabase | Diferido | No bloquear el MVP/demo actual |
