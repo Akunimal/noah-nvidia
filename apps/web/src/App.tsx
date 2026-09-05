@@ -53,6 +53,7 @@ import {
 } from './lib/api';
 
 type Section = 'overview' | 'assistant' | 'approvals' | 'mail' | 'calendar' | 'finance' | 'knowledge' | 'settings';
+type WorkspaceMode = 'demo' | 'playground' | 'unknown';
 type MessageRole = 'owner' | 'noah';
 
 interface Message {
@@ -130,31 +131,6 @@ const initialMessages: Message[] = [
   },
 ];
 
-const initialApprovals: Approval[] = [
-  {
-    id: 'approval-quote',
-    title: 'Send proposal to Elena Rossi',
-    detail: 'Field assessment · valid for 7 days · elena@rossi.example',
-    type: 'Gmail draft',
-    tone: 'violet',
-    amount: 'USD 420',
-  },
-  {
-    id: 'approval-calendar',
-    title: 'Create site inspection',
-    detail: 'Thu, Sep 10 · 10:00–11:30 · Atlas Services calendar',
-    type: 'Calendar event',
-    tone: 'blue',
-  },
-  {
-    id: 'approval-expense',
-    title: 'Confirm equipment expense',
-    detail: 'Receipt_0826.pdf · Operations · detected amount USD 86.40',
-    type: 'Ledger entry',
-    tone: 'amber',
-  },
-];
-
 const initialActivity: ActivityItem[] = [
   { id: 'a1', icon: 'mail', title: 'New client inquiry triaged', meta: 'Elena Rossi · 8 min ago', status: 'completed' },
   { id: 'a2', icon: 'quote', title: 'Proposal calculated', meta: 'Field assessment · USD 420', status: 'completed' },
@@ -165,14 +141,15 @@ const initialActivity: ActivityItem[] = [
 function App() {
   const [section, setSection] = useState<Section>('overview');
   const [mobileNav, setMobileNav] = useState(false);
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
-  const [approvals, setApprovals] = useState<Approval[]>(initialApprovals);
-  const [activity, setActivity] = useState<ActivityItem[]>(initialActivity);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [approvals, setApprovals] = useState<Approval[]>([]);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [apiOnline, setApiOnline] = useState(false);
-  const [businessName, setBusinessName] = useState('Atlas Services');
-  const [businessTimezone, setBusinessTimezone] = useState('America/New_York');
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('unknown');
+  const [businessName, setBusinessName] = useState('New business');
+  const [businessTimezone, setBusinessTimezone] = useState('UTC');
   const [businessCurrency, setBusinessCurrency] = useState('USD');
   const [runtimeModel, setRuntimeModel] = useState('Nemotron 3 Super');
   const [persistenceMode, setPersistenceMode] = useState('in-memory demo');
@@ -193,6 +170,10 @@ function App() {
         const health = await fetch((import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000') + '/health');
         setApiOnline(health.ok);
         const [bootstrap, pending] = await Promise.all([getBootstrap(), getPendingActions()]);
+        const nextWorkspaceMode: WorkspaceMode = bootstrap.workspace?.mode === 'demo' ? 'demo' : 'playground';
+        setWorkspaceMode(nextWorkspaceMode);
+        setMessages(nextWorkspaceMode === 'demo' ? initialMessages : []);
+        setActivity(nextWorkspaceMode === 'demo' ? initialActivity : []);
         setBusinessName(bootstrap.business.name);
         setBusinessTimezone(bootstrap.business.timezone);
         setBusinessCurrency(bootstrap.business.currency);
@@ -231,6 +212,8 @@ function App() {
       ? 'Nemotron sandbox · OpenCode2API'
       : 'Deterministic NVIDIA sandbox';
   const runtimeOnline = apiOnline && (primaryProviderConfigured || freeProviderConfigured);
+  const demoMode = workspaceMode === 'demo';
+  const workspaceLabel = workspaceMode === 'demo' ? 'Demo · synthetic Atlas' : workspaceMode === 'playground' ? 'Playground · empty' : 'Local sandbox';
   const pageTitle = navItems.find((item) => item.id === section)?.label || 'Overview';
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -413,7 +396,7 @@ function App() {
             <div className="breadcrumbs"><span>{businessName}</span><ChevronRight size={14} /><strong>{pageTitle}</strong></div>
           </div>
           <div className="topbar-actions">
-            <div className="live-chip"><span className="live-dot" /> {apiOnline ? 'All systems nominal' : 'Local sandbox'}</div>
+            <div className="live-chip"><span className="live-dot" /> {apiOnline ? workspaceLabel : 'Local sandbox'}</div>
             <button className="icon-button" aria-label="Search"><Search size={18} /></button>
             <button className="icon-button has-dot" aria-label="Notifications"><Inbox size={18} /></button>
             <div className="top-avatar">N</div>
@@ -421,26 +404,29 @@ function App() {
         </header>
 
         <div className="page-content">
+          {workspaceMode === 'demo' && <div className="workspace-banner demo"><ShieldCheck size={17} /><div><strong>Demo sandbox</strong><span>Atlas Services is synthetic fixture data for the video. No external effects are enabled.</span></div></div>}
+          {workspaceMode === 'playground' && <div className="workspace-banner playground"><Sparkles size={17} /><div><strong>Playground vacío</strong><span>Este tenant empieza sin datos ficticios. Lo que agregues quedará aislado de la demo.</span></div></div>}
           {section === 'overview' && (
             <Overview
               greeting={greeting}
               businessName={businessName}
               approvals={approvals}
               activity={activity}
+              demoMode={demoMode}
               onOpenAssistant={() => setSection('assistant')}
               onOpenApprovals={() => setSection('approvals')}
             />
           )}
           {section === 'assistant' && (
-            <Assistant messages={messages} input={input} isThinking={isThinking} setInput={setInput} onSubmit={submitMessage} businessName={businessName} runtimeModel={runtimeModel} timezone={businessTimezone} currency={businessCurrency} />
+            <Assistant messages={messages} input={input} isThinking={isThinking} setInput={setInput} onSubmit={submitMessage} businessName={businessName} runtimeModel={runtimeModel} timezone={businessTimezone} currency={businessCurrency} demoMode={demoMode} />
           )}
           {section === 'approvals' && (
             <Approvals approvals={approvals} onResolve={resolveApproval} businessName={businessName} />
           )}
-          {section === 'mail' && <Mailroom onOpenAssistant={() => setSection('assistant')} items={mailItems} />}
-          {section === 'calendar' && <Calendar businessName={businessName} items={calendarItems} onOpenAssistant={() => { setInput('Find a slot next week for a 90 minute field assessment'); setSection('assistant'); }} />}
-          {section === 'finance' && <Finance ledgerItems={ledgerItems} quoteItems={quoteItems} receivableItems={receivableItems} currency={businessCurrency} onExport={exportLedger} />}
-          {section === 'knowledge' && <Knowledge businessName={businessName} items={documentItems} onAddDocument={(file) => { void addDocument(file); }} />}
+          {section === 'mail' && <Mailroom onOpenAssistant={() => setSection('assistant')} items={mailItems} demoMode={demoMode} />}
+          {section === 'calendar' && <Calendar businessName={businessName} items={calendarItems} demoMode={demoMode} onOpenAssistant={() => { setInput('Find a slot next week for a 90 minute field assessment'); setSection('assistant'); }} />}
+          {section === 'finance' && <Finance ledgerItems={ledgerItems} quoteItems={quoteItems} receivableItems={receivableItems} currency={businessCurrency} demoMode={demoMode} onExport={exportLedger} />}
+          {section === 'knowledge' && <Knowledge businessName={businessName} items={documentItems} demoMode={demoMode} onAddDocument={(file) => { void addDocument(file); }} />}
           {section === 'settings' && <Settings businessName={businessName} timezone={businessTimezone} currency={businessCurrency} runtimeModel={runtimeLabel} persistenceMode={persistenceMode} connections={connections} providerConfigured={primaryProviderConfigured || freeProviderConfigured} externalEffectsEnabled={externalEffectsEnabled} />}
         </div>
       </main>
@@ -457,7 +443,7 @@ function PageHeading({ eyebrow, title, detail, action }: { eyebrow: string; titl
   );
 }
 
-function Overview({ greeting, businessName, approvals, activity, onOpenAssistant, onOpenApprovals }: { greeting: string; businessName: string; approvals: Approval[]; activity: ActivityItem[]; onOpenAssistant: () => void; onOpenApprovals: () => void }) {
+function Overview({ greeting, businessName, approvals, activity, demoMode, onOpenAssistant, onOpenApprovals }: { greeting: string; businessName: string; approvals: Approval[]; activity: ActivityItem[]; demoMode: boolean; onOpenAssistant: () => void; onOpenApprovals: () => void }) {
   return (
     <>
       <PageHeading
@@ -474,19 +460,19 @@ function Overview({ greeting, businessName, approvals, activity, onOpenAssistant
         </div>
         <div className="signal-card">
           <div className="card-topline"><span>Today at a glance</span><Activity size={17} /></div>
-          <div className="signal-number">12<span> items</span></div>
+          <div className="signal-number">{demoMode ? '12' : '0'}<span> items</span></div>
           <div className="signal-label">reviewed by Noah</div>
           <div className="signal-divider" />
-          <div className="mini-stat"><span className="mini-icon green"><Check size={14} /></span><div><strong>8 completed</strong><span>without side effects</span></div></div>
+          <div className="mini-stat"><span className="mini-icon green"><Check size={14} /></span><div><strong>{demoMode ? '8 completed' : '0 completed'}</strong><span>without side effects</span></div></div>
           <div className="mini-stat"><span className="mini-icon amber"><ShieldCheck size={14} /></span><div><strong>{approvals.length} awaiting you</strong><span>approval keeps you in control</span></div></div>
           <button className="card-link" onClick={onOpenApprovals}>Review queue <ChevronRight size={15} /></button>
         </div>
       </div>
       <div className="metric-row">
-        <MetricCard icon={<Mail />} label="Inbox triaged" value="24" delta="+18%" tone="violet" caption="since last Monday" />
-        <MetricCard icon={<CalendarDays />} label="Upcoming meetings" value="06" delta="2 today" tone="blue" caption="next: 10:00 AM" />
-        <MetricCard icon={<CircleDollarSign />} label="Receivables" value="$3,840" delta="3 open" tone="amber" caption="due this month" />
-        <MetricCard icon={<Zap />} label="Hours saved" value="8.5" delta="+2.1h" tone="green" caption="this week" />
+        <MetricCard icon={<Mail />} label="Inbox triaged" value={demoMode ? '24' : '0'} delta={demoMode ? '+18%' : '—'} tone="violet" caption={demoMode ? 'since last Monday' : 'no data yet'} />
+        <MetricCard icon={<CalendarDays />} label="Upcoming meetings" value={demoMode ? '06' : '0'} delta={demoMode ? '2 today' : '—'} tone="blue" caption={demoMode ? 'next: 10:00 AM' : 'no data yet'} />
+        <MetricCard icon={<CircleDollarSign />} label="Receivables" value={demoMode ? '$3,840' : '$0.00'} delta={demoMode ? '3 open' : '—'} tone="amber" caption={demoMode ? 'due this month' : 'no records yet'} />
+        <MetricCard icon={<Zap />} label="Hours saved" value={demoMode ? '8.5' : '0'} delta={demoMode ? '+2.1h' : '—'} tone="green" caption={demoMode ? 'this week' : 'no data yet'} />
       </div>
       <div className="section-grid">
         <div className="panel activity-panel">
@@ -495,8 +481,8 @@ function Overview({ greeting, businessName, approvals, activity, onOpenAssistant
         </div>
         <div className="panel focus-panel">
           <PanelHeader title="Noah's focus" action="Configure" />
-          <div className="focus-copy"><div className="focus-spark"><Sparkles size={19} /></div><h3>Finish the Elena Rossi follow-up</h3><p>Proposal and calendar hold are ready. One decision from you unlocks the next step.</p><button className="outline-button" onClick={onOpenApprovals}>See pending actions <ArrowUpRight size={15} /></button></div>
-          <div className="focus-footer"><span><Clock3 size={14} /> Estimated 2 min</span><span className="confidence"><span /> High confidence</span></div>
+          <div className="focus-copy"><div className="focus-spark"><Sparkles size={19} /></div><h3>{demoMode ? 'Finish the Elena Rossi follow-up' : 'Start with your first goal'}</h3><p>{demoMode ? 'Proposal and calendar hold are ready. One decision from you unlocks the next step.' : 'This playground has no fixture data. Describe an outcome in Assistant when you are ready.'}</p><button className="outline-button" onClick={demoMode ? onOpenApprovals : onOpenAssistant}>{demoMode ? 'See pending actions' : 'Open assistant'} <ArrowUpRight size={15} /></button></div>
+          <div className="focus-footer"><span><Clock3 size={14} /> {demoMode ? 'Estimated 2 min' : 'Ready when you are'}</span><span className="confidence"><span /> {demoMode ? 'High confidence' : 'No data yet'}</span></div>
         </div>
       </div>
     </>
@@ -517,10 +503,10 @@ function ActivityRow({ item }: { item: ActivityItem }) {
   return <div className="activity-row"><div className={'activity-icon ' + item.icon}><Icon size={16} /></div><div className="activity-text"><strong>{item.title}</strong><span>{item.meta}</span></div><div className={'activity-status ' + item.status}>{item.status === 'completed' ? <Check size={14} /> : item.status === 'pending' ? <Clock3 size={14} /> : <AlertTriangle size={14} />}</div></div>;
 }
 
-function Assistant({ messages, input, isThinking, setInput, onSubmit, businessName, runtimeModel, timezone, currency }: { messages: Message[]; input: string; isThinking: boolean; setInput: (value: string) => void; onSubmit: (event?: { preventDefault: () => void }) => void; businessName: string; runtimeModel: string; timezone: string; currency: string }) {
+function Assistant({ messages, input, isThinking, setInput, onSubmit, businessName, runtimeModel, timezone, currency, demoMode }: { messages: Message[]; input: string; isThinking: boolean; setInput: (value: string) => void; onSubmit: (event?: { preventDefault: () => void }) => void; businessName: string; runtimeModel: string; timezone: string; currency: string; demoMode: boolean }) {
   return (
     <>
-      <PageHeading eyebrow="Your command center" title="Talk to Noah." detail="Describe the outcome. Noah will break it into safe, reviewable steps." action={<div className="runtime-pill"><span className="live-dot" /> {runtimeModel} <ChevronRight size={13} /></div>} />
+      <PageHeading eyebrow="Your command center" title="Talk to Noah." detail={demoMode ? 'Describe the outcome. Noah will break it into safe, reviewable steps.' : 'This playground is empty. Describe your business goal to start building context.'} action={<div className="runtime-pill"><span className="live-dot" /> {runtimeModel} <ChevronRight size={13} /></div>} />
       <div className="assistant-layout">
         <div className="panel conversation-panel">
           <div className="conversation-head"><div className="conversation-agent"><div className="agent-avatar"><Sparkles size={18} /></div><div><strong>Noah Nvidia</strong><span>Operational copilot · ready</span></div></div><button className="icon-button"><MoreHorizontal size={18} /></button></div>
@@ -536,7 +522,7 @@ function Assistant({ messages, input, isThinking, setInput, onSubmit, businessNa
           <div className="composer-hint"><ShieldCheck size={13} /> External actions always wait for your approval</div>
         </div>
         <div className="assistant-side">
-          <div className="panel context-panel"><PanelHeader title="Active context" action="Edit" /><div className="context-business"><div className="workspace-avatar">{businessInitials(businessName)}</div><div><strong>{businessName}</strong><span>Business workspace · {currency} · {timezone}</span></div></div><div className="context-list"><span><Mail size={15} /> Gmail inbox</span><span><CalendarDays size={15} /> {businessName} calendar</span><span><FileText size={15} /> Indexed documents</span></div></div>
+          <div className="panel context-panel"><PanelHeader title="Active context" action="Edit" /><div className="context-business"><div className="workspace-avatar">{businessInitials(businessName)}</div><div><strong>{businessName}</strong><span>Business workspace · {currency} · {timezone}</span></div></div><div className="context-list">{demoMode ? <><span><Mail size={15} /> Gmail inbox</span><span><CalendarDays size={15} /> {businessName} calendar</span><span><FileText size={15} /> Indexed documents</span></> : <span><Sparkles size={15} /> No business data loaded yet</span>}</div></div>
           <div className="panel prompt-panel"><div className="prompt-label"><Sparkles size={15} /> Try asking</div><button onClick={() => setInput('Review new inquiries and prepare the next best follow-up')}>“Review new inquiries and prepare the next best follow-up” <ChevronRight size={15} /></button><button onClick={() => setInput('Find a slot next week for a 90 minute field assessment')}>“Find a slot next week for a 90 minute field assessment” <ChevronRight size={15} /></button></div>
         </div>
       </div>
@@ -556,31 +542,32 @@ function EmptyState({ title, detail, icon }: { title: string; detail: string; ic
   return <div className="panel empty-state"><div className="empty-icon">{icon}</div><h3>{title}</h3><p>{detail}</p></div>;
 }
 
-function Mailroom({ onOpenAssistant, items }: { onOpenAssistant: () => void; items: ApiMail[] }) {
+function Mailroom({ onOpenAssistant, items, demoMode }: { onOpenAssistant: () => void; items: ApiMail[]; demoMode: boolean }) {
   const fallback: ApiMail[] = [
     { id: 'fixture-mail-1', from: 'Elena Rossi <elena@rossi.example>', subject: 'Site inspection for next week', body: 'Hi Atlas team, we would like to schedule…', received_at: '08:55', label: 'priority' },
     { id: 'fixture-mail-2', from: 'Jon Mitchell <jon@mitchell.example>', subject: 'Invoice 1048 · payment confirmation', body: 'The transfer has been initiated. Attached…', received_at: 'Yesterday', label: 'finance' },
     { id: 'fixture-mail-3', from: 'Lumen Construction <ops@lumen.example>', subject: 'Re: equipment maintenance', body: 'Can you confirm the replacement window?', received_at: 'Sep 06', label: 'follow-up' },
   ];
-  const messages = items.length ? items : fallback;
-  return <><PageHeading eyebrow="Connected workspace" title="Mailroom." detail="Noah turns a busy inbox into decisions and drafts." action={<button className="outline-button" onClick={onOpenAssistant}><Sparkles size={15} /> Ask about email</button>} /><div className="mail-layout"><div className="panel mail-list"><div className="mail-toolbar"><div className="mail-filter active">Priority <span>{messages.filter((item) => item.label === 'priority').length || 3}</span></div><div className="mail-filter">All mail <span>{messages.length}</span></div><button className="icon-button"><RefreshCw size={16} /></button></div>{messages.map((item) => <MailRow key={item.id} initials={businessInitials(senderName(item.from))} name={senderName(item.from)} subject={item.subject || '(no subject)'} preview={(item.body || 'No preview available').slice(0, 70)} time={item.received_at || 'Recently'} priority={item.label === 'priority'} />)}</div><div className="panel mail-preview"><div className="mail-preview-empty"><div className="empty-icon"><Mail size={25} /></div><h3>Select a message</h3><p>Noah has already grouped the inbox by what needs your attention.</p></div></div></div></>;
+  const messages = demoMode && items.length === 0 ? fallback : items;
+  return <><PageHeading eyebrow="Connected workspace" title="Mailroom." detail={demoMode ? 'Noah turns a busy inbox into decisions and drafts.' : 'This playground has no inbox data yet.'} action={<button className="outline-button" onClick={onOpenAssistant}><Sparkles size={15} /> Ask about email</button>} /><div className="mail-layout"><div className="panel mail-list"><div className="mail-toolbar"><div className="mail-filter active">Priority <span>{messages.filter((item) => item.label === 'priority').length}</span></div><div className="mail-filter">All mail <span>{messages.length}</span></div><button className="icon-button"><RefreshCw size={16} /></button></div>{messages.length === 0 ? <EmptyState title="Inbox is empty" detail="Connect a read-only inbox or start with the onboarding flow." icon={<Mail size={26} />} /> : messages.map((item) => <MailRow key={item.id} initials={businessInitials(senderName(item.from))} name={senderName(item.from)} subject={item.subject || '(no subject)'} preview={(item.body || 'No preview available').slice(0, 70)} time={item.received_at || 'Recently'} priority={item.label === 'priority'} />)}</div><div className="panel mail-preview"><div className="mail-preview-empty"><div className="empty-icon"><Mail size={25} /></div><h3>Select a message</h3><p>{demoMode ? 'Noah has already grouped the inbox by what needs your attention.' : 'Messages will appear here after a connection or upload.'}</p></div></div></div></>;
 }
 
 function MailRow({ initials, name, subject, preview, time, priority }: { initials: string; name: string; subject: string; preview: string; time: string; priority?: boolean }) {
   return <button className="mail-row"><div className="mail-avatar">{initials}</div><div className="mail-row-main"><div className="mail-row-top"><strong>{name}</strong><span>{time}</span></div><div className="mail-subject">{priority && <span className="priority-dot" />}{subject}</div><p>{preview}</p></div><ChevronRight size={15} /></button>;
 }
 
-function Calendar({ businessName, items, onOpenAssistant }: { businessName: string; items: ApiCalendarItem[]; onOpenAssistant: () => void }) {
+function Calendar({ businessName, items, demoMode, onOpenAssistant }: { businessName: string; items: ApiCalendarItem[]; demoMode: boolean; onOpenAssistant: () => void }) {
+  if (!demoMode) return <><PageHeading eyebrow={`${businessName} calendar`} title="Calendar." detail="This playground has no synthetic calendar events." action={<button className="primary-button" onClick={onOpenAssistant}><Plus size={16} /> New hold</button>} /><EmptyState title={items.length ? `${items.length} calendar items synced` : 'Calendar is empty'} detail="No Atlas fixture is rendered in the playground." icon={<CalendarDays size={26} />} /></>;
   return <><PageHeading eyebrow={`${businessName} calendar`} title="Calendar." detail="Availability is checked immediately before a proposed event." action={<button className="primary-button" onClick={onOpenAssistant}><Plus size={16} /> New hold</button>} /><div className="calendar-toolbar"><button className="icon-button"><ChevronRight size={17} className="rotate-180" /></button><strong>Sep 7 – 13, 2026</strong><button className="icon-button"><ChevronRight size={17} /></button><div className="toolbar-spacer" /><span className="calendar-legend"><i className="legend-dot violet" /> Noah proposal</span><span className="calendar-legend"><i className="legend-dot blue" /> Confirmed</span></div><div className="panel week-calendar"><div className="week-head"><span /><span>Mon <b>7</b></span><span>Tue <b>8</b></span><span>Wed <b>9</b></span><span>Thu <b>10</b></span><span>Fri <b>11</b></span></div><div className="week-body"><div className="time-axis">{['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'].map((time) => <span key={time}>{time}</span>)}</div>{['mon', 'tue', 'wed', 'thu', 'fri'].map((day, index) => <div className="day-column" key={day}>{index === 1 && <div className="calendar-event event-blue" style={{ top: '52px', height: '74px' }}>Team stand-up<span>09:00 · 60 min</span></div>}{index === 3 && <div className="calendar-event event-violet" style={{ top: '126px', height: '112px' }}>Open proposal<span>10:00 · 90 min</span><b>Needs approval</b></div>}{index === 2 && <div className="calendar-event event-amber" style={{ top: '348px', height: '74px' }}>Equipment delivery<span>13:30 · 60 min</span></div>}{index === 4 && <div className="calendar-event event-green" style={{ top: '496px', height: '74px' }}>Open slot<span>15:00 · 60 min</span></div>}</div>)}</div></div><div className="calendar-note"><Sparkles size={15} /><span>Noah sees <strong>{items.length || 2} calendar items</strong> and found <strong>2 matching slots</strong> for a 90-minute field assessment next week.</span><button className="text-button" onClick={onOpenAssistant}>Review proposal <ArrowUpRight size={14} /></button></div></>;
 }
 
-function Finance({ ledgerItems, quoteItems, receivableItems, currency, onExport }: { ledgerItems: ApiLedgerEntry[]; quoteItems: ApiQuote[]; receivableItems: ApiReceivable[]; currency: string; onExport: () => void }) {
+function Finance({ ledgerItems, quoteItems, receivableItems, currency, demoMode, onExport }: { ledgerItems: ApiLedgerEntry[]; quoteItems: ApiQuote[]; receivableItems: ApiReceivable[]; currency: string; demoMode: boolean; onExport: () => void }) {
   const fallbackLedger: ApiLedgerEntry[] = [
     { id: 'ledger-demo-income', description: 'Field assessment · Rossi', category: 'Services', kind: 'income', amount_minor: 42000, currency: 'USD', status: 'proposed' },
     { id: 'ledger-demo-expense', description: 'Equipment replacement', category: 'Operations', kind: 'expense', amount_minor: 8640, currency: 'USD', status: 'confirmed' },
     { id: 'ledger-demo-retainer', description: 'Maintenance retainer', category: 'Services', kind: 'income', amount_minor: 120000, currency: 'USD', status: 'confirmed' },
   ];
-  const entries = ledgerItems.length ? ledgerItems : fallbackLedger;
+  const entries = demoMode && ledgerItems.length === 0 ? fallbackLedger : ledgerItems;
   const confirmed = entries.filter((entry) => entry.status === 'confirmed');
   const income = confirmed.filter((entry) => entry.kind === 'income').reduce((total, entry) => total + entry.amount_minor, 0);
   const expenses = confirmed.filter((entry) => entry.kind === 'expense').reduce((total, entry) => total + entry.amount_minor, 0);
@@ -588,10 +575,10 @@ function Finance({ ledgerItems, quoteItems, receivableItems, currency, onExport 
     { id: 'quote-demo-draft', status: 'draft', total_minor: 42000, currency: 'USD', valid_until: '2026-09-15' },
     { id: 'quote-demo-sent', status: 'sent', total_minor: 120000, currency: 'USD', valid_until: '2026-09-15' },
   ];
-  const quotes = quoteItems.length ? quoteItems : fallbackQuotes;
+  const quotes = demoMode && quoteItems.length === 0 ? fallbackQuotes : quoteItems;
   const quoteTotal = quotes.reduce((total, quote) => total + quote.total_minor, 0);
   const fallbackReceivables: ApiReceivable[] = [{ id: 'receivable-demo', amount_due_minor: 384000, amount_paid_minor: 0, status: 'open', currency }];
-  const receivables = receivableItems.length ? receivableItems : fallbackReceivables;
+  const receivables = demoMode && receivableItems.length === 0 ? fallbackReceivables : receivableItems;
   const outstanding = receivables.reduce((total, receivable) => total + Math.max(0, receivable.amount_due_minor - receivable.amount_paid_minor), 0);
   return <><PageHeading eyebrow="Numbers with evidence" title="Finance." detail="Deterministic totals for quotes, income, expenses and receivables." action={<button className="outline-button" onClick={onExport}><ArrowUpRight size={15} /> Export CSV</button>} /><div className="finance-summary"><div className="finance-total"><span>Outstanding receivables</span><strong>{formatMinor(outstanding, currency)}</strong><small><span className="up-arrow">↗</span> calculated from open records</small></div><div className="finance-total"><span>Income this month</span><strong>{formatMinor(income, currency)}</strong><small>{confirmed.filter((entry) => entry.kind === 'income').length} confirmed entries</small></div><div className="finance-total"><span>Expenses this month</span><strong>{formatMinor(expenses, currency)}</strong><small>{confirmed.filter((entry) => entry.kind === 'expense').length} owner-confirmed entries</small></div></div><div className="finance-grid"><div className="panel ledger-panel"><PanelHeader title="Recent ledger" action="View all" /><div className="ledger-head"><span>Entry</span><span>Category</span><span>Amount</span><span>Status</span></div>{entries.slice(0, 6).map((entry) => <LedgerRow key={entry.id} title={entry.description} category={entry.category} amount={`${entry.kind === 'income' ? '+' : '−'} ${formatMinor(entry.amount_minor, entry.currency)}`} status={entry.status} tone={entry.status === 'confirmed' ? 'green' : 'amber'} />)}</div><div className="panel quote-panel"><PanelHeader title="Open quotes" action="New quote" /><div className="quote-total"><strong>{formatMinor(quoteTotal, currency)}</strong><span>total proposed value</span></div>{quotes.slice(0, 4).map((quote) => <div className="quote-row" key={quote.id}><div className="quote-client"><span className="client-avatar">Q</span><div><strong>{quote.id}</strong><span>{quote.status} · valid until {quote.valid_until || 'owner review'}</span></div></div><span className={'status-pill ' + (quote.status === 'sent' ? 'violet' : 'amber')}>{quote.status}</span></div>)}</div></div></>;
 }
@@ -600,14 +587,14 @@ function LedgerRow({ title, category, amount, status, tone }: { title: string; c
   return <div className="ledger-row"><strong>{title}</strong><span>{category}</span><b className={tone}>{amount}</b><span className={'status-pill ' + tone}>{status}</span></div>;
 }
 
-function Knowledge({ businessName, items, onAddDocument }: { businessName: string; items: ApiDocument[]; onAddDocument: (file: File) => void }) {
+function Knowledge({ businessName, items, demoMode, onAddDocument }: { businessName: string; items: ApiDocument[]; demoMode: boolean; onAddDocument: (file: File) => void }) {
   const fallback: ApiDocument[] = [
     { id: 'document-pricing', filename: `${businessName} · pricing & policies.pdf`, content_type: 'application/pdf', status: 'indexed', page_count: 10 },
     { id: 'document-checklist', filename: 'Field assessment checklist', content_type: 'application/msword', status: 'indexed', page_count: 4 },
     { id: 'document-receipt', filename: 'Receipt_0826.pdf', content_type: 'application/pdf', status: 'review', page_count: 1 },
     { id: 'document-notes', filename: 'Team operating notes', content_type: 'text/plain', status: 'indexed', page_count: 1 },
   ];
-  const documents = items.length ? items : fallback;
+  const documents = demoMode && items.length === 0 ? fallback : items;
   return <><PageHeading eyebrow="Grounded answers" title="Knowledge." detail="Documents Noah can search, cite and use as business context." action={<label className="primary-button"><Plus size={16} /> Add document<input className="visually-hidden" type="file" accept=".pdf,.txt,.md,.csv,.png,.jpg,.jpeg" onChange={(event) => { const file = event.target.files?.[0]; if (file) onAddDocument(file); event.currentTarget.value = ''; }} /></label>} /><div className="knowledge-grid"><div className="panel document-list"><PanelHeader title="Indexed documents" action="Filter" />{documents.map((document) => <DocumentRow key={document.id} type={document.content_type.split('/').pop()?.slice(0, 3).toUpperCase() || 'DOC'} title={document.filename} meta={`${document.page_count || 1} pages · ${document.status === 'indexed' ? 'ready for search' : 'awaiting review'}`} status={document.status === 'indexed' ? 'Ready' : 'Review'} tone={document.status === 'indexed' ? 'green' : 'amber'} />)}</div><div className="panel knowledge-callout"><div className="callout-art"><FileText size={25} /><span /><span /><span /></div><h3>Answers with a trail</h3><p>Every document answer carries its source and page. An instruction inside a file can inform context, but never change Noah's authority.</p><div className="source-example"><span>Source preview</span><strong>pricing & policies.pdf · page 3</strong><em>“Field assessment includes a written report…”</em></div></div></div></>;
 }
 

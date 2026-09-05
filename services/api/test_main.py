@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from main import app
@@ -13,8 +14,58 @@ def test_health_and_bootstrap_are_available() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["business"]["name"] == "Atlas Services"
+    assert body["workspace"] == {
+        "mode": "demo",
+        "data_source": "synthetic-fixture",
+        "fixture_id": "atlas-v1",
+        "synthetic": True,
+    }
+    assert all(connection["status"] == "demo-connected" for connection in body["connections"])
     assert body["providers"]["embeddings"]["dimensions"] == 2048
     assert body["workflow"]["provider"] == "nvidia-nemo-agent-toolkit"
+
+
+def test_playground_starts_empty_and_does_not_receive_demo_connections() -> None:
+    headers = {"Authorization": "Bearer tenant-phase1-empty"}
+    bootstrap = client.get("/api/v1/bootstrap", headers=headers)
+    assert bootstrap.status_code == 200
+    body = bootstrap.json()
+    assert body["workspace"] == {
+        "mode": "playground",
+        "data_source": "empty",
+        "fixture_id": None,
+        "synthetic": False,
+    }
+    assert body["business"]["name"] == "New business"
+    assert body["connections"] == []
+    assert body["pending_approvals"] == 0
+    assert client.get("/api/v1/actions", headers=headers).json() == []
+    assert client.get("/api/v1/mail", headers=headers).json() == []
+    assert client.get("/api/v1/calendar", headers=headers).json() == []
+    assert client.get("/api/v1/ledger", headers=headers).json() == []
+    assert client.get("/api/v1/documents", headers=headers).json() == []
+    assert client.get("/api/v1/quotes", headers=headers).json() == []
+    assert client.get("/api/v1/receivables", headers=headers).json() == []
+
+
+def test_demo_fixture_cannot_be_seeded_into_a_playground_tenant() -> None:
+    from main import ensure_tenant, seed_demo
+
+    store = ensure_tenant("tenant-phase1-seed-guard")
+    with pytest.raises(RuntimeError, match="DEMO_FIXTURE_TENANT_MISMATCH"):
+        seed_demo(store)
+
+
+def test_playground_write_does_not_change_demo_catalog() -> None:
+    headers = {"Authorization": "Bearer tenant-phase1-write"}
+    created = client.post(
+        "/api/v1/services",
+        headers=headers,
+        json={"name": "Playground-only service", "price_minor": 100, "duration_minutes": 30},
+    )
+    assert created.status_code == 200
+    assert any(item["name"] == "Playground-only service" for item in client.get("/api/v1/services", headers=headers).json())
+    assert all(item["name"] != "Playground-only service" for item in client.get("/api/v1/services", headers=AUTH).json())
 
 
 def test_required_auth_rejects_missing_token(monkeypatch) -> None:

@@ -1,7 +1,7 @@
 # Onboarding simple de Noah Nvidia
 
-> Contrato y roadmap del workstream de onboarding. Fase 0 cerrada el
-> 2026-09-05. La fuente operativa general sigue siendo `STATE.md`.
+> Contrato y roadmap del workstream de onboarding. Fases 0 y 1 cerradas en
+> local el 2026-09-05. La fuente operativa general sigue siendo `STATE.md`.
 
 ## Objetivo
 
@@ -49,6 +49,40 @@ hacer pasar datos ficticios por datos reales.
 El modo no se decide por una bandera enviada desde el navegador. El backend lo
 deriva del tenant autenticado y de su estado persistido. El frontend solo
 presenta el estado devuelto por `bootstrap`.
+
+## Implementación de fase 1
+
+`GET /api/v1/bootstrap` devuelve un bloque `workspace` derivado del tenant
+autenticado. La forma observable es:
+
+```json
+{
+  "mode": "playground",
+  "data_source": "empty",
+  "fixture_id": null,
+  "synthetic": false
+}
+```
+
+La misma respuesta para `tenant-demo` declara
+`mode=demo`, `data_source=synthetic-fixture`, `fixture_id=atlas-v1` y
+`synthetic=true`.
+
+- Solo `tenant-demo` puede sembrar `fixtures/atlas.json`; `seed_demo` rechaza
+  cualquier otro tenant antes de tocar datos.
+- Un tenant autenticado distinto de `tenant-demo` se crea con negocio,
+  conexiones, mensajes, calendario, finanzas y documentos vacíos.
+- Los snapshots cargados desde persistencia reciben metadata compatible sin
+  cambiar de tenant ni copiar registros entre tenants.
+- Las conexiones demo ya no aparecen como fallback para un playground.
+- La UI arranca en estado neutral y muestra una banda visible de `Demo sandbox`
+  o `Playground vacío` solo después de leer `bootstrap`; nunca pinta Atlas
+  mientras todavía desconoce el modo.
+
+La verificación de esta fase es local y está registrada en
+[`evidence/phase-1-playground.md`](evidence/phase-1-playground.md). El deploy
+manual que actualizará Render queda separado de esta fase para no confundir
+una prueba local con evidencia live.
 
 ## Contrato JSON v1
 
@@ -168,7 +202,7 @@ completar manualmente o reintentar, nunca reenviar el texto a otra ruta.
 | Fase | Entrega | Criterio de salida | Estado |
 |---|---|---|---|
 | 0 | Contrato, modos, límites de proveedor, skip y criterios anti-drift | Schema versionado, rutas reservadas, copia exacta del warning y reglas alineadas con `STATE.md` | **Cerrada** |
-| 1 | Aislamiento demo/playground | Demo conserva Atlas; tenant nuevo queda vacío; Neon conserva ambos sin cruces | Pendiente |
+| 1 | Aislamiento demo/playground | Demo conserva Atlas; tenant nuevo queda vacío; snapshots tenant-safe no cruzan datos | **Cerrada en local** |
 | 2 | Shell del wizard | Estados bienvenida, texto, carga, revisión y salida; sin llamada de modelo todavía | Pendiente |
 | 3 | Extracción Nebius | Prompt estructurado, parseo estricto, errores visibles, sin escritura automática | Pendiente |
 | 4 | Confirmación y skip | Aplicación idempotente, auditoría, fixture sintético y warning verificable | Pendiente |
@@ -194,8 +228,10 @@ de invertir tiempo en pulido de presentación. La estimación vigente es de
 - [ ] El tour no aparece antes de completar o saltear explícitamente.
 - [ ] Ninguna clave o token aparece en UI, logs, Graphify, contratos o commits.
 
-## Fuera de fase 0
+## Fuera de fase 0 y fase 1
 
 Fase 0 no agrega endpoints, componentes React, migraciones ni despliegues. No
 se afirma que el onboarding esté disponible todavía; deja el contrato cerrado
 para que las fases de código puedan avanzar sin reinterpretar el producto.
+Fase 1 tampoco agrega el wizard ni llama a un modelo: solo hace visible y
+verificable el aislamiento de los dos modos en el runtime existente.

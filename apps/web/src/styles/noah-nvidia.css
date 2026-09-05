@@ -79,6 +79,13 @@ button { cursor: pointer; }
 .icon-button.has-dot::after { content: ''; width: 4px; height: 4px; position: absolute; top: 5px; right: 5px; border: 1px solid var(--bg); border-radius: 50%; background: var(--amber); }
 
 .page-content { max-width: 1350px; margin: 0 auto; padding: 40px 42px 65px; }
+.workspace-banner { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 22px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; font-size: 11px; }
+.workspace-banner svg { flex: 0 0 auto; margin-top: 1px; }
+.workspace-banner div { display: grid; gap: 3px; }
+.workspace-banner strong { font-weight: 600; }
+.workspace-banner span { color: #7c8da3; line-height: 1.45; }
+.workspace-banner.demo { color: #d4c08a; background: rgba(246, 198, 106, .06); border-color: rgba(246, 198, 106, .2); }
+.workspace-banner.playground { color: #a8d9eb; background: rgba(112, 191, 245, .06); border-color: rgba(112, 191, 245, .2); }
 .page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 30px; }
 .eyebrow { color: #6c809a; font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 10px; }
 h1, h2, h3, p { margin: 0; }

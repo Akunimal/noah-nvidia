@@ -72,6 +72,13 @@ export interface ApiConnection {
   expires_at?: string;
 }
 
+export interface WorkspaceInfo {
+  mode: 'demo' | 'playground';
+  data_source: string;
+  fixture_id: string | null;
+  synthetic: boolean;
+}
+
 export interface MessageResponse {
   assistant_message?: string;
   message?: string;
@@ -83,6 +90,7 @@ export interface MessageResponse {
 
 export interface BootstrapPayload {
   tenant_id: string;
+  workspace: WorkspaceInfo;
   business: {
     name: string;
     timezone: string;

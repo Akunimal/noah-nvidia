@@ -58,6 +58,7 @@ except ImportError:  # Allows package execution from repository root.
 
 
 TENANT_ID = "tenant-demo"
+DEMO_FIXTURE_ID = "atlas-v1"
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_PATH = ROOT / "fixtures" / "atlas.json"
 MAX_DOCUMENT_BYTES = 5 * 1024 * 1024
@@ -119,6 +120,36 @@ def now() -> str:
 
 def today() -> str:
     return datetime.now(timezone.utc).date().isoformat()
+
+
+def workspace_metadata(tenant_id: str) -> dict[str, Any]:
+    """Derive workspace mode from the authenticated tenant, never the client."""
+
+    is_demo = tenant_id == TENANT_ID
+    return {
+        "mode": "demo" if is_demo else "playground",
+        "data_source": "synthetic-fixture" if is_demo else "empty",
+        "fixture_id": DEMO_FIXTURE_ID if is_demo else None,
+        "synthetic": is_demo,
+    }
+
+
+def ensure_workspace_metadata(store: dict[str, Any]) -> None:
+    """Backfill mode metadata without trusting persisted client-controlled flags."""
+
+    tenant_id = str(store.get("tenant_id", ""))
+    expected = workspace_metadata(tenant_id)
+    current = store.get("workspace")
+    workspace = deepcopy(current) if isinstance(current, dict) else {}
+    workspace["mode"] = expected["mode"]
+    workspace["synthetic"] = expected["synthetic"]
+    if expected["mode"] == "demo":
+        workspace["data_source"] = "synthetic-fixture"
+        workspace["fixture_id"] = DEMO_FIXTURE_ID
+    else:
+        workspace.setdefault("data_source", "empty")
+        workspace["fixture_id"] = None
+    store["workspace"] = workspace
 
 
 def new_id(prefix: str) -> str:
@@ -451,6 +482,7 @@ async def execute_approved_action(store: dict[str, Any], action: dict[str, Any],
 def blank_tenant(tenant_id: str) -> dict[str, Any]:
     return {
         "tenant_id": tenant_id,
+        "workspace": workspace_metadata(tenant_id),
         "business": {
             "id": tenant_id,
             "name": "Atlas Services" if tenant_id == TENANT_ID else "New business",
@@ -497,6 +529,10 @@ def blank_tenant(tenant_id: str) -> dict[str, Any]:
 
 def seed_demo(store: dict[str, Any]) -> None:
     """Load only synthetic Atlas data into the demo tenant."""
+
+    if str(store.get("tenant_id", "")) != TENANT_ID:
+        raise RuntimeError("DEMO_FIXTURE_TENANT_MISMATCH")
+    ensure_workspace_metadata(store)
 
     try:
         fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
@@ -725,8 +761,11 @@ def ensure_tenant(tenant_id: str) -> dict[str, Any]:
     if tenant_id not in TENANTS:
         persisted = persistence.load_tenant(tenant_id)
         TENANTS[tenant_id] = persisted or blank_tenant(tenant_id)
+        ensure_workspace_metadata(TENANTS[tenant_id])
         if persisted is None and tenant_id == TENANT_ID:
             seed_demo(TENANTS[tenant_id])
+    else:
+        ensure_workspace_metadata(TENANTS[tenant_id])
     request_tenants = REQUEST_TENANTS.get()
     if request_tenants is not None:
         request_tenants.add(tenant_id)
@@ -1061,13 +1100,17 @@ async def health() -> dict[str, Any]:
 @app.get("/api/v1/bootstrap")
 async def bootstrap(tenant_id: str = Depends(tenant_from_auth)) -> dict[str, Any]:
     store = ensure_tenant(tenant_id)
-    return {
-        "tenant_id": tenant_id,
-        "business": deepcopy(store["business"]),
-        "connections": [public_connection(connection) for connection in store["connections"].values()] or [
+    connections = [public_connection(connection) for connection in store["connections"].values()]
+    if not connections and tenant_id == TENANT_ID:
+        connections = [
             {"provider": "gmail", "status": "demo-connected", "scopes": ["gmail.readonly", "gmail.compose"]},
             {"provider": "google-calendar", "status": "demo-connected", "scopes": ["calendar.events.owned", "calendar.freebusy"]},
-        ],
+        ]
+    return {
+        "tenant_id": tenant_id,
+        "workspace": deepcopy(store["workspace"]),
+        "business": deepcopy(store["business"]),
+        "connections": connections,
         "capabilities": [
             "business.get_profile", "services.search", "contacts.search", "knowledge.search", "mail.search", "mail.read",
             "mail.prepare_draft", "calendar.list", "calendar.find_slots", "quotes.prepare", "ledger.propose_entry", "tasks.create", "actions.propose",
