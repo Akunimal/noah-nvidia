@@ -55,6 +55,7 @@ a NVIDIA.
 | Router Nebius/OpenCode2API | Nebius live OK; OpenCode2API contrato local OK | OpenCode2API live sigue pendiente; evidencia en `evidence/gate-3-opencode2api.md` |
 | Nebius real | OK | Gate 1 probado con `nvidia/nemotron-3-super-120b-a12b` |
 | Demo manual live | OK | Gate 2 probado desde frontend Render; evidencia en `evidence/gate-2-render.md` |
+| Build Render del API | OK tras fijar Python 3.12.10 | El primer deploy de `8af42c3` falló por Python 3.14; evidencia en `evidence/render-build-incident-2026-09-05.md` |
 | OpenCode2API free | Contrato local OK; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
 | Google OAuth | En preparación | Proyecto de prueba creado; falta cliente web, scopes y consentimiento |
 | Supabase | Diferido | No bloquear el MVP/demo actual |
@@ -160,6 +161,8 @@ Estado: **diferido**.
   producción y debe rotarse si el demo deja de ser privado.
 - Ningún efecto externo se considera exitoso sin recibo verificable.
 - Si cambia el commit base, actualizar el baseline y repetir las verificaciones.
+- El backend debe conservar Python `3.12.10` tanto en `.python-version` como en
+  la configuración de Render; no depender del default cambiante del runtime.
 - Antes de activar una integración, comparar este archivo con `.env.example`,
   `render.yaml`, `provider-manifest.md` y `runbook.md`.
 
