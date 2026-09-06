@@ -21,3 +21,4 @@ test-results/
 *.tsbuildinfo
 # Local knowledge graph; keep source-derived artifacts out of deploys.
 graphify-out/
+.promptfoo/

@@ -117,7 +117,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 
 | Área | Estado | Evidencia |
 |---|---|---|
-| API determinista | OK | 52 tests Python pasan con Python 3.12 y las versiones fijadas |
+| API determinista | OK | 54 tests Python pasan con Python 3.12 y las versiones fijadas |
 | Frontend | OK | typecheck, lint, Vitest y build pasan |
 | Onboarding shell | OK en local | 6 Vitest; `components/OnboardingWizard.tsx`; evidencia en `evidence/phase-2-wizard-shell.md` |
 | Onboarding extraction | OK local + API Render | `POST /api/v1/onboarding/extract`, pruebas de Nebius/errores/aislamiento y ventana/BYOK pública; `/openapi.json` se regenera; smoke privado pendiente de bearer no-demo; evidencia en `evidence/phase-3-nebius-extraction.md` |
@@ -133,7 +133,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | OpenCode2API free | Contrato local OK; Nemotron-only enforced; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
 | Public AI release guard | OK local + live público | Render `dep-dael3k0n74is73eb8rm0` / `dep-dael3pgn74is73eb9ft0` live desde `f42afc7`; bootstrap declara ventana programada, `remaining_calls=20`, `server_configured=true`; panel público visible sin consumir crédito |
 | Reviewer UI language | OK local + live público | La superficie visible del reviewer, el wizard, el panel NVIDIA/BYOK y los mensajes públicos de la API están en inglés; la entrada libre conserva soporte multilingüe |
-| Evaluación Promptfoo | Pendiente | Debe usar los mismos casos, instrucciones, schema y assertions que Nebius; verificar si OpenCode2API expone exactamente el modelo canónico y etiquetar cualquier diferencia |
+| Evaluación Promptfoo | Harness local cerrado; conexión/paridad pendiente | `npm run eval:promptfoo:local`: 15/15, 0 errores, provider sintético determinista, sin llamadas de modelo; evidencia en `evidence/promptfoo-local.md`; aún falta la evaluación conectada y la verificación de modelo |
 | Cutover público 2026-10-27 | Programado | Mantener la URL abierta, confirmar Nebius/Nemotron efectivo, mantener OpenCode2API desactivado y repetir smoke limpio con fallback y cuotas |
 | Paquete de entrega y freeze | Pendiente | README/Devpost/video/instrucciones en inglés, licencia, evidencia redactada, Graphify actualizado y release reproducible |
 | Google OAuth | OK — lectura verificada | Consentimiento real, callback, token cifrado y sync de lectura verificados con `gesecseguridad@gmail.com`; efectos externos siguen apagados |
@@ -272,10 +272,22 @@ Estado: **pendiente**.
 
 ### Gate 7 — Evaluación Promptfoo y paridad honesta
 
-Estado: **pendiente**.
+Estado: **harness local cerrado; evaluación conectada/paridad pendiente**.
 
-- Ejecutar Promptfoo con los mismos casos sintéticos, instrucciones, schema y
-  assertions que la extracción de producción.
+- El harness local ya ejecuta 15 casos sintéticos con la misma instrucción
+  canónica (`services/api/onboarding-system-prompt.txt`) y el mismo schema
+  `onboarding.v1` que la extracción de producción.
+- El provider local es determinista y está rotulado como sintético; valida
+  JSON estricto, `missing_fields`, inventario, prompt injection, procedencia y
+  ausencia de efectos externos. La ejecución cerrada dio 8/8, 0 errores y
+  0 llamadas de modelo; evidencia redactada en
+  `evidence/promptfoo-local.md`.
+- Promptfoo se instala solo para la ejecución mediante `npx` fijado a
+  `0.122.2`; no se agrega como dependencia runtime ni se guardan resultados
+  crudos en el repo (`.promptfoo/` está ignorado). El runner desactiva
+  telemetría, actualizaciones, generación remota y sharing.
+- La evaluación conectada debe reutilizar los mismos casos, instrucciones,
+  schema y assertions, con endpoint y clave únicamente en el entorno privado.
 - Verificar primero si OpenCode2API admite exactamente el modelo canónico
   nvidia/nemotron-3-super-120b-a12b. El alias nemotron-3-ultra-free no se
   considera equivalente sin evidencia.
@@ -284,7 +296,7 @@ Estado: **pendiente**.
 - Inyectar endpoint y clave solo por el entorno privado; no guardar secretos,
   prompts privados ni respuestas completas en el repo o Graphify.
 - Guardar evidencia redactada de schema, missing_fields, prompt injection,
-  ausencia de acciones y fallback determinístico.
+  ausencia de acciones y fallback determinístico para cada provider/modelo.
 
 ### Gate 8 — Cutover público y hardening
 
@@ -360,7 +372,8 @@ Estado: **pendiente**.
   persiste el tenant público en Neon.
 - Efectos Gmail/Calendar, pagos y demás mutaciones externas permanecen
   desactivados.
-- Pruebas locales: 52 Python, Vitest, typecheck, lint y build pasan.
+- Pruebas locales: 54 Python, Vitest, typecheck, lint, build y Promptfoo
+  sintético (15/15) pasan.
 
 ### Producción — todavía no declarar
 
@@ -378,8 +391,9 @@ Estado: **pendiente**.
 La demo es entregable con Neon Free server-only y el slice OAuth de lectura
 está verificado. Las fases 0 a 5 del onboarding quedaron cerradas con skip,
 confirmación, fallback manual, nueva pestaña y aislamiento de flujo. El
-siguiente bloque operativo es Gate 6: implementar y verificar el tour guiado.
-En paralelo queda pendiente el smoke Neon de un tenant privado con bearer
-válido. Después se ejecutan Gate 7 (Promptfoo), Gate 8 (cutover del
-2026-10-27) y Gate 9 (paquete de entrega/freeze), sin habilitar planes pagos,
-Supabase, Vercel ni efectos externos.
+harness local de Gate 7 ya está cerrado; el siguiente bloque operativo es
+Gate 6: implementar y verificar el tour guiado. En paralelo queda pendiente
+el smoke Neon de un tenant privado con bearer válido y la evaluación
+conectada/paridad de Gate 7. Después siguen Gate 8 (cutover del 2026-10-27) y
+Gate 9 (paquete de entrega/freeze), sin habilitar planes pagos, Supabase,
+Vercel ni efectos externos.

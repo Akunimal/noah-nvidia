@@ -1,0 +1,5 @@
+{{onboarding_system_prompt}}
+
+<user_message>
+{{input}}
+</user_message>

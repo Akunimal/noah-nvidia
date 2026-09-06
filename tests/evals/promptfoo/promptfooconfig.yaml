@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: Noah Nvidia onboarding.v1 local contract evaluation
+
+prompts:
+  - file://./onboarding_prompt.txt
+
+providers:
+  - id: file://./local_provider.mjs
+    label: local-deterministic-synthetic
+    config:
+      mode: offline
+      model: local-onboarding-fixture-v1
+
+defaultTest:
+  vars:
+    onboarding_system_prompt: file://../../../services/api/onboarding-system-prompt.txt
+  assert:
+    - type: is-json
+      value: file://../../../contracts/onboarding.v1.schema.json
+    - type: javascript
+      value: file://./assertions.cjs
+
+tests: file://./cases.json
+
+sharing: false

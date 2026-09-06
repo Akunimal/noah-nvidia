@@ -48,10 +48,12 @@ hacer pasar datos ficticios por datos reales.
     acepta solo por headers de una sesión, con destino fijo, modelo Nemotron y
     cuota separada. Nunca se persiste ni se expone la clave.
 12. **Evaluación de proveedor:** Promptfoo evalúa el mismo conjunto de casos,
-    instrucciones y contrato JSON que usará la ruta Nebius. OpenCode2API solo
-    participa como sandbox sintético, con endpoint y clave por variables de
-    entorno. No se afirma paridad de pesos hasta verificar que el gateway
-    expone exactamente `nvidia/nemotron-3-super-120b-a12b`.
+    instrucciones y contrato JSON que usará la ruta Nebius. El harness local
+    determinista ya está cerrado sin gastar crédito; la evaluación conectada
+    queda separada y usa endpoint/clave solo por variables privadas.
+    OpenCode2API solo participa como sandbox sintético, con endpoint y clave
+    por variables de entorno. No se afirma paridad de pesos hasta verificar
+    que el gateway expone exactamente `nvidia/nemotron-3-super-120b-a12b`.
 13. **Cambio público:** el 2026-10-27 se conserva la URL pública y se verifica
     el cambio efectivo a Nebius/NVIDIA; OpenCode2API permanece desactivado en
     Render. Cambiar de proveedor no significa cerrar la demo ni crear una ruta
@@ -311,6 +313,11 @@ La evidencia debe conservar solo resultados redactados y metadatos seguros:
 proveedor, modelo, latencia, uso aproximado, pass/fail y errores de validación.
 Como mínimo se verifican:
 
+- El harness local ejecuta 15/15 casos sintéticos, valida el prompt canónico y
+  `onboarding.v1`, y demuestra cero llamadas de modelo y cero efectos externos.
+- La ejecución conectada reutiliza los mismos casos y assertions; su provider,
+  modelo, costo/uso y resultado se registran por separado.
+
 - JSON válido y estricto contra `onboarding.v1`;
 - `missing_fields` correcto, campos desconocidos rechazados y no invención de
   inventario;
@@ -358,7 +365,7 @@ Como mínimo se verifican:
 | 4 | Confirmación y skip | Aplicación idempotente, auditoría, fixture sintético y warning verificable | **Cerrada · Render publicado** |
 | 5 | Prueba de lado a lado | Navegador limpio: demo, onboarding, edición, confirmación, skip y aislamiento; evidencia guardada | **Cerrada · Render público verificado** |
 | 6 | Tour guiado | Anchors declarativos, teclado/reduced motion y persistencia posterior a onboarding | Pendiente |
-| 7 | Evaluación de proveedor | Promptfoo con los mismos casos/prompts/schema; modelo canónico verificado o diferencia documentada; evidencia redactada | Pendiente |
+| 7 | Evaluación de proveedor | Harness local Promptfoo 15/15 cerrado; modelo canónico conectado verificado o diferencia documentada; evidencia redactada | **Local cerrado · conexión pendiente** |
 | 8 | Cutover y hardening del reviewer | URL abierta, Nebius efectivo desde el 2026-10-27, OpenCode2API desactivado, cuotas/fallback/CORS/cold start verificados | Pendiente |
 | 9 | Entrega y freeze | README, Devpost, video público menor a 3 minutos, licencia, instrucciones de prueba, Graphify y release reproducible | Pendiente |
 
@@ -394,8 +401,11 @@ Render PostgreSQL legacy y no es la deadline del hackathon.
 - [ ] Reiniciar el API conserva el estado en Neon y respeta el tenant (pendiente
       de smoke live con un tenant playground de producción).
 - [ ] El tour no aparece antes de completar o saltear explícitamente.
-- [ ] Promptfoo ejecuta los mismos casos y assertions; la paridad de modelo se
-      confirma o se etiqueta honestamente como comparación de contrato.
+- [x] Promptfoo local ejecuta los mismos casos, prompt y schema con provider
+      sintético determinista: 15/15, sin llamadas de modelo ni efectos externos.
+- [ ] La evaluación conectada reutiliza los mismos casos y assertions; la
+      paridad de modelo se confirma o se etiqueta honestamente como comparación
+      de contrato.
 - [ ] El 2026-10-27 `bootstrap.public_ai` y una extracción real muestran
       Nebius/Nemotron, mientras OpenCode2API permanece desactivado.
 - [ ] El reviewer puede completar el flujo sin costo durante el judging; si el

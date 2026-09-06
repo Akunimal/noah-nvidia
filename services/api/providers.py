@@ -135,6 +135,10 @@ class NebiusProvider(Provider):
                 {"role": "system", "content": system},
                 {"role": "user", "content": prompt},
             ],
+            # Token Factory supports JSON mode on this OpenAI-compatible
+            # endpoint. Keep schema validation in parse_onboarding_output;
+            # JSON mode only prevents prose/Markdown wrappers.
+            "response_format": {"type": "json_object"},
             "temperature": 0.1,
             "max_tokens": 900,
         }

@@ -3,7 +3,7 @@ import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from providers import NvidiaRouter, OpenCode2ApiProvider, ReviewerProvider
+from providers import NebiusProvider, NvidiaRouter, OpenCode2ApiProvider, ReviewerProvider
 
 
 def test_opencode2api_accepts_root_v1_or_full_endpoint(monkeypatch) -> None:
@@ -126,6 +126,47 @@ def test_opencode2api_http_contract_preserves_provider_result_provenance(monkeyp
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+def test_nebius_requests_json_mode_for_structured_onboarding(monkeypatch) -> None:
+    class NebiusGatewayHandler(BaseHTTPRequestHandler):
+        request_headers: dict[str, str] = {}
+        request_payload: dict[str, object] = {}
+
+        def do_POST(self) -> None:  # noqa: N802 - stdlib handler API
+            length = int(self.headers.get("Content-Length", "0"))
+            type(self).request_headers = {key.lower(): value for key, value in self.headers.items()}
+            type(self).request_payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            body = json.dumps({"choices": [{"message": {"content": "{}"}}]}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), NebiusGatewayHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        monkeypatch.setenv("NOAH_NEBIUS_BASE_URL", f"http://127.0.0.1:{server.server_port}/v1")
+        monkeypatch.setenv("NOAH_NEBIUS_API_KEY", "synthetic-test-key")
+        monkeypatch.setenv("NOAH_NEBIUS_MODEL", "nvidia/nemotron-test")
+
+        result = asyncio.run(NebiusProvider().complete("business facts", "return onboarding.v1"))
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+    assert result.provider == "nebius"
+    assert result.model == "nvidia/nemotron-test"
+    assert result.text == "{}"
+    assert result.error is None
+    assert NebiusGatewayHandler.request_headers["authorization"] == "Bearer synthetic-test-key"
+    assert NebiusGatewayHandler.request_payload["response_format"] == {"type": "json_object"}
 
 
 def test_reviewer_provider_uses_allowlisted_destinations_and_nemotron_only(monkeypatch) -> None:

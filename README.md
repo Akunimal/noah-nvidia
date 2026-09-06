@@ -168,12 +168,19 @@ cd services\api
 .venv\Scripts\python.exe -m pytest -q
 .venv\Scripts\python.exe ..\..\scripts\smoke_api.py
 .venv\Scripts\python.exe -m py_compile main.py providers.py providers_nim.py policies\guardrails.py workflows\nvidia_workflow.py storage.py secrets_store.py connectors\gmail.py connectors\calendar.py
+# Optional offline Promptfoo contract evaluation (Node 22.22+)
+npm run eval:promptfoo:local
 ```
 
 The tests cover tenant isolation, approval hash and replay behavior, run
 leases and cancellation, no-false-success execution, integer minor-unit
 calculations, partial payments, document review/quarantine, OAuth state reuse,
 and provider URL normalization.
+
+The Promptfoo local suite uses only synthetic descriptions and a deterministic
+provider. It validates the canonical onboarding prompt and `onboarding.v1`
+schema without spending Nebius credit. Connected model evaluation is opt-in,
+budgeted, and must keep provider/model provenance separate.
 
 ## Hackathon status and honest limits
 

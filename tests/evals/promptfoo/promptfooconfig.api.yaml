@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: Noah Nvidia onboarding.v1 connected API evaluation
+
+prompts:
+  - file://./api_prompt.txt
+
+providers:
+  - id: file://./api_provider.mjs
+    label: noah-api-nebius
+
+defaultTest:
+  vars:
+    expected_provider: nebius
+    expected_model: nvidia/nemotron-3-super-120b-a12b
+    expected_synthetic: false
+    expected_external_effects: false
+  assert:
+    - type: is-json
+      value: file://../../../contracts/onboarding.v1.schema.json
+    - type: javascript
+      value: file://./assertions.cjs
+
+tests: file://./cases.json
+
+sharing: false

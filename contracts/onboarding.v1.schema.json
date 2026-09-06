@@ -1,6 +1,5 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://noah-nvidia.local/contracts/onboarding.v1.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Noah Nvidia onboarding v1",
   "description": "Validated company profile captured by the first-run onboarding wizard.",
   "type": "object",
@@ -16,14 +15,14 @@
       "const": "onboarding.v1"
     },
     "business": {
-      "$ref": "#/$defs/business"
+      "$ref": "#/definitions/business"
     },
     "inventory": {
       "type": "array",
       "description": "Optional inventory captured by the user; an empty array is valid when it was not provided.",
       "maxItems": 100,
       "items": {
-        "$ref": "#/$defs/inventory_item"
+        "$ref": "#/definitions/inventory_item"
       }
     },
     "missing_fields": {
@@ -44,7 +43,7 @@
       }
     }
   },
-  "$defs": {
+  "definitions": {
     "nullable_text": {
       "anyOf": [
         {

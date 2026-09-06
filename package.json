@@ -11,7 +11,9 @@
     "build": "npm --workspace apps/web run build",
     "typecheck": "npm --workspace apps/web run typecheck",
     "lint": "npm --workspace apps/web run lint",
-    "test": "npm --workspace apps/web run test"
+    "test": "npm --workspace apps/web run test",
+    "eval:promptfoo:local": "node scripts/run_promptfoo_local.mjs",
+    "eval:promptfoo:api": "node scripts/run_promptfoo_api.mjs"
   },
   "engines": {
     "node": ">=20"
