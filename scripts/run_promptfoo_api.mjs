@@ -75,7 +75,9 @@ child.on("exit", (code, signal) => {
     "- Inputs: synthetic only",
     "- Raw Promptfoo output: ignored in `.promptfoo/`",
     "",
-    "This report records contract/provenance parity through the deployed Noah API.",
+    failed.length === 0
+      ? "This report records contract/provenance parity through the deployed Noah API."
+      : "This report records a connected attempt; Gate 7 remains open until all cases pass.",
     "It does not store bearer values, model output, private prompts, or response bodies.",
     "",
   ].join("\n");

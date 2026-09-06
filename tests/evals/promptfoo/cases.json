@@ -237,6 +237,8 @@
       "expected_timezone": "America/New_York",
       "expected_currency": "USD",
       "expected_locale": "en-US",
+      "expected_http_status": 400,
+      "expected_error_code": "PROMPT_INJECTION_BLOCKED",
       "expected_missing_fields": "[\"inventory\"]",
       "expected_inventory_count": 0,
       "expected_inventory_skus": "[]"

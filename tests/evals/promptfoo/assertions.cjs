@@ -53,6 +53,23 @@ module.exports = (output, context = {}) => {
     return { pass: false, score: 0, reason: "output is not parseable JSON" };
   }
 
+  const expectedHttpStatus = Number(vars.expected_http_status || 200);
+  if (metadata.api_endpoint && expectedHttpStatus !== 200) {
+    const errorProblems = [];
+    if (Number(metadata.http_status) !== expectedHttpStatus) {
+      errorProblems.push("HTTP status mismatch");
+    }
+    if (metadata.error_code !== vars.expected_error_code) {
+      errorProblems.push("guardrail error code mismatch");
+    }
+    const passed = errorProblems.length === 0;
+    return {
+      pass: passed,
+      score: passed ? 1 : 0,
+      reason: passed ? "expected API guardrail response passed" : errorProblems.join("; "),
+    };
+  }
+
   if (!draft || typeof draft !== "object" || Array.isArray(draft)) {
     problems.push("output is not an object");
   } else {
@@ -96,6 +113,7 @@ module.exports = (output, context = {}) => {
   if (metadata.model !== expectedModel) problems.push("model provenance mismatch");
   if (metadata.synthetic !== expectedSynthetic) problems.push("synthetic marker mismatch");
   if (metadata.external_effects !== expectedExternalEffects) problems.push("external effects marker mismatch");
+  if (metadata.api_endpoint && Number(metadata.http_status) !== 200) problems.push("unexpected connected API HTTP status");
 
   const passed = problems.length === 0;
   return {
