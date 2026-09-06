@@ -278,7 +278,7 @@ completar manualmente o reintentar, nunca reenviar el texto a otra ruta.
 | 2 | Shell del wizard | Estados bienvenida, texto, carga, revisión y salida; sin llamada de modelo todavía | **Cerrada en local** |
 | 3 | Extracción Nebius | Prompt estructurado, parseo estricto, errores visibles, sin escritura automática | **Cerrada · Render publicado** |
 | 4 | Confirmación y skip | Aplicación idempotente, auditoría, fixture sintético y warning verificable | **Cerrada · Render publicado** |
-| 5 | Prueba de lado a lado | Navegador limpio: demo, onboarding, edición, confirmación, skip y aislamiento; evidencia guardada | Pendiente |
+| 5 | Prueba de lado a lado | Navegador limpio: demo, onboarding, edición, confirmación, skip y aislamiento; evidencia guardada | **Parcial · local verificada; live pendiente de bearer** |
 | 6 | Tour guiado | Anchors declarativos, teclado/reduced motion y persistencia posterior a onboarding | Pendiente |
 | 7 | Entrega | Render manual, Graphify actualizado, README/demo script y checklist reproducible | Pendiente |
 

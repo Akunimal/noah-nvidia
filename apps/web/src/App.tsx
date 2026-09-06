@@ -53,6 +53,7 @@ import {
   type ApiMail,
   type ApiQuote,
   type ApiReceivable,
+  type OnboardingMutationResponse,
   type OnboardingStatus,
 } from './lib/api';
 import OnboardingWizard from './components/OnboardingWizard';
@@ -225,6 +226,7 @@ function App() {
       : 'Deterministic NVIDIA sandbox';
   const runtimeOnline = apiOnline && (primaryProviderConfigured || freeProviderConfigured);
   const demoMode = workspaceMode === 'demo';
+  const fixtureMode = demoMode || workspaceDataSource === 'synthetic-fixture';
   const workspaceLabel = workspaceMode === 'demo'
     ? 'Demo · synthetic Atlas'
     : workspaceMode === 'playground'
@@ -380,16 +382,28 @@ function App() {
     return skipOnboardingApi(idempotencyKey);
   }
 
-  function exitOnboarding(decision: 'completed' | 'skipped', draft?: OnboardingDraft) {
+  function exitOnboarding(decision: 'completed' | 'skipped', draft?: OnboardingDraft, persistedBusiness?: OnboardingMutationResponse['business']) {
     setOnboardingVisible(false);
     setOnboardingStatus(decision);
     setWorkspaceDataSource(decision === 'skipped' ? 'synthetic-fixture' : 'onboarding');
-    if (decision === 'completed' && draft?.business.name) {
-      setBusinessName(draft.business.name);
-      if (draft.business.timezone) setBusinessTimezone(draft.business.timezone);
-      if (draft.business.currency) setBusinessCurrency(draft.business.currency);
+    const business = persistedBusiness || (decision === 'completed' && draft ? {
+      name: draft.business.name || 'New business',
+      description: draft.business.description || undefined,
+      category: draft.business.category || undefined,
+      timezone: draft.business.timezone || undefined,
+      currency: draft.business.currency || undefined,
+      locale: draft.business.locale || undefined,
+    } : undefined);
+    if (business?.name) {
+      setBusinessName(business.name);
+      if (business.timezone) setBusinessTimezone(business.timezone);
+      if (business.currency) setBusinessCurrency(business.currency);
     }
-    if (decision === 'skipped') void refreshWorkspaceCollections();
+    if (decision === 'skipped') {
+      setMessages(initialMessages);
+      setActivity(initialActivity);
+      void refreshWorkspaceCollections();
+    }
     setSection('overview');
   }
 
@@ -469,21 +483,21 @@ function App() {
                 businessName={businessName}
                 approvals={approvals}
                 activity={activity}
-                demoMode={demoMode}
+                demoMode={fixtureMode}
                 onOpenAssistant={() => setSection('assistant')}
                 onOpenApprovals={() => setSection('approvals')}
               />
             )}
             {section === 'assistant' && (
-              <Assistant messages={messages} input={input} isThinking={isThinking} setInput={setInput} onSubmit={submitMessage} businessName={businessName} runtimeModel={runtimeModel} timezone={businessTimezone} currency={businessCurrency} demoMode={demoMode} />
+              <Assistant messages={messages} input={input} isThinking={isThinking} setInput={setInput} onSubmit={submitMessage} businessName={businessName} runtimeModel={runtimeModel} timezone={businessTimezone} currency={businessCurrency} demoMode={fixtureMode} />
             )}
             {section === 'approvals' && (
               <Approvals approvals={approvals} onResolve={resolveApproval} businessName={businessName} />
             )}
-            {section === 'mail' && <Mailroom onOpenAssistant={() => setSection('assistant')} items={mailItems} demoMode={demoMode} />}
-            {section === 'calendar' && <Calendar businessName={businessName} items={calendarItems} demoMode={demoMode} onOpenAssistant={() => { setInput('Find a slot next week for a 90 minute field assessment'); setSection('assistant'); }} />}
-            {section === 'finance' && <Finance ledgerItems={ledgerItems} quoteItems={quoteItems} receivableItems={receivableItems} currency={businessCurrency} demoMode={demoMode} onExport={exportLedger} />}
-            {section === 'knowledge' && <Knowledge businessName={businessName} items={documentItems} demoMode={demoMode} onAddDocument={(file) => { void addDocument(file); }} />}
+            {section === 'mail' && <Mailroom onOpenAssistant={() => setSection('assistant')} items={mailItems} demoMode={fixtureMode} />}
+            {section === 'calendar' && <Calendar businessName={businessName} items={calendarItems} demoMode={fixtureMode} onOpenAssistant={() => { setInput('Find a slot next week for a 90 minute field assessment'); setSection('assistant'); }} />}
+            {section === 'finance' && <Finance ledgerItems={ledgerItems} quoteItems={quoteItems} receivableItems={receivableItems} currency={businessCurrency} demoMode={fixtureMode} onExport={exportLedger} />}
+            {section === 'knowledge' && <Knowledge businessName={businessName} items={documentItems} demoMode={fixtureMode} onAddDocument={(file) => { void addDocument(file); }} />}
             {section === 'settings' && <Settings businessName={businessName} timezone={businessTimezone} currency={businessCurrency} runtimeModel={runtimeLabel} persistenceMode={persistenceMode} connections={connections} providerConfigured={primaryProviderConfigured || freeProviderConfigured} externalEffectsEnabled={externalEffectsEnabled} />}
           </>}
         </div>

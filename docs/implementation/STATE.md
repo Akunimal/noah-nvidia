@@ -38,8 +38,10 @@ borrador estricto por Nebius sin persistirlo. La fase 4 agrega confirmación y
 skip idempotentes, auditables y tenant-safe sobre el snapshot. El deploy manual
 está aprobado;
 la prueba live de un tenant playground requiere un bearer de producción
-no-demo válido. Un bearer sintético fue rechazado por `NOAH_REQUIRE_AUTH` antes
-del modelo.
+no-demo válido. La fase 5 ya fue recorrida lado a lado en local y corrigió la
+sincronización visual posterior a `skip`; el smoke live sigue requiriendo ese
+bearer. Un bearer sintético fue rechazado por `NOAH_REQUIRE_AUTH` antes del
+modelo.
 
 - Datos del usuario: solo Nebius/NVIDIA; OpenCode2API no recibe texto privado.
 - `ProviderResult`: sobre de procedencia, separado del JSON de negocio; ver
@@ -59,7 +61,8 @@ del modelo.
 - Contrato JSON: `contracts/onboarding.v1.schema.json`.
 - Evidencia: `evidence/phase-0-onboarding.md`,
   `evidence/phase-1-playground.md`, `evidence/phase-2-wizard-shell.md` y
-  `evidence/phase-3-nebius-extraction.md`.
+  `evidence/phase-3-nebius-extraction.md`,
+  `evidence/phase-5-side-by-side.md`.
 
 ## Qué significa `ProviderResult`
 
@@ -99,6 +102,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Onboarding shell | OK en local | 6 Vitest; `components/OnboardingWizard.tsx`; evidencia en `evidence/phase-2-wizard-shell.md` |
 | Onboarding extraction | OK local + deploy Render | `POST /api/v1/onboarding/extract`, 4 pruebas de Nebius/errores/aislamiento, `/openapi.json` live; smoke playground pendiente de bearer no-demo; evidencia en `evidence/phase-3-nebius-extraction.md` |
 | Onboarding complete/skip | OK local + deploy Render | `GET /api/v1/onboarding`, confirmación/skip idempotentes, auditoría, copia Atlas tenant-safe y 5 pruebas nuevas; deploy `dep-daebum9t0dsc739k7kng` / `dep-daebvfou01pc73dsgjmg` live; smoke Neon playground pendiente de bearer válido |
+| Prueba lado a lado | Parcial — local OK | Dos tenants sintéticos en pestañas separadas; skip, fallback manual, confirmación, nueva pestaña y corrección de fixture; evidencia en `evidence/phase-5-side-by-side.md`; live pendiente de bearer |
 | Smoke local | OK | Atlas Services, run succeeded, receipt generado |
 | Aislamiento demo/playground, aprobaciones e idempotencia | OK en tests locales | `services/api/test_main.py`; evidencia en `evidence/phase-1-playground.md` |
 | Router Nebius/OpenCode2API | Nebius live OK; OpenCode2API contrato local OK | OpenCode2API live sigue pendiente; evidencia en `evidence/gate-3-opencode2api.md` |
@@ -281,10 +285,9 @@ Estado: **cerrado — Neon Free live aprobado; Render legacy expira el 2026-10-0
 ## Próximo paso exacto
 
 La demo es entregable con Neon Free server-only y el slice OAuth de lectura
-está verificado. Las fases 0, 1, 2, 3 y 4 del onboarding están cerradas en
-local y la fase 4 ya está publicada en Render desde `7d9d150`: el contrato,
-el aislamiento, el shell, la extracción estricta a Nebius y las mutaciones
-idempotentes están versionados. El siguiente paso exacto es la fase 5, prueba
-lado a lado con un bearer playground válido: confirmación, skip,
-refresh/reinicio y aislamiento respecto de `tenant-demo`, sin habilitar planes
-pagos, Supabase, Vercel ni efectos externos.
+está verificado. Las fases 0, 1, 2, 3 y 4 del onboarding están cerradas y la
+fase 5 quedó verificada localmente en dos pestañas: skip, confirmación,
+fallback manual, nueva pestaña y aislamiento de flujo. El siguiente paso exacto
+es cerrar el smoke live con un bearer playground válido, comprobando Neon tras
+reinicio y aislamiento respecto de `tenant-demo`, sin habilitar planes pagos,
+Supabase, Vercel ni efectos externos.

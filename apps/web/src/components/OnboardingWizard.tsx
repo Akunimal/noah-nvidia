@@ -24,7 +24,7 @@ export type OnboardingDecision = 'completed' | 'skipped';
 
 interface OnboardingWizardProps {
   businessName: string;
-  onExit: (decision: OnboardingDecision, draft?: OnboardingDraft) => void;
+  onExit: (decision: OnboardingDecision, draft?: OnboardingDraft, business?: OnboardingMutationResponse['business']) => void;
   onExtract: (text: string) => Promise<OnboardingExtractionResponse>;
   onComplete: (draft: OnboardingDraft, idempotencyKey: string) => Promise<OnboardingMutationResponse>;
   onSkip: (idempotencyKey: string) => Promise<OnboardingMutationResponse>;
@@ -86,6 +86,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
   const [extractionError, setExtractionError] = useState('');
   const [mutationError, setMutationError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [mutationResult, setMutationResult] = useState<OnboardingMutationResponse | null>(null);
   const [completionKey] = useState(() => makeIdempotencyKey('onboarding-complete'));
   const [skipKey] = useState(() => makeIdempotencyKey('onboarding-skip'));
 
@@ -113,6 +114,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
     setError('');
     setExtractionError('');
     setMutationError('');
+    setMutationResult(null);
     setStep('describe');
   }
 
@@ -127,6 +129,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
     setMutationError('');
     setDraft(null);
     setProviderResult(null);
+    setMutationResult(null);
     setStep('extracting');
   }
 
@@ -136,6 +139,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
     setMutationError('');
     setDraft(null);
     setProviderResult(null);
+    setMutationResult(null);
     setStep('extracting');
   }
 
@@ -146,6 +150,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
     setDraft(emptyOnboardingDraft());
     setInventoryText('');
     setProviderResult(null);
+    setMutationResult(null);
     setStep('review');
   }
 
@@ -171,7 +176,8 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
     setMutationError('');
     setIsSubmitting(true);
     try {
-      await onComplete(draft, completionKey);
+      const response = await onComplete(draft, completionKey);
+      setMutationResult(response);
       setStep('complete');
     } catch (reason: unknown) {
       setMutationError(readableMutationError(reason));
@@ -185,7 +191,8 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
     setMutationError('');
     setIsSubmitting(true);
     try {
-      await onSkip(skipKey);
+      const response = await onSkip(skipKey);
+      setMutationResult(response);
       setSkipConfirm(false);
       setStep('skipped');
     } catch (reason: unknown) {
@@ -298,7 +305,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
         <h2>{skipped ? 'Skip entendido.' : 'La vista previa está lista.'}</h2>
         <p>{skipped ? 'Se cargaron datos ficticios de Atlas Services para explorar. No son datos reales y ninguna acción externa fue ejecutada.' : 'La configuración quedó guardada en tu tenant de prueba. Podés seguir completando datos desde el workspace.'}</p>
         <div className="onboarding-exit-note"><ShieldCheck size={15} /><span>Fase 4: decisión persistida en Neon, tenant-safe y auditable. El tour guiado queda para la fase 6.</span></div>
-        <button className="primary-button" type="button" onClick={() => onExit(decision, decision === 'completed' ? draft || undefined : undefined)}>{skipped ? 'Explorar playground' : 'Entrar al playground'} <Sparkles size={15} /></button>
+        <button className="primary-button" type="button" onClick={() => onExit(decision, decision === 'completed' ? draft || undefined : undefined, mutationResult?.business)}>{skipped ? 'Explorar playground' : 'Entrar al playground'} <Sparkles size={15} /></button>
       </div>
     );
   }
