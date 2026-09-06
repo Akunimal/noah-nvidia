@@ -39,9 +39,11 @@ skip idempotentes, auditables y tenant-safe sobre el snapshot. El deploy manual
 está aprobado;
 la prueba live de un tenant playground requiere un bearer de producción
 no-demo válido. La fase 5 ya fue recorrida lado a lado en local y corrigió la
-sincronización visual posterior a `skip`; el smoke live sigue requiriendo ese
-bearer. Un bearer sintético fue rechazado por `NOAH_REQUIRE_AUTH` antes del
-modelo.
+sincronización visual posterior a `skip`. El frontend público ya no envía un
+bearer `VITE_*`: cuando `NOAH_PUBLIC_DEMO=true`, usa un tenant sintético
+acotado y efímero. El texto público no llega a ningún modelo; el onboarding
+autenticado sigue usando Nebius/NVIDIA. El smoke live de Neon para un tenant
+privado aún requiere un bearer playground válido.
 
 - Datos del usuario: solo Nebius/NVIDIA; OpenCode2API no recibe texto privado.
 - `ProviderResult`: sobre de procedencia, separado del JSON de negocio; ver
@@ -240,9 +242,9 @@ Estado: **cerrado — Neon Free live aprobado; Render legacy expira el 2026-10-0
 - Toda ruta nueva debe actualizar `providers.py`, `provider-manifest.md`, una
   prueba en `services/api/test_providers.py` y esta tabla.
 - Ninguna clave de proveedor, OAuth, persistencia o cifrado va al repo, al
-  frontend, al graphify o a este archivo. `VITE_NOAH_AUTH_TOKEN` es únicamente
-  el bearer de demo del Static Site; no debe reutilizarse como credencial de
-  producción y debe rotarse si el demo deja de ser privado.
+  frontend, al graphify o a este archivo. `VITE_NOAH_AUTH_TOKEN` sólo sirve
+  para pruebas locales porque cualquier `VITE_*` termina en el bundle; el
+  Static Site público no lo configura.
 - Ningún efecto externo se considera exitoso sin recibo verificable.
 - Si cambia el commit base, actualizar el baseline y repetir las verificaciones.
 - El backend debe conservar Python `3.12.10` tanto en `.python-version` como en
@@ -267,6 +269,9 @@ Estado: **cerrado — Neon Free live aprobado; Render legacy expira el 2026-10-0
 - OpenCode2API solo existe como sandbox Nemotron-only; en Render permanece
   desactivado (`NOAH_ALLOW_FREE_SYNTHETIC=false`).
 - Frontend, `/health` y `/openapi.json` responden 200.
+- El sandbox público, si se habilita, está limitado a datos sintéticos,
+  propuestas determinísticas y confirmación/skip; no usa bearer en el bundle,
+  no llama a modelos ni persiste el tenant público en Neon.
 - Efectos Gmail/Calendar, pagos y demás mutaciones externas permanecen
   desactivados.
 - Pruebas locales: 48 Python, Vitest, typecheck, lint y build pasan.
@@ -287,7 +292,7 @@ Estado: **cerrado — Neon Free live aprobado; Render legacy expira el 2026-10-0
 La demo es entregable con Neon Free server-only y el slice OAuth de lectura
 está verificado. Las fases 0, 1, 2, 3 y 4 del onboarding están cerradas y la
 fase 5 quedó verificada localmente en dos pestañas: skip, confirmación,
-fallback manual, nueva pestaña y aislamiento de flujo. El siguiente paso exacto
-es cerrar el smoke live con un bearer playground válido, comprobando Neon tras
-reinicio y aislamiento respecto de `tenant-demo`, sin habilitar planes pagos,
-Supabase, Vercel ni efectos externos.
+fallback manual, nueva pestaña y aislamiento de flujo. El siguiente paso
+operativo es publicar el flag público y cerrar el smoke live del navegador;
+después queda el smoke Neon de un tenant privado con bearer válido, sin
+habilitar planes pagos, Supabase, Vercel ni efectos externos.

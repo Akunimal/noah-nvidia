@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from main import app
+from main import app, router
 
 
 client = TestClient(app)
@@ -73,6 +73,59 @@ def test_required_auth_rejects_missing_token(monkeypatch) -> None:
     monkeypatch.setenv("NOAH_DEMO_AUTH", "false")
     response = client.get("/api/v1/bootstrap")
     assert response.status_code == 401
+
+
+def test_public_demo_is_bounded_synthetic_and_never_calls_a_model(monkeypatch) -> None:
+    from main import PUBLIC_DEMO_TENANT_ID, TENANTS
+
+    monkeypatch.setenv("NOAH_PUBLIC_DEMO", "true")
+    monkeypatch.setenv("NOAH_REQUIRE_AUTH", "true")
+    monkeypatch.setenv("NOAH_DEMO_AUTH", "false")
+    TENANTS.pop(PUBLIC_DEMO_TENANT_ID, None)
+
+    async def should_not_call(*args, **kwargs):
+        raise AssertionError("public demo must not call a model")
+
+    monkeypatch.setattr(router, "complete", should_not_call)
+    try:
+        bootstrap = client.get("/api/v1/bootstrap")
+        assert bootstrap.status_code == 200
+        assert bootstrap.json()["public_demo"] is True
+        assert bootstrap.json()["tenant_id"].startswith("tenant-public-")
+        assert bootstrap.json()["workspace"]["data_source"] == "empty"
+
+        isolated = client.get(
+            "/api/v1/bootstrap",
+            headers={"X-Noah-Public-Workspace": "browser-two"},
+        )
+        assert isolated.status_code == 200
+        assert isolated.json()["tenant_id"] == "tenant-public-browser-two"
+        assert isolated.json()["workspace"]["data_source"] == "empty"
+
+        message = client.post(
+            "/api/v1/conversations/demo/messages",
+            json={"message": "Prepare a proposal for the synthetic demo"},
+        )
+        assert message.status_code == 200
+        assert message.json()["provider"] == "deterministic-demo"
+        assert message.json()["provider_error"] == "PUBLIC_DEMO_MODEL_DISABLED"
+
+        extraction = client.post(
+            "/api/v1/onboarding/extract",
+            json={"text": "Somos una empresa de soporte técnico."},
+        )
+        assert extraction.status_code == 403
+        assert extraction.json()["detail"]["code"] == "PUBLIC_DEMO_MODEL_INPUT_DISABLED"
+
+        forbidden = client.patch("/api/v1/business", json={"name": "Not public"})
+        assert forbidden.status_code == 403
+        assert forbidden.json()["detail"]["code"] == "PUBLIC_DEMO_READ_ONLY"
+
+        oauth = client.post("/api/v1/connections/google/start")
+        assert oauth.status_code == 403
+        assert oauth.json()["detail"]["code"] == "PUBLIC_DEMO_READ_ONLY"
+    finally:
+        TENANTS.pop(PUBLIC_DEMO_TENANT_ID, None)
 
 
 def test_jwt_subject_becomes_tenant(monkeypatch) -> None:

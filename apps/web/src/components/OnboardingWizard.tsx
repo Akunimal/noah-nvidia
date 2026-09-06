@@ -24,6 +24,7 @@ export type OnboardingDecision = 'completed' | 'skipped';
 
 interface OnboardingWizardProps {
   businessName: string;
+  publicDemo?: boolean;
   onExit: (decision: OnboardingDecision, draft?: OnboardingDraft, business?: OnboardingMutationResponse['business']) => void;
   onExtract: (text: string) => Promise<OnboardingExtractionResponse>;
   onComplete: (draft: OnboardingDraft, idempotencyKey: string) => Promise<OnboardingMutationResponse>;
@@ -49,6 +50,7 @@ function inventoryNames(draft: OnboardingDraft): string {
 
 function readableExtractionError(value: unknown): string {
   const message = value instanceof Error ? value.message : '';
+  if (message.includes('PUBLIC_DEMO_MODEL_INPUT_DISABLED')) return 'La demo pública no envía textos de visitantes a un modelo. Podés completar el JSON manualmente; el onboarding autenticado usa Nebius/NVIDIA.';
   if (message.includes('NEBIUS_NOT_CONFIGURED')) return 'Nebius todavía no está configurado para este entorno. Podés completar el JSON manualmente o reintentar cuando la clave esté disponible.';
   if (message.includes('NEBIUS_NON_NVIDIA_MODEL')) return 'La configuración de Nebius no apunta a un modelo NVIDIA Nemotron. Corregí la variable del backend antes de reintentar.';
   if (message.includes('PROMPT_INJECTION_BLOCKED')) return 'La descripción contiene una instrucción que intenta cambiar las reglas de Noah. Quitala y reintentá.';
@@ -75,7 +77,7 @@ function makeIdempotencyKey(prefix: string): string {
   return `${prefix}-${random}`;
 }
 
-export default function OnboardingWizard({ businessName, onExit, onExtract, onComplete, onSkip }: OnboardingWizardProps) {
+export default function OnboardingWizard({ businessName, onExit, onExtract, onComplete, onSkip, publicDemo = false }: OnboardingWizardProps) {
   const [step, setStep] = useState<OnboardingStep>('welcome');
   const [narrative, setNarrative] = useState('');
   const [inventoryText, setInventoryText] = useState('');
@@ -250,7 +252,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
         <div className="onboarding-example"><Sparkles size={14} /><span>Ejemplo útil: “Somos…, nos dedicamos a…, trabajamos con…”</span><button className="text-button" type="button" onClick={() => setNarrative('Somos Taller Norte y nos dedicamos al mantenimiento de equipos industriales. Atendemos fábricas de la zona.')}>Usar ejemplo</button></div>
         {error && <p className="onboarding-error" role="alert">{error}</p>}
         {extractionError && <div className="onboarding-error-panel" role="alert"><p className="onboarding-error">{extractionError}</p><div className="onboarding-error-actions"><button className="outline-button" type="button" onClick={retryExtraction}>Reintentar extracción</button><button className="text-button" type="button" onClick={startManualReview}>Completar manualmente</button></div></div>}
-        <div className="onboarding-local-note"><ShieldCheck size={14} /><span>El texto se envía únicamente a Nebius/NVIDIA. OpenCode2API queda fuera del onboarding privado y todavía no se escribe ningún cambio.</span></div>
+        <div className="onboarding-local-note"><ShieldCheck size={14} /><span>{publicDemo ? 'Demo pública: el texto no se envía a ningún modelo. Podés completar el borrador manualmente; el flujo autenticado usa Nebius/NVIDIA.' : 'El texto se envía únicamente a Nebius/NVIDIA. OpenCode2API queda fuera del onboarding privado y todavía no se escribe ningún cambio.'}</span></div>
         <div className="onboarding-actions"><button className="outline-button" type="button" onClick={() => setStep('welcome')}><ArrowLeft size={15} /> Atrás</button><button className="primary-button" type="submit" disabled={narrative.trim().length < 12}>Armar borrador <Sparkles size={15} /></button></div>
       </form>
     );
@@ -304,7 +306,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
         <span className="label-kicker">PASO 4 · SALIDA</span>
         <h2>{skipped ? 'Skip entendido.' : 'La vista previa está lista.'}</h2>
         <p>{skipped ? 'Se cargaron datos ficticios de Atlas Services para explorar. No son datos reales y ninguna acción externa fue ejecutada.' : 'La configuración quedó guardada en tu tenant de prueba. Podés seguir completando datos desde el workspace.'}</p>
-        <div className="onboarding-exit-note"><ShieldCheck size={15} /><span>Fase 4: decisión persistida en Neon, tenant-safe y auditable. El tour guiado queda para la fase 6.</span></div>
+        <div className="onboarding-exit-note"><ShieldCheck size={15} /><span>{publicDemo ? 'Demo pública: decisión sintética temporal del playground; no se guardan datos de visitantes en Neon ni se ejecutan efectos externos.' : 'Fase 4: decisión persistida en Neon, tenant-safe y auditable. El tour guiado queda para la fase 6.'}</span></div>
         <button className="primary-button" type="button" onClick={() => onExit(decision, decision === 'completed' ? draft || undefined : undefined, mutationResult?.business)}>{skipped ? 'Explorar playground' : 'Entrar al playground'} <Sparkles size={15} /></button>
       </div>
     );

@@ -154,6 +154,7 @@ function App() {
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [apiOnline, setApiOnline] = useState(false);
+  const [publicDemo, setPublicDemo] = useState(false);
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('unknown');
   const [workspaceDataSource, setWorkspaceDataSource] = useState('empty');
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus>('not_started');
@@ -180,6 +181,7 @@ function App() {
         const health = await fetch((import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000') + '/health');
         setApiOnline(health.ok);
         const [bootstrap, pending] = await Promise.all([getBootstrap(), getPendingActions()]);
+        setPublicDemo(Boolean(bootstrap.public_demo));
         const nextWorkspaceMode: WorkspaceMode = bootstrap.workspace?.mode === 'demo' ? 'demo' : 'playground';
         setWorkspaceMode(nextWorkspaceMode);
         setWorkspaceDataSource(bootstrap.workspace?.data_source || 'empty');
@@ -219,12 +221,15 @@ function App() {
   }, []);
 
   const pendingCount = approvals.length;
-  const runtimeLabel = primaryProviderConfigured
-    ? `${runtimeModel} · Nebius`
-    : freeProviderConfigured
-      ? 'Nemotron sandbox · OpenCode2API'
-      : 'Deterministic NVIDIA sandbox';
-  const runtimeOnline = apiOnline && (primaryProviderConfigured || freeProviderConfigured);
+  const providerConfigured = primaryProviderConfigured || freeProviderConfigured;
+  const runtimeLabel = publicDemo
+    ? 'Deterministic sandbox · no model calls'
+    : primaryProviderConfigured
+      ? `${runtimeModel} · Nebius`
+      : freeProviderConfigured
+        ? 'Nemotron sandbox · OpenCode2API'
+        : 'Deterministic NVIDIA sandbox';
+  const runtimeOnline = apiOnline && !publicDemo && providerConfigured;
   const demoMode = workspaceMode === 'demo';
   const fixtureMode = demoMode || workspaceDataSource === 'synthetic-fixture';
   const workspaceLabel = workspaceMode === 'demo'
@@ -474,7 +479,7 @@ function App() {
         </header>
 
         <div className="page-content">
-          {onboardingVisible && workspaceMode === 'playground' ? <OnboardingWizard businessName={businessName} onExtract={extractOnboarding} onComplete={completeOnboarding} onSkip={skipOnboarding} onExit={exitOnboarding} /> : <>
+          {onboardingVisible && workspaceMode === 'playground' ? <OnboardingWizard businessName={businessName} publicDemo={publicDemo} onExtract={extractOnboarding} onComplete={completeOnboarding} onSkip={skipOnboarding} onExit={exitOnboarding} /> : <>
             {workspaceMode === 'demo' && <div className="workspace-banner demo"><ShieldCheck size={17} /><div><strong>Demo sandbox</strong><span>Atlas Services is synthetic fixture data for the video. No external effects are enabled.</span></div></div>}
             {workspaceMode === 'playground' && <div className="workspace-banner playground"><Sparkles size={17} /><div><strong>{workspaceDataSource === 'synthetic-fixture' ? 'Playground · datos ficticios' : workspaceDataSource === 'onboarding' ? 'Playground configurado' : 'Playground vacío'}</strong><span>{workspaceDataSource === 'synthetic-fixture' ? 'Atlas Services es un fixture sintético para explorar. No son datos reales ni se ejecutan acciones externas.' : workspaceDataSource === 'onboarding' ? 'Tu configuración quedó aislada en este tenant. Las acciones externas siguen detrás de aprobación.' : 'Este tenant empieza sin datos ficticios. Lo que agregues quedará aislado de la demo.'}</span></div>{onboardingStatus === 'not_started' && <button className="text-button workspace-banner-action" type="button" onClick={() => setOnboardingVisible(true)}>Abrir onboarding</button>}</div>}
             {section === 'overview' && (
@@ -498,7 +503,7 @@ function App() {
             {section === 'calendar' && <Calendar businessName={businessName} items={calendarItems} demoMode={fixtureMode} onOpenAssistant={() => { setInput('Find a slot next week for a 90 minute field assessment'); setSection('assistant'); }} />}
             {section === 'finance' && <Finance ledgerItems={ledgerItems} quoteItems={quoteItems} receivableItems={receivableItems} currency={businessCurrency} demoMode={fixtureMode} onExport={exportLedger} />}
             {section === 'knowledge' && <Knowledge businessName={businessName} items={documentItems} demoMode={fixtureMode} onAddDocument={(file) => { void addDocument(file); }} />}
-            {section === 'settings' && <Settings businessName={businessName} timezone={businessTimezone} currency={businessCurrency} runtimeModel={runtimeLabel} persistenceMode={persistenceMode} connections={connections} providerConfigured={primaryProviderConfigured || freeProviderConfigured} externalEffectsEnabled={externalEffectsEnabled} />}
+            {section === 'settings' && <Settings businessName={businessName} timezone={businessTimezone} currency={businessCurrency} runtimeModel={runtimeLabel} persistenceMode={persistenceMode} connections={connections} providerConfigured={!publicDemo && providerConfigured} externalEffectsEnabled={externalEffectsEnabled} />}
           </>}
         </div>
       </main>

@@ -92,6 +92,7 @@ export interface MessageResponse {
 
 export interface BootstrapPayload {
   tenant_id: string;
+  public_demo?: boolean;
   workspace: WorkspaceInfo;
   business: {
     name: string;
@@ -149,7 +150,28 @@ export interface OnboardingMutationResponse {
 }
 
 const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-const authHeaders = { Authorization: `Bearer ${import.meta.env.VITE_NOAH_AUTH_TOKEN || 'demo-owner'}` };
+const configuredAuthToken = String(import.meta.env.VITE_NOAH_AUTH_TOKEN || '').trim();
+const publicWorkspaceId = (() => {
+  try {
+    const storageKey = 'noah-public-workspace';
+    const existing = globalThis.localStorage?.getItem(storageKey)?.trim();
+    if (existing) return existing;
+    const generated = globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    globalThis.localStorage?.setItem(storageKey, generated);
+    return generated;
+  } catch {
+    return '';
+  }
+})();
+// A VITE value is bundled into the browser. Keep this optional and use it
+// only for local synthetic tenants; public deployments use the bounded API
+// demo route and never ship a bearer credential.
+const authHeaders: Record<string, string> = {
+  ...(publicWorkspaceId ? { 'X-Noah-Public-Workspace': publicWorkspaceId } : {}),
+  ...(configuredAuthToken ? { Authorization: `Bearer ${configuredAuthToken}` } : {}),
+};
 
 interface ApiRequestInit {
   method?: string;

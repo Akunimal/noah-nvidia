@@ -1,7 +1,7 @@
 # Fase 5 — prueba lado a lado
 
 Fecha: 2026-09-05  
-Estado: **parcial; recorrido local cerrado, smoke live bloqueado por auth**
+Estado: **en publicación; recorrido local cerrado, smoke live público pendiente**
 
 ## Alcance probado
 
@@ -52,13 +52,34 @@ apps/web: build OK
 git diff --check OK
 ```
 
+## Corrección de entrega pública
+
+El frontend no vuelve a enviar un bearer `VITE_*`: Render tenía un token
+configurado para compilar la web, pero cualquier variable `VITE_*` es visible
+en el bundle. Se retiró ese token del Static Site y se añadió un modo
+`NOAH_PUBLIC_DEMO` explícito en el API. Cuando está habilitado, el API asigna
+únicamente un tenant sintético derivado de un identificador efímero del
+navegador, permite las lecturas sintéticas y el circuito
+de onboarding/propuesta supervisada, y bloquea conexiones OAuth, mutaciones
+privadas y rutas fuera de la lista pública. El tenant no se guarda en Neon y
+los mensajes públicos devuelven `deterministic-demo` sin llamar a Nebius,
+OpenCode2API ni consumir crédito.
+
+La prueba local del mismo circuito confirmó `Playground · empty`, wizard,
+warning de skip, `Skip entendido.`, `Playground · synthetic Atlas`, tres
+aprobaciones y actividad del fixture. La variable no secreta
+`NOAH_PUBLIC_DEMO=true` quedó cargada manualmente en el API Render y el
+frontend conserva sólo `VITE_API_BASE_URL`.
+
 ## Límite live
 
-Render respondió `200` en `/health`, en el frontend y en `/openapi.json`. Las
-lecturas de `/api/v1/bootstrap` y `/api/v1/onboarding` con el identificador
-sintético `demo-owner` respondieron `401 AUTH_REQUIRED`: ese identificador no
-es un bearer de playground y `NOAH_REQUIRE_AUTH` quedó intacto. No se abrió ni
-copió ningún secreto de Render.
+Render respondió `200` en `/health`, en el frontend y en `/openapi.json`. La
+verificación live final del frontend/API queda pendiente de completar el
+redeploy manual del API con el código de esta corrección. Antes de ella, las
+lecturas con el identificador sintético `demo-owner` respondían
+`401 AUTH_REQUIRED`: ese identificador no era un bearer de playground y
+`NOAH_REQUIRE_AUTH` quedó intacto. No se abrió ni copió ningún secreto de
+Render.
 
 Por lo tanto, la confirmación de Neon tras reinicio y el aislamiento live contra
 `tenant-demo` siguen pendientes de un bearer válido para un tenant playground.

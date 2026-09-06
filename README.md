@@ -73,9 +73,12 @@ Copy-Item .env.example .env
 .venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000
 ```
 
-The frontend runs at http://localhost:5173. It shows the local sandbox while
-the API is sleeping and uses `VITE_NOAH_AUTH_TOKEN` for the demo owner token.
-The API returns OpenAPI at http://localhost:8000/docs.
+The frontend runs at http://localhost:5173. A local-only
+`VITE_NOAH_AUTH_TOKEN` may be used to select a synthetic tenant while testing;
+`VITE_*` values are bundled into the browser and must never contain a
+production credential. The public Render demo uses a bounded unauthenticated
+synthetic API route instead. The API returns OpenAPI at
+http://localhost:8000/docs.
 
 ## NVIDIA and connected configuration
 
@@ -111,6 +114,13 @@ services/api/storage_schema.sql
 The in-memory mode remains the reproducible default when the variable is
 empty. The database URL and encrypted token envelopes never reach Vite or the
 browser. Nebius remains the inference provider; PostgreSQL only stores state.
+
+For a video or hackathon review, `NOAH_PUBLIC_DEMO=true` exposes only the
+synthetic playground tenant. It allows the onboarding confirm/skip and
+supervised deterministic proposal loop, but never forwards public text to a
+model, opens Google OAuth, enables external effects, or writes that tenant to
+Neon. Each browser gets an opaque ephemeral playground id; keep it `false` for
+a private deployment.
 
 Uploaded documents stay server-side; the browser receives metadata only. Text
 files can be indexed when NVIDIA embeddings are configured, while image pages
