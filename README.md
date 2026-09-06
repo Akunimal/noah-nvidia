@@ -44,11 +44,12 @@ The onboarding contract and staged delivery live in
 The video demo may use the synthetic Atlas fixture in `tenant-demo`; every
 other authenticated playground tenant now starts empty and is visibly labeled
 as such. The onboarding wizard now sends playground text only to the configured
-Nebius/NVIDIA route and returns a reviewable `onboarding.v1` draft without
-writing tenant state. Manual completion and skip persistence come next.
-User-provided onboarding text is reserved for the Nebius /
-NVIDIA route. OpenCode2API remains synthetic-only, and skip explicitly loads
-fictional Atlas data without external effects. The versioned data contract is
+Nebius/NVIDIA route, returns a reviewable `onboarding.v1` draft, and applies it
+only after explicit confirmation. `POST /api/v1/onboarding/skip` is an
+idempotent, no-model path that loads fictional Atlas data into that playground
+without external effects. User-provided onboarding text is reserved for the
+Nebius/NVIDIA route. OpenCode2API remains synthetic-only. The versioned data
+contract is
 [contracts/onboarding.v1.schema.json](contracts/onboarding.v1.schema.json).
 
 ## Local development

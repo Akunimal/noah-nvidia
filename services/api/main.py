@@ -37,10 +37,17 @@ from starlette.concurrency import run_in_threadpool
 try:
     from onboarding import (
         ONBOARDING_SYSTEM_PROMPT,
+        OnboardingCompleteRequest,
+        OnboardingCompleteResponse,
+        OnboardingDraft,
         OnboardingExtractRequest,
         OnboardingExtractionResponse,
         OnboardingProvenance,
         OnboardingOutputError,
+        OnboardingSkipRequest,
+        OnboardingSkipResponse,
+        OnboardingState,
+        OnboardingStateResponse,
         parse_onboarding_output,
         provider_result_payload,
     )
@@ -49,10 +56,17 @@ try:
 except ImportError:  # Allows uvicorn services.api.main:app from repository root.
     from .onboarding import (
         ONBOARDING_SYSTEM_PROMPT,
+        OnboardingCompleteRequest,
+        OnboardingCompleteResponse,
+        OnboardingDraft,
         OnboardingExtractRequest,
         OnboardingExtractionResponse,
         OnboardingProvenance,
         OnboardingOutputError,
+        OnboardingSkipRequest,
+        OnboardingSkipResponse,
+        OnboardingState,
+        OnboardingStateResponse,
         parse_onboarding_output,
         provider_result_payload,
     )
@@ -141,6 +155,54 @@ def today() -> str:
     return datetime.now(timezone.utc).date().isoformat()
 
 
+def default_onboarding_state() -> dict[str, Any]:
+    return {
+        "status": "not_started",
+        "source": None,
+        "draft": None,
+        "updated_at": None,
+    }
+
+
+def ensure_onboarding_metadata(store: dict[str, Any]) -> None:
+    """Backfill only the bounded onboarding state in old tenant snapshots."""
+
+    current = store.get("onboarding")
+    current = current if isinstance(current, dict) else {}
+    status = current.get("status")
+    source = current.get("source")
+    draft = current.get("draft")
+    updated_at = current.get("updated_at")
+
+    if status == "completed":
+        try:
+            draft = OnboardingDraft.model_validate(draft)
+        except Exception:
+            status = "not_started"
+            source = None
+            draft = None
+            updated_at = None
+        else:
+            source = "user_input"
+    elif status == "skipped":
+        source = "synthetic_fixture"
+        draft = None
+    else:
+        status = "not_started"
+        source = None
+        draft = None
+        updated_at = None
+
+    store["onboarding"] = {
+        "status": status,
+        "source": source,
+        "draft": draft.model_dump(mode="json") if isinstance(draft, OnboardingDraft) else draft,
+        "updated_at": updated_at if isinstance(updated_at, str) else None,
+    }
+    if not isinstance(store.get("inventory"), dict):
+        store["inventory"] = {}
+
+
 def workspace_metadata(tenant_id: str) -> dict[str, Any]:
     """Derive workspace mode from the authenticated tenant, never the client."""
 
@@ -165,8 +227,15 @@ def ensure_workspace_metadata(store: dict[str, Any]) -> None:
     if expected["mode"] == "demo":
         workspace["data_source"] = "synthetic-fixture"
         workspace["fixture_id"] = DEMO_FIXTURE_ID
+    elif store.get("onboarding", {}).get("status") == "skipped":
+        workspace["data_source"] = "synthetic-fixture"
+        workspace["fixture_id"] = DEMO_FIXTURE_ID
+        workspace["synthetic"] = True
+    elif store.get("onboarding", {}).get("status") == "completed":
+        workspace["data_source"] = "onboarding"
+        workspace["fixture_id"] = None
     else:
-        workspace.setdefault("data_source", "empty")
+        workspace["data_source"] = "empty"
         workspace["fixture_id"] = None
     store["workspace"] = workspace
 
@@ -505,6 +574,7 @@ def blank_tenant(tenant_id: str) -> dict[str, Any]:
         "business": {
             "id": tenant_id,
             "name": "Atlas Services" if tenant_id == TENANT_ID else "New business",
+            "description": "",
             "timezone": "America/New_York",
             "currency": "USD",
             "locale": "en-US",
@@ -529,6 +599,7 @@ def blank_tenant(tenant_id: str) -> dict[str, Any]:
         "actions": {},
         "approvals": {},
         "external_effects": {},
+        "inventory": {},
         "services": {},
         "contacts": {},
         "tasks": {},
@@ -543,6 +614,7 @@ def blank_tenant(tenant_id: str) -> dict[str, Any]:
         "usage": {"reserved": 0, "consumed": 0, "limit": 0, "credit_label": "unconfigured"},
         "usage_reservations": {},
         "idempotency": {},
+        "onboarding": default_onboarding_state(),
     }
 
 
@@ -776,14 +848,68 @@ def seed_demo(store: dict[str, Any]) -> None:
         }
 
 
+def remap_fixture_tenant_ids(value: Any, source_tenant: str, target_tenant: str) -> Any:
+    """Copy fixture values while changing only explicit tenant_id fields."""
+
+    if isinstance(value, dict):
+        return {
+            key: target_tenant if key == "tenant_id" and item == source_tenant else remap_fixture_tenant_ids(item, source_tenant, target_tenant)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [remap_fixture_tenant_ids(item, source_tenant, target_tenant) for item in value]
+    return value
+
+
+def seed_synthetic_playground(store: dict[str, Any]) -> None:
+    """Copy the Atlas fixture into one playground without mutating the demo."""
+
+    target_tenant = str(store.get("tenant_id", ""))
+    if not target_tenant or target_tenant == TENANT_ID:
+        raise RuntimeError("SYNTHETIC_FIXTURE_PLAYGROUND_REQUIRED")
+
+    # Build the fixture in an isolated temporary snapshot. This reuses the
+    # guarded demo fixture loader without ever inserting the target into the
+    # global TENANTS map or changing tenant-demo.
+    fixture_store = blank_tenant(TENANT_ID)
+    seed_demo(fixture_store)
+    for collection in (
+        "conversations",
+        "runs",
+        "actions",
+        "approvals",
+        "external_effects",
+        "services",
+        "contacts",
+        "tasks",
+        "mail",
+        "calendar",
+        "quotes",
+        "ledger",
+        "receivables",
+        "documents",
+        "document_chunks",
+    ):
+        store[collection] = remap_fixture_tenant_ids(fixture_store[collection], TENANT_ID, target_tenant)
+
+    business = remap_fixture_tenant_ids(fixture_store["business"], TENANT_ID, target_tenant)
+    business["id"] = target_tenant
+    business["description"] = "Synthetic Atlas Services workspace for exploration."
+    business["locale"] = business.get("locale") or "en-US"
+    store["business"] = business
+    store["inventory"] = {}
+
+
 def ensure_tenant(tenant_id: str) -> dict[str, Any]:
     if tenant_id not in TENANTS:
         persisted = persistence.load_tenant(tenant_id)
         TENANTS[tenant_id] = persisted or blank_tenant(tenant_id)
+        ensure_onboarding_metadata(TENANTS[tenant_id])
         ensure_workspace_metadata(TENANTS[tenant_id])
         if persisted is None and tenant_id == TENANT_ID:
             seed_demo(TENANTS[tenant_id])
     else:
+        ensure_onboarding_metadata(TENANTS[tenant_id])
         ensure_workspace_metadata(TENANTS[tenant_id])
     request_tenants = REQUEST_TENANTS.get()
     if request_tenants is not None:
@@ -1111,6 +1237,50 @@ def require_conversation(store: dict[str, Any], conversation_id: str) -> dict[st
     return get_resource(store, "conversations", conversation_id, "CONVERSATION_NOT_FOUND")
 
 
+def public_onboarding_state(store: dict[str, Any]) -> dict[str, Any]:
+    ensure_onboarding_metadata(store)
+    return OnboardingState.model_validate(store["onboarding"]).model_dump(mode="json")
+
+
+def require_onboarding_idempotency_key(key: str | None) -> str:
+    normalized = (key or "").strip()
+    if not normalized or len(normalized) > 200:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "ONBOARDING_IDEMPOTENCY_KEY_REQUIRED"},
+        )
+    return normalized
+
+
+def discard_pending_idempotency(store: dict[str, Any], key: str) -> None:
+    entry = store["idempotency"].get(key)
+    if entry and entry.get("response") is None:
+        store["idempotency"].pop(key, None)
+
+
+def playground_has_existing_data(store: dict[str, Any]) -> bool:
+    return any(
+        bool(store.get(collection))
+        for collection in (
+            "inventory",
+            "services",
+            "contacts",
+            "tasks",
+            "mail",
+            "calendar",
+            "quotes",
+            "ledger",
+            "receivables",
+            "documents",
+            "document_chunks",
+            "runs",
+            "actions",
+            "approvals",
+            "external_effects",
+        )
+    )
+
+
 @app.get("/health")
 async def health() -> dict[str, Any]:
     return {"status": "ok", "service": "noah-nvidia-api", "time": now()}
@@ -1142,7 +1312,18 @@ async def bootstrap(tenant_id: str = Depends(tenant_from_auth)) -> dict[str, Any
         "workflow": workflow_status(),
         "persistence": persistence_manifest(persistence),
         "usage": deepcopy(store["usage"]),
+        "onboarding": public_onboarding_state(store),
     }
+
+
+@app.get("/api/v1/onboarding", response_model=OnboardingStateResponse)
+async def onboarding_state(tenant_id: str = Depends(tenant_from_auth)) -> OnboardingStateResponse:
+    store = ensure_tenant(tenant_id)
+    return OnboardingStateResponse(
+        tenant_id=tenant_id,
+        workspace=store["workspace"],
+        onboarding=public_onboarding_state(store),
+    )
 
 
 @app.get("/api/v1/providers/health")
@@ -1245,6 +1426,146 @@ async def onboarding_extract(
             },
         ) from exc
     return OnboardingExtractionResponse(draft=draft, provenance=provenance)
+
+
+@app.post("/api/v1/onboarding/complete", response_model=OnboardingCompleteResponse)
+async def onboarding_complete(
+    request: OnboardingCompleteRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    tenant_id: str = Depends(tenant_from_auth),
+) -> OnboardingCompleteResponse | dict[str, Any]:
+    """Apply one reviewed onboarding draft to its authenticated playground tenant."""
+
+    if tenant_id == TENANT_ID:
+        raise HTTPException(status_code=403, detail={"code": "ONBOARDING_DEMO_FORBIDDEN"})
+
+    store = ensure_tenant(tenant_id)
+    key = require_onboarding_idempotency_key(idempotency_key)
+    fingerprint_payload = {
+        "route": "onboarding.complete",
+        "confirmation": request.confirmation,
+        "draft": request.draft.model_dump(mode="json"),
+    }
+    cached = idempotent_response(store, key, fingerprint_payload)
+    if cached is not None:
+        cached["idempotent"] = True
+        return cached
+
+    if store["onboarding"]["status"] != "not_started":
+        discard_pending_idempotency(store, key)
+        raise HTTPException(status_code=409, detail={"code": "ONBOARDING_ALREADY_FINALIZED"})
+    if not request.draft.business.name or not request.draft.business.description:
+        discard_pending_idempotency(store, key)
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "ONBOARDING_REQUIRED_FIELDS", "fields": ["business.name", "business.description"]},
+        )
+    if store.get("tenant_id") != tenant_id:
+        discard_pending_idempotency(store, key)
+        raise HTTPException(status_code=409, detail={"code": "TENANT_STATE_MISMATCH"})
+
+    business = store["business"]
+    for field in ("name", "description", "category", "timezone", "currency", "locale"):
+        value = getattr(request.draft.business, field)
+        if value is not None:
+            business[field] = value
+    business["updated_at"] = now()
+
+    inventory: dict[str, dict[str, Any]] = {}
+    for index, item in enumerate(request.draft.inventory, start=1):
+        item_id = f"inventory-{index}"
+        inventory[item_id] = {
+            "id": item_id,
+            "tenant_id": tenant_id,
+            "name": item.name,
+            "sku": item.sku,
+            "quantity": item.quantity,
+            "unit": item.unit,
+            "created_at": now(),
+        }
+    store["inventory"] = inventory
+    store["onboarding"] = {
+        "status": "completed",
+        "source": "user_input",
+        "draft": request.draft.model_dump(mode="json"),
+        "updated_at": now(),
+    }
+    ensure_workspace_metadata(store)
+    record_audit(
+        store,
+        "onboarding.completed",
+        "succeeded",
+        "onboarding",
+        tenant_id,
+        {"source": "user_input", "schema_version": "onboarding.v1", "inventory_count": len(inventory)},
+    )
+    response = {
+        "onboarding": public_onboarding_state(store),
+        "business": deepcopy(business),
+        "inventory": list(deepcopy(inventory).values()),
+        "idempotent": False,
+    }
+    save_idempotent(store, key, response)
+    return response
+
+
+@app.post("/api/v1/onboarding/skip", response_model=OnboardingSkipResponse)
+async def onboarding_skip(
+    request: OnboardingSkipRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    tenant_id: str = Depends(tenant_from_auth),
+) -> OnboardingSkipResponse | dict[str, Any]:
+    """Seed one isolated playground with the clearly synthetic Atlas fixture."""
+
+    if tenant_id == TENANT_ID:
+        raise HTTPException(status_code=403, detail={"code": "ONBOARDING_DEMO_FORBIDDEN"})
+
+    store = ensure_tenant(tenant_id)
+    key = require_onboarding_idempotency_key(idempotency_key)
+    fingerprint_payload = {
+        "route": "onboarding.skip",
+        "confirmation": request.confirmation,
+        "source": request.source,
+    }
+    cached = idempotent_response(store, key, fingerprint_payload)
+    if cached is not None:
+        cached["idempotent"] = True
+        return cached
+
+    if store["onboarding"]["status"] != "not_started":
+        discard_pending_idempotency(store, key)
+        raise HTTPException(status_code=409, detail={"code": "ONBOARDING_ALREADY_FINALIZED"})
+    if playground_has_existing_data(store):
+        discard_pending_idempotency(store, key)
+        raise HTTPException(status_code=409, detail={"code": "ONBOARDING_DATA_EXISTS"})
+    if store.get("tenant_id") != tenant_id:
+        discard_pending_idempotency(store, key)
+        raise HTTPException(status_code=409, detail={"code": "TENANT_STATE_MISMATCH"})
+
+    seed_synthetic_playground(store)
+    store["onboarding"] = {
+        "status": "skipped",
+        "source": "synthetic_fixture",
+        "draft": None,
+        "updated_at": now(),
+    }
+    ensure_workspace_metadata(store)
+    record_audit(
+        store,
+        "onboarding.skipped",
+        "succeeded",
+        "onboarding",
+        tenant_id,
+        {"source": "synthetic_fixture", "fixture_id": DEMO_FIXTURE_ID},
+    )
+    response = {
+        "onboarding": public_onboarding_state(store),
+        "business": deepcopy(store["business"]),
+        "inventory": list(deepcopy(store["inventory"]).values()),
+        "idempotent": False,
+    }
+    save_idempotent(store, key, response)
+    return response
 
 
 @app.get("/api/v1/business")

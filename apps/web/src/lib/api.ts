@@ -95,6 +95,8 @@ export interface BootstrapPayload {
   workspace: WorkspaceInfo;
   business: {
     name: string;
+    description?: string;
+    category?: string;
     timezone: string;
     currency: string;
     locale: string;
@@ -110,6 +112,7 @@ export interface BootstrapPayload {
   pending_approvals?: number;
   execution?: { external_effects_enabled?: boolean };
   usage?: { consumed?: number; reserved?: number; limit?: number; credit_label?: string };
+  onboarding: OnboardingState;
 }
 
 export interface OnboardingProvenance {
@@ -120,6 +123,29 @@ export interface OnboardingProvenance {
 export interface OnboardingExtractionResponse {
   draft: OnboardingDraft;
   provenance: OnboardingProvenance;
+}
+
+export type OnboardingStatus = 'not_started' | 'completed' | 'skipped';
+export type OnboardingSource = 'user_input' | 'synthetic_fixture';
+
+export interface OnboardingState {
+  status: OnboardingStatus;
+  source: OnboardingSource | null;
+  draft: OnboardingDraft | null;
+  updated_at: string | null;
+}
+
+export interface OnboardingStateResponse {
+  tenant_id: string;
+  workspace: WorkspaceInfo;
+  onboarding: OnboardingState;
+}
+
+export interface OnboardingMutationResponse {
+  onboarding: OnboardingState;
+  business: BootstrapPayload['business'];
+  inventory: Array<OnboardingDraft['inventory'][number] & { id: string }>;
+  idempotent: boolean;
 }
 
 const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -158,6 +184,26 @@ export function extractOnboarding(text: string): Promise<OnboardingExtractionRes
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text }),
+  });
+}
+
+export function getOnboarding(): Promise<OnboardingStateResponse> {
+  return request<OnboardingStateResponse>('/api/v1/onboarding');
+}
+
+export function completeOnboarding(draft: OnboardingDraft, idempotencyKey: string): Promise<OnboardingMutationResponse> {
+  return request<OnboardingMutationResponse>('/api/v1/onboarding/complete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify({ confirmation: 'confirm', draft }),
+  });
+}
+
+export function skipOnboarding(idempotencyKey: string): Promise<OnboardingMutationResponse> {
+  return request<OnboardingMutationResponse>('/api/v1/onboarding/skip', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify({ confirmation: 'skip', source: 'synthetic_fixture' }),
   });
 }
 

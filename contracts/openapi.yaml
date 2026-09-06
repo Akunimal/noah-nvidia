@@ -32,6 +32,19 @@ paths:
                 title: Response Bootstrap Api V1 Bootstrap Get
       security:
       - HTTPBearer: []
+  /api/v1/onboarding:
+    get:
+      summary: Onboarding State
+      operationId: onboarding_state_api_v1_onboarding_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingStateResponse'
+      security:
+      - HTTPBearer: []
   /api/v1/providers/health:
     get:
       summary: Providers Health
@@ -74,6 +87,77 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - HTTPBearer: []
+  /api/v1/onboarding/complete:
+    post:
+      summary: Onboarding Complete
+      description: Apply one reviewed onboarding draft to its authenticated playground
+        tenant.
+      operationId: onboarding_complete_api_v1_onboarding_complete_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingCompleteRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingCompleteResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/onboarding/skip:
+    post:
+      summary: Onboarding Skip
+      description: Seed one isolated playground with the clearly synthetic Atlas fixture.
+      operationId: onboarding_skip_api_v1_onboarding_skip_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingSkipRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingSkipResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/business:
     get:
       summary: Get Business
@@ -1947,6 +2031,46 @@ components:
       - currency
       - locale
       title: OnboardingBusiness
+    OnboardingCompleteRequest:
+      properties:
+        draft:
+          $ref: '#/components/schemas/OnboardingDraft'
+        confirmation:
+          type: string
+          const: confirm
+          title: Confirmation
+      additionalProperties: false
+      type: object
+      required:
+      - draft
+      - confirmation
+      title: OnboardingCompleteRequest
+      description: The reviewed draft plus an explicit human confirmation.
+    OnboardingCompleteResponse:
+      properties:
+        onboarding:
+          $ref: '#/components/schemas/OnboardingState'
+        business:
+          additionalProperties: true
+          type: object
+          title: Business
+        inventory:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Inventory
+        idempotent:
+          type: boolean
+          title: Idempotent
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - onboarding
+      - business
+      - inventory
+      title: OnboardingCompleteResponse
     OnboardingDraft:
       properties:
         schema_version:
@@ -2058,6 +2182,125 @@ components:
       - provider
       - model
       title: OnboardingProvenance
+    OnboardingSkipRequest:
+      properties:
+        confirmation:
+          type: string
+          const: skip
+          title: Confirmation
+        source:
+          type: string
+          const: synthetic_fixture
+          title: Source
+      additionalProperties: false
+      type: object
+      required:
+      - confirmation
+      - source
+      title: OnboardingSkipRequest
+      description: Explicit opt-in to the synthetic Atlas fixture.
+    OnboardingSkipResponse:
+      properties:
+        onboarding:
+          $ref: '#/components/schemas/OnboardingState'
+        business:
+          additionalProperties: true
+          type: object
+          title: Business
+        inventory:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Inventory
+        idempotent:
+          type: boolean
+          title: Idempotent
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - onboarding
+      - business
+      - inventory
+      title: OnboardingSkipResponse
+    OnboardingState:
+      properties:
+        status:
+          type: string
+          enum:
+          - not_started
+          - completed
+          - skipped
+          title: Status
+        source:
+          anyOf:
+          - type: string
+            enum:
+            - user_input
+            - synthetic_fixture
+          - type: 'null'
+          title: Source
+        draft:
+          anyOf:
+          - $ref: '#/components/schemas/OnboardingDraft'
+          - type: 'null'
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - source
+      - draft
+      - updated_at
+      title: OnboardingState
+    OnboardingStateResponse:
+      properties:
+        tenant_id:
+          type: string
+          title: Tenant Id
+        workspace:
+          $ref: '#/components/schemas/OnboardingWorkspace'
+        onboarding:
+          $ref: '#/components/schemas/OnboardingState'
+      additionalProperties: false
+      type: object
+      required:
+      - tenant_id
+      - workspace
+      - onboarding
+      title: OnboardingStateResponse
+    OnboardingWorkspace:
+      properties:
+        mode:
+          type: string
+          enum:
+          - demo
+          - playground
+          title: Mode
+        data_source:
+          type: string
+          title: Data Source
+        fixture_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fixture Id
+        synthetic:
+          type: boolean
+          title: Synthetic
+      additionalProperties: false
+      type: object
+      required:
+      - mode
+      - data_source
+      - fixture_id
+      - synthetic
+      title: OnboardingWorkspace
     PaymentCreate:
       properties:
         amount_minor:

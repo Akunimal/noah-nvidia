@@ -30,7 +30,10 @@ require `NOAH_NVIDIA_NIM_API_KEY` and enforce 2048-dimensional embeddings.
 It only uses configured Nebius/NVIDIA Nemotron, validates the response against
 `onboarding.v1`, returns `ProviderResult` provenance, and never writes tenant
 state. It rejects the synthetic demo tenant and does not use OpenCode2API as a
-fallback.
+fallback. `GET /api/v1/onboarding` exposes the sanitized state. The explicit
+`POST /api/v1/onboarding/complete` and `POST /api/v1/onboarding/skip` mutations
+require a human confirmation and an `Idempotency-Key`; the latter never calls a
+provider and only copies the synthetic Atlas fixture into an empty playground.
 
 Install `requirements-nvidia.txt` only on a connected worker that can run the
 pinned NeMo Agent Toolkit and NeMo Guardrails packages. The CPU API keeps the

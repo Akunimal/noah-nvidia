@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
-import type { OnboardingExtractionResponse, OnboardingProvenance } from '../lib/api';
+import type { OnboardingExtractionResponse, OnboardingMutationResponse, OnboardingProvenance } from '../lib/api';
 import {
   emptyOnboardingDraft,
   inventoryFromLines,
@@ -24,8 +24,10 @@ export type OnboardingDecision = 'completed' | 'skipped';
 
 interface OnboardingWizardProps {
   businessName: string;
-  onExit: (decision: OnboardingDecision) => void;
+  onExit: (decision: OnboardingDecision, draft?: OnboardingDraft) => void;
   onExtract: (text: string) => Promise<OnboardingExtractionResponse>;
+  onComplete: (draft: OnboardingDraft, idempotencyKey: string) => Promise<OnboardingMutationResponse>;
+  onSkip: (idempotencyKey: string) => Promise<OnboardingMutationResponse>;
 }
 
 const stepLabels = ['Bienvenida', 'Descripción', 'Revisión', 'Listo'];
@@ -55,7 +57,25 @@ function readableExtractionError(value: unknown): string {
   return 'No pudimos generar el borrador desde Nebius. El texto sigue en este formulario; podés reintentar o completarlo manualmente.';
 }
 
-export default function OnboardingWizard({ businessName, onExit, onExtract }: OnboardingWizardProps) {
+function readableMutationError(value: unknown): string {
+  const message = value instanceof Error ? value.message : '';
+  if (message.includes('ONBOARDING_REQUIRED_FIELDS')) return 'Completá nombre de empresa y actividad antes de confirmar.';
+  if (message.includes('ONBOARDING_ALREADY_FINALIZED')) return 'Este onboarding ya fue aplicado. Recargá el playground para ver el estado persistido.';
+  if (message.includes('ONBOARDING_DATA_EXISTS')) return 'El playground ya tiene datos. El skip no pisa datos existentes.';
+  if (message.includes('ONBOARDING_IDEMPOTENCY_KEY_REQUIRED')) return 'No se pudo asegurar el reintento idempotente. Volvé a intentar.';
+  if (message.includes('API_5')) return 'El backend no pudo guardar el cambio. Verificá la conexión e intentá de nuevo.';
+  return 'No se pudo guardar la configuración. Tus datos siguen en esta pantalla; revisá y reintentá.';
+}
+
+function makeIdempotencyKey(prefix: string): string {
+  const browserCrypto = globalThis.crypto;
+  const random = browserCrypto && typeof browserCrypto.randomUUID === 'function'
+    ? browserCrypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${prefix}-${random}`;
+}
+
+export default function OnboardingWizard({ businessName, onExit, onExtract, onComplete, onSkip }: OnboardingWizardProps) {
   const [step, setStep] = useState<OnboardingStep>('welcome');
   const [narrative, setNarrative] = useState('');
   const [inventoryText, setInventoryText] = useState('');
@@ -64,6 +84,10 @@ export default function OnboardingWizard({ businessName, onExit, onExtract }: On
   const [skipConfirm, setSkipConfirm] = useState(false);
   const [error, setError] = useState('');
   const [extractionError, setExtractionError] = useState('');
+  const [mutationError, setMutationError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [completionKey] = useState(() => makeIdempotencyKey('onboarding-complete'));
+  const [skipKey] = useState(() => makeIdempotencyKey('onboarding-skip'));
 
   useEffect(() => {
     if (step !== 'extracting') return undefined;
@@ -88,6 +112,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract }: On
     setSkipConfirm(false);
     setError('');
     setExtractionError('');
+    setMutationError('');
     setStep('describe');
   }
 
@@ -99,6 +124,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract }: On
     }
     setError('');
     setExtractionError('');
+    setMutationError('');
     setDraft(null);
     setProviderResult(null);
     setStep('extracting');
@@ -107,6 +133,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract }: On
   function retryExtraction() {
     setError('');
     setExtractionError('');
+    setMutationError('');
     setDraft(null);
     setProviderResult(null);
     setStep('extracting');
@@ -115,6 +142,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract }: On
   function startManualReview() {
     setError('');
     setExtractionError('');
+    setMutationError('');
     setDraft(emptyOnboardingDraft());
     setInventoryText('');
     setProviderResult(null);
@@ -138,13 +166,33 @@ export default function OnboardingWizard({ businessName, onExit, onExtract }: On
     setDraft((current) => current ? withMissingFields({ ...current, inventory: inventoryFromLines(value) }) : current);
   }
 
-  function confirmPreview() {
-    setStep('complete');
+  async function confirmPreview() {
+    if (!draft || isSubmitting) return;
+    setMutationError('');
+    setIsSubmitting(true);
+    try {
+      await onComplete(draft, completionKey);
+      setStep('complete');
+    } catch (reason: unknown) {
+      setMutationError(readableMutationError(reason));
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
-  function confirmSkip() {
-    setSkipConfirm(false);
-    setStep('skipped');
+  async function confirmSkip() {
+    if (isSubmitting) return;
+    setMutationError('');
+    setIsSubmitting(true);
+    try {
+      await onSkip(skipKey);
+      setSkipConfirm(false);
+      setStep('skipped');
+    } catch (reason: unknown) {
+      setMutationError(readableMutationError(reason));
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function renderSkipConfirmation(): ReactNode {
@@ -153,10 +201,11 @@ export default function OnboardingWizard({ businessName, onExit, onExtract }: On
       <div className="onboarding-skip-card" role="alertdialog" aria-labelledby="skip-title">
         <strong id="skip-title">Antes de saltear</strong>
         <p>Si salteás el onboarding, no se usarán tus datos. Se cargarán datos ficticios de Atlas Services para que puedas explorar la aplicación. No son datos reales y no se ejecutará ninguna acción externa.</p>
-        <small>La aplicación idempotente del fixture queda para la fase 4.</small>
+        <small>La decisión queda guardada una sola vez en el tenant de prueba y no ejecuta acciones externas.</small>
+        {mutationError && <p className="onboarding-error" role="alert">{mutationError}</p>}
         <div className="onboarding-actions compact">
           <button className="outline-button" type="button" onClick={() => setSkipConfirm(false)}>Volver</button>
-          <button className="primary-button" type="button" onClick={confirmSkip}>Entiendo, saltear</button>
+          <button className="primary-button" type="button" onClick={() => { void confirmSkip(); }} disabled={isSubmitting}>{isSubmitting ? 'Guardando…' : 'Entiendo, saltear'}</button>
         </div>
       </div>
     );
@@ -234,7 +283,8 @@ export default function OnboardingWizard({ businessName, onExit, onExtract }: On
         </div>
         <div className="onboarding-missing"><strong>Campos que faltan</strong>{draft.missing_fields.length ? draft.missing_fields.map((field) => <span key={field}>{field}</span>) : <span className="complete">Completo para revisar</span>}</div>
         <div className="onboarding-provenance"><ShieldCheck size={14} /><span>{providerResult ? `Procedencia: ${providerResult.provider} · ${providerResult.model} · borrador sin escritura.` : 'Procedencia: edición manual · sin llamada de proveedor · sin escritura.'}</span></div>
-        <div className="onboarding-actions"><button className="outline-button" type="button" onClick={() => setStep('describe')}><ArrowLeft size={15} /> Editar descripción</button><button className="primary-button" type="button" onClick={confirmPreview}>Confirmar vista previa <Check size={15} /></button></div>
+        {mutationError && <p className="onboarding-error" role="alert">{mutationError}</p>}
+        <div className="onboarding-actions"><button className="outline-button" type="button" onClick={() => setStep('describe')} disabled={isSubmitting}><ArrowLeft size={15} /> Editar descripción</button><button className="primary-button" type="button" onClick={() => { void confirmPreview(); }} disabled={isSubmitting || Boolean(draft.missing_fields.includes('business.name') || draft.missing_fields.includes('business.description'))}>{isSubmitting ? 'Guardando…' : 'Confirmar configuración'} <Check size={15} /></button></div>
       </div>
     );
   }
@@ -246,9 +296,9 @@ export default function OnboardingWizard({ businessName, onExit, onExtract }: On
         <div className={'onboarding-success-icon ' + (skipped ? 'skipped' : '')}>{skipped ? <ShieldCheck size={26} /> : <CheckCircle2 size={29} />}</div>
         <span className="label-kicker">PASO 4 · SALIDA</span>
         <h2>{skipped ? 'Skip entendido.' : 'La vista previa está lista.'}</h2>
-        <p>{skipped ? 'En la versión final, este camino cargará únicamente el fixture ficticio Atlas Services y no ejecutará acciones externas.' : 'El shape está listo para pasar a la etapa de confirmación real. En esta fase el shell no persiste business ni inventario.'}</p>
-        <div className="onboarding-exit-note"><ShieldCheck size={15} /><span>Fase 3: salir solo cambia la vista local. La escritura idempotente y el skip real llegan en la fase 4.</span></div>
-        <button className="primary-button" type="button" onClick={() => onExit(decision)}>{skipped ? 'Explorar playground vacío' : 'Entrar al playground'} <Sparkles size={15} /></button>
+        <p>{skipped ? 'Se cargaron datos ficticios de Atlas Services para explorar. No son datos reales y ninguna acción externa fue ejecutada.' : 'La configuración quedó guardada en tu tenant de prueba. Podés seguir completando datos desde el workspace.'}</p>
+        <div className="onboarding-exit-note"><ShieldCheck size={15} /><span>Fase 4: decisión persistida en Neon, tenant-safe y auditable. El tour guiado queda para la fase 6.</span></div>
+        <button className="primary-button" type="button" onClick={() => onExit(decision, decision === 'completed' ? draft || undefined : undefined)}>{skipped ? 'Explorar playground' : 'Entrar al playground'} <Sparkles size={15} /></button>
       </div>
     );
   }
@@ -260,7 +310,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract }: On
     <section className="onboarding-page" aria-labelledby="onboarding-title">
       <div className="onboarding-heading">
         <div><span className="eyebrow">Playground · first setup</span><h1 id="onboarding-title">Onboarding.</h1><p>Un recorrido corto para darle contexto a Noah sin perder el control de tus datos.</p></div>
-        <div className="onboarding-meta"><span><span className="live-dot" /> Playground vacío</span><small>Fase 3 · extracción Nebius</small></div>
+        <div className="onboarding-meta"><span><span className="live-dot" /> Playground</span><small>Fase 4 · Neon + Nebius</small></div>
       </div>
       <div className="onboarding-stepper" aria-label="Onboarding progress">
         {stepLabels.map((label, index) => <div className={'onboarding-step ' + (index === currentIndex ? 'active ' : '') + (index < currentIndex ? 'done' : '')} key={label}><span>{index < currentIndex ? <Check size={13} /> : index + 1}</span><strong>{label}</strong></div>)}

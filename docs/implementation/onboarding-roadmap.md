@@ -1,6 +1,6 @@
 # Onboarding simple de Noah Nvidia
 
-> Contrato y roadmap del workstream de onboarding. Fases 0, 1, 2 y 3 cerradas
+> Contrato y roadmap del workstream de onboarding. Fases 0, 1, 2, 3 y 4 cerradas
 > en local el 2026-09-05. La fuente operativa general sigue siendo `STATE.md`.
 
 ## Objetivo
@@ -101,7 +101,7 @@ El helper local solo conserva texto que el usuario proporcionó y deja en
 `null` zona horaria, moneda y locale si no fueron indicados. Esto permite
 probar la interacción sin convertir un parser de UI en sustituto de Nebius.
 La fase 3 reemplazó esa transición local por extracción NVIDIA/Nebius; la fase
-4 conectará confirmación, skip e idempotencia.
+4 conectó confirmación, skip e idempotencia.
 
 ## Implementación de fase 3
 
@@ -125,6 +125,35 @@ operación de borrador: no llama `ensure_tenant`, no guarda el prompt ni muta
 
 La cobertura de la fase está en
 [`evidence/phase-3-nebius-extraction.md`](evidence/phase-3-nebius-extraction.md).
+
+## Implementación de fase 4
+
+La confirmación y el skip ahora son mutaciones explícitas, tenant-safe y
+persistibles en el snapshot JSONB de Neon. El frontend conserva el mismo
+reintento idempotente durante la sesión y no recibe ninguna clave de proveedor
+ni de base de datos.
+
+- `GET /api/v1/onboarding` devuelve el estado sanitizado y el modo derivado
+  del tenant autenticado.
+- `POST /api/v1/onboarding/complete` exige `confirmation=confirm`, un
+  `Idempotency-Key`, `business.name` y `business.description`; aplica solo los
+  campos revisados, reemplaza el inventario de onboarding de forma
+  determinista, registra auditoría y guarda `source=user_input`.
+- `POST /api/v1/onboarding/skip` exige `confirmation=skip`,
+  `source=synthetic_fixture` e idempotencia; no llama ningún proveedor y copia
+  el fixture Atlas desde un snapshot temporal, remapeando todos los
+  `tenant_id` al playground sin mutar `tenant-demo`.
+- Un tenant ya finalizado o un playground con datos no se pisa. Un reintento
+  con la misma clave devuelve la respuesta guardada; una clave reutilizada con
+  otro payload se rechaza.
+- `bootstrap.workspace` distingue `empty`, `onboarding` y
+  `synthetic-fixture`, y la UI deja de mostrar el wizard después de una
+  decisión persistida.
+- No se agregó migración específica: Neon guarda el estado extendido en el
+  mismo snapshot tenant-scoped que ya valida `state.tenant_id`.
+
+La evidencia automatizada está en
+[`evidence/phase-4-onboarding-persistence.md`](evidence/phase-4-onboarding-persistence.md).
 
 ## Contrato JSON v1
 
@@ -187,8 +216,7 @@ sola vez al tenant de playground y guarda `onboarding.source=synthetic_fixture`.
 
 ## Contrato de API reservado
 
-Estos nombres describen la siguiente implementación; en fase 0 no se declaran
-como rutas live ni se simula que ya existen:
+Estas son las rutas implementadas en la fase 4:
 
 | Operación | Efecto permitido | Requisito |
 |---|---|---|
@@ -231,9 +259,10 @@ completar manualmente o reintentar, nunca reenviar el texto a otra ruta.
 - `extract` no guarda el prompt crudo ni el texto privado; como máximo guarda
   estado de borrador sanitizado, proveedor, modelo, error y hash de trazabilidad.
 - `complete` persiste business, inventario y estado de onboarding en el
-  snapshot del mismo tenant, con validación `state.tenant_id == tenant_id`.
+  snapshot del mismo tenant, con validación `state.tenant_id == tenant_id` y
+  `Idempotency-Key` obligatorio.
 - `skip` es idempotente: un refresh no duplica servicios, documentos, acciones
-  ni inventario sintético.
+  ni inventario sintético, y no borra datos que el playground ya tenía.
 - La auditoría registra la decisión (`completed` o `skipped`) y la fuente, no
   secretos ni contenido sensible.
 - El tour es posterior: no puede marcarse como visto ni iniciar antes de que el
@@ -247,7 +276,7 @@ completar manualmente o reintentar, nunca reenviar el texto a otra ruta.
 | 1 | Aislamiento demo/playground | Demo conserva Atlas; tenant nuevo queda vacío; snapshots tenant-safe no cruzan datos | **Cerrada en local** |
 | 2 | Shell del wizard | Estados bienvenida, texto, carga, revisión y salida; sin llamada de modelo todavía | **Cerrada en local** |
 | 3 | Extracción Nebius | Prompt estructurado, parseo estricto, errores visibles, sin escritura automática | **Cerrada · Render publicado** |
-| 4 | Confirmación y skip | Aplicación idempotente, auditoría, fixture sintético y warning verificable | Pendiente |
+| 4 | Confirmación y skip | Aplicación idempotente, auditoría, fixture sintético y warning verificable | **Cerrada en local** |
 | 5 | Prueba de lado a lado | Navegador limpio: demo, onboarding, edición, confirmación, skip y aislamiento; evidencia guardada | Pendiente |
 | 6 | Tour guiado | Anchors declarativos, teclado/reduced motion y persistencia posterior a onboarding | Pendiente |
 | 7 | Entrega | Render manual, Graphify actualizado, README/demo script y checklist reproducible | Pendiente |
@@ -263,19 +292,19 @@ de invertir tiempo en pulido de presentación. La estimación vigente es de
 - [x] Un JSON inválido, incompleto o con campos extra queda en revisión y
       muestra un error corregible.
 - [x] OpenCode2API nunca recibe el texto privado del playground.
-- [ ] Confirmar dos veces no duplica ni pisa otro tenant.
-- [ ] Skip muestra el warning, no llama al modelo y siembra solo datos
+- [x] Confirmar dos veces no duplica ni pisa otro tenant.
+- [x] Skip muestra el warning, no llama al modelo y siembra solo datos
       sintéticos de Atlas.
-- [ ] Reiniciar el API conserva el estado en Neon y respeta el tenant.
+- [ ] Reiniciar el API conserva el estado en Neon y respeta el tenant (pendiente
+      de smoke live con un tenant playground de producción).
 - [ ] El tour no aparece antes de completar o saltear explícitamente.
 - [ ] Ninguna clave o token aparece en UI, logs, Graphify, contratos o commits.
 
-## Fuera de fase 0, fase 1 y fase 2
+## Límites acumulados
 
-Fase 0 no agrega endpoints, componentes React, migraciones ni despliegues. No
-se afirma que el onboarding esté disponible todavía; deja el contrato cerrado
-para que las fases de código puedan avanzar sin reinterpretar el producto.
-Fase 1 no agrega el wizard ni llama a un modelo: solo hace visible y
-verificable el aislamiento de los dos modos en el runtime existente. Fase 2
-agrega únicamente el shell y su preview local; no agrega endpoints, llamadas
-de proveedor ni escritura durable.
+Fase 0 no agrega endpoints, componentes React, migraciones ni despliegues. Fase
+1 no agrega el wizard ni llama a un modelo: solo hace visible y verificable el
+aislamiento de los dos modos. Fase 2 agrega únicamente el shell y su preview
+local; no agrega endpoints, llamadas de proveedor ni escritura durable. Fase
+4 no agrega el tour guiado ni activa efectos Gmail/Calendar, pagos o cualquier
+otra mutación externa.

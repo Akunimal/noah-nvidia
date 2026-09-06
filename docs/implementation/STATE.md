@@ -31,10 +31,12 @@
 ## Onboarding workstream
 
 El workstream activo es el onboarding simple descrito en
-[`onboarding-roadmap.md`](onboarding-roadmap.md). Las **fases 0, 1, 2 y 3
+[`onboarding-roadmap.md`](onboarding-roadmap.md). Las **fases 0, 1, 2, 3 y 4
 están cerradas en local**: el contrato `onboarding.v1` quedó versionado, el
 runtime ya separa `tenant-demo` del playground vacío y el wizard extrae un
-borrador estricto por Nebius sin persistirlo. El deploy manual está aprobado;
+borrador estricto por Nebius sin persistirlo. La fase 4 agrega confirmación y
+skip idempotentes, auditables y tenant-safe sobre el snapshot. El deploy manual
+está aprobado;
 la prueba live de un tenant playground requiere un bearer de producción
 no-demo válido. Un bearer sintético fue rechazado por `NOAH_REQUIRE_AUTH` antes
 del modelo.
@@ -45,13 +47,15 @@ del modelo.
 - Demo: `tenant-demo` puede usar Atlas sintético para el video.
 - Playground: tenant nuevo vacío; `bootstrap.workspace` declara
   `mode=playground`, `data_source=empty`, `fixture_id=null` y no devuelve
-  conexiones demo. Confirmar y skip siguen reservados para la fase 4.
+  conexiones demo. Confirmar cambia la fuente a `onboarding`; skip cambia a
+  `synthetic-fixture` solo con el fixture Atlas y sin efectos externos.
 - Runtime: solo `tenant-demo` puede sembrar `atlas-v1`; la UI muestra una
   banda explícita de sandbox y no pinta Atlas mientras el modo sea desconocido.
 - Wizard: el playground abre bienvenida, descripción, extracción Nebius,
   revisión editable y salida; `extract` no persiste ni llama a OpenCode2API.
   Si Nebius no está disponible, la UI conserva el texto y ofrece reintento o
-  edición manual. El skip solo cambia la vista hasta fase 4.
+  edición manual. Confirmar y skip persisten la decisión en Fase 4; el wizard
+  no reaparece después de completar o saltear.
 - Contrato JSON: `contracts/onboarding.v1.schema.json`.
 - Evidencia: `evidence/phase-0-onboarding.md`,
   `evidence/phase-1-playground.md`, `evidence/phase-2-wizard-shell.md` y
@@ -90,10 +94,11 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 
 | Área | Estado | Evidencia |
 |---|---|---|
-| API determinista | OK | 43 tests Python pasan con Python 3.12 y las versiones fijadas |
+| API determinista | OK | 48 tests Python pasan con Python 3.12 y las versiones fijadas |
 | Frontend | OK | typecheck, lint, Vitest y build pasan |
 | Onboarding shell | OK en local | 6 Vitest; `components/OnboardingWizard.tsx`; evidencia en `evidence/phase-2-wizard-shell.md` |
 | Onboarding extraction | OK local + deploy Render | `POST /api/v1/onboarding/extract`, 4 pruebas de Nebius/errores/aislamiento, `/openapi.json` live; smoke playground pendiente de bearer no-demo; evidencia en `evidence/phase-3-nebius-extraction.md` |
+| Onboarding complete/skip | OK local | `GET /api/v1/onboarding`, confirmación/skip idempotentes, auditoría, copia Atlas tenant-safe y 5 pruebas nuevas; deploy + smoke Neon playground pendiente |
 | Smoke local | OK | Atlas Services, run succeeded, receipt generado |
 | Aislamiento demo/playground, aprobaciones e idempotencia | OK en tests locales | `services/api/test_main.py`; evidencia en `evidence/phase-1-playground.md` |
 | Router Nebius/OpenCode2API | Nebius live OK; OpenCode2API contrato local OK | OpenCode2API live sigue pendiente; evidencia en `evidence/gate-3-opencode2api.md` |
@@ -260,7 +265,7 @@ Estado: **cerrado — Neon Free live aprobado; Render legacy expira el 2026-10-0
 - Frontend, `/health` y `/openapi.json` responden 200.
 - Efectos Gmail/Calendar, pagos y demás mutaciones externas permanecen
   desactivados.
-- Pruebas locales: 39 Python, Vitest, typecheck, lint y build pasan.
+- Pruebas locales: 48 Python, Vitest, typecheck, lint y build pasan.
 
 ### Producción — todavía no declarar
 
@@ -276,9 +281,10 @@ Estado: **cerrado — Neon Free live aprobado; Render legacy expira el 2026-10-0
 ## Próximo paso exacto
 
 La demo es entregable con Neon Free server-only y el slice OAuth de lectura
-está verificado. Las fases 0, 1, 2 y 3 del onboarding están cerradas en local:
-el contrato, el aislamiento, el shell y la extracción estricta a Nebius están
-versionados. El siguiente paso exacto es la fase 4 del
-[`onboarding-roadmap.md`](onboarding-roadmap.md): confirmación y skip
-idempotentes sobre Neon, sin habilitar planes pagos, Supabase, Vercel ni
+está verificado. Las fases 0, 1, 2, 3 y 4 del onboarding están cerradas en
+local: el contrato, el aislamiento, el shell, la extracción estricta a Nebius
+y las mutaciones idempotentes están versionados. El siguiente paso exacto es
+publicar manualmente la fase 4 en Render y hacer la prueba lado a lado con un
+bearer playground válido: confirmación, skip, refresh/reinicio y aislamiento
+respecto de `tenant-demo`, sin habilitar planes pagos, Supabase, Vercel ni
 efectos externos.

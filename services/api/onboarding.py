@@ -114,6 +114,72 @@ class OnboardingExtractionResponse(BaseModel):
     provenance: OnboardingProvenance
 
 
+OnboardingStatus = Literal["not_started", "completed", "skipped"]
+OnboardingSource = Literal["user_input", "synthetic_fixture"]
+
+
+class OnboardingCompleteRequest(BaseModel):
+    """The reviewed draft plus an explicit human confirmation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    draft: OnboardingDraft
+    confirmation: Literal["confirm"]
+
+
+class OnboardingSkipRequest(BaseModel):
+    """Explicit opt-in to the synthetic Atlas fixture."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    confirmation: Literal["skip"]
+    source: Literal["synthetic_fixture"]
+
+
+class OnboardingWorkspace(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["demo", "playground"]
+    data_source: str
+    fixture_id: str | None
+    synthetic: bool
+
+
+class OnboardingState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: OnboardingStatus
+    source: OnboardingSource | None
+    draft: OnboardingDraft | None
+    updated_at: str | None
+
+
+class OnboardingStateResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tenant_id: str
+    workspace: OnboardingWorkspace
+    onboarding: OnboardingState
+
+
+class OnboardingCompleteResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    onboarding: OnboardingState
+    business: dict[str, object]
+    inventory: list[dict[str, object]]
+    idempotent: bool = False
+
+
+class OnboardingSkipResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    onboarding: OnboardingState
+    business: dict[str, object]
+    inventory: list[dict[str, object]]
+    idempotent: bool = False
+
+
 class OnboardingOutputError(ValueError):
     """Raised when the model response cannot become an onboarding.v1 draft."""
 

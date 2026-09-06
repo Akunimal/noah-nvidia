@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import {
   advanceRun,
+  completeOnboarding as completeOnboardingApi,
   decideAction,
   extractOnboarding,
   getBootstrap,
@@ -43,6 +44,7 @@ import {
   getQuotes,
   getReceivables,
   sendMessage,
+  skipOnboarding as skipOnboardingApi,
   uploadDocument,
   type ApiCalendarItem,
   type ApiConnection,
@@ -51,8 +53,10 @@ import {
   type ApiMail,
   type ApiQuote,
   type ApiReceivable,
+  type OnboardingStatus,
 } from './lib/api';
 import OnboardingWizard from './components/OnboardingWizard';
+import type { OnboardingDraft } from './lib/onboarding';
 
 type Section = 'overview' | 'assistant' | 'approvals' | 'mail' | 'calendar' | 'finance' | 'knowledge' | 'settings';
 type WorkspaceMode = 'demo' | 'playground' | 'unknown';
@@ -150,6 +154,8 @@ function App() {
   const [isThinking, setIsThinking] = useState(false);
   const [apiOnline, setApiOnline] = useState(false);
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('unknown');
+  const [workspaceDataSource, setWorkspaceDataSource] = useState('empty');
+  const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus>('not_started');
   const [onboardingVisible, setOnboardingVisible] = useState(false);
   const [businessName, setBusinessName] = useState('New business');
   const [businessTimezone, setBusinessTimezone] = useState('UTC');
@@ -175,7 +181,9 @@ function App() {
         const [bootstrap, pending] = await Promise.all([getBootstrap(), getPendingActions()]);
         const nextWorkspaceMode: WorkspaceMode = bootstrap.workspace?.mode === 'demo' ? 'demo' : 'playground';
         setWorkspaceMode(nextWorkspaceMode);
-        setOnboardingVisible(nextWorkspaceMode === 'playground');
+        setWorkspaceDataSource(bootstrap.workspace?.data_source || 'empty');
+        setOnboardingStatus(bootstrap.onboarding?.status || 'not_started');
+        setOnboardingVisible(nextWorkspaceMode === 'playground' && bootstrap.onboarding?.status === 'not_started');
         setMessages(nextWorkspaceMode === 'demo' ? initialMessages : []);
         setActivity(nextWorkspaceMode === 'demo' ? initialActivity : []);
         setBusinessName(bootstrap.business.name);
@@ -217,7 +225,11 @@ function App() {
       : 'Deterministic NVIDIA sandbox';
   const runtimeOnline = apiOnline && (primaryProviderConfigured || freeProviderConfigured);
   const demoMode = workspaceMode === 'demo';
-  const workspaceLabel = workspaceMode === 'demo' ? 'Demo · synthetic Atlas' : workspaceMode === 'playground' ? 'Playground · empty' : 'Local sandbox';
+  const workspaceLabel = workspaceMode === 'demo'
+    ? 'Demo · synthetic Atlas'
+    : workspaceMode === 'playground'
+      ? workspaceDataSource === 'synthetic-fixture' ? 'Playground · synthetic Atlas' : workspaceDataSource === 'onboarding' ? 'Playground · configured' : 'Playground · empty'
+      : 'Local sandbox';
   const pageTitle = navItems.find((item) => item.id === section)?.label || 'Overview';
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -341,8 +353,43 @@ function App() {
     reader.readAsDataURL(file);
   }
 
-  function exitOnboarding() {
+  async function refreshWorkspaceCollections() {
+    const [pending, mail, calendar, ledger, documents, quotes, receivables] = await Promise.allSettled([
+      getPendingActions(),
+      getMail(),
+      getCalendar(),
+      getLedger(),
+      getDocuments(),
+      getQuotes(),
+      getReceivables(),
+    ]);
+    if (pending.status === 'fulfilled') setApprovals(pending.value.map((action) => ({ ...action, tone: action.tone || 'violet', amount: action.amount || undefined })));
+    if (mail.status === 'fulfilled') setMailItems(mail.value);
+    if (calendar.status === 'fulfilled') setCalendarItems(calendar.value);
+    if (ledger.status === 'fulfilled') setLedgerItems(ledger.value);
+    if (documents.status === 'fulfilled') setDocumentItems(documents.value);
+    if (quotes.status === 'fulfilled') setQuoteItems(quotes.value);
+    if (receivables.status === 'fulfilled') setReceivableItems(receivables.value);
+  }
+
+  function completeOnboarding(draft: OnboardingDraft, idempotencyKey: string) {
+    return completeOnboardingApi(draft, idempotencyKey);
+  }
+
+  function skipOnboarding(idempotencyKey: string) {
+    return skipOnboardingApi(idempotencyKey);
+  }
+
+  function exitOnboarding(decision: 'completed' | 'skipped', draft?: OnboardingDraft) {
     setOnboardingVisible(false);
+    setOnboardingStatus(decision);
+    setWorkspaceDataSource(decision === 'skipped' ? 'synthetic-fixture' : 'onboarding');
+    if (decision === 'completed' && draft?.business.name) {
+      setBusinessName(draft.business.name);
+      if (draft.business.timezone) setBusinessTimezone(draft.business.timezone);
+      if (draft.business.currency) setBusinessCurrency(draft.business.currency);
+    }
+    if (decision === 'skipped') void refreshWorkspaceCollections();
     setSection('overview');
   }
 
@@ -413,9 +460,9 @@ function App() {
         </header>
 
         <div className="page-content">
-          {onboardingVisible && workspaceMode === 'playground' ? <OnboardingWizard businessName={businessName} onExtract={extractOnboarding} onExit={exitOnboarding} /> : <>
+          {onboardingVisible && workspaceMode === 'playground' ? <OnboardingWizard businessName={businessName} onExtract={extractOnboarding} onComplete={completeOnboarding} onSkip={skipOnboarding} onExit={exitOnboarding} /> : <>
             {workspaceMode === 'demo' && <div className="workspace-banner demo"><ShieldCheck size={17} /><div><strong>Demo sandbox</strong><span>Atlas Services is synthetic fixture data for the video. No external effects are enabled.</span></div></div>}
-            {workspaceMode === 'playground' && <div className="workspace-banner playground"><Sparkles size={17} /><div><strong>Playground vacío</strong><span>Este tenant empieza sin datos ficticios. Lo que agregues quedará aislado de la demo.</span></div><button className="text-button workspace-banner-action" type="button" onClick={() => setOnboardingVisible(true)}>Abrir onboarding</button></div>}
+            {workspaceMode === 'playground' && <div className="workspace-banner playground"><Sparkles size={17} /><div><strong>{workspaceDataSource === 'synthetic-fixture' ? 'Playground · datos ficticios' : workspaceDataSource === 'onboarding' ? 'Playground configurado' : 'Playground vacío'}</strong><span>{workspaceDataSource === 'synthetic-fixture' ? 'Atlas Services es un fixture sintético para explorar. No son datos reales ni se ejecutan acciones externas.' : workspaceDataSource === 'onboarding' ? 'Tu configuración quedó aislada en este tenant. Las acciones externas siguen detrás de aprobación.' : 'Este tenant empieza sin datos ficticios. Lo que agregues quedará aislado de la demo.'}</span></div>{onboardingStatus === 'not_started' && <button className="text-button workspace-banner-action" type="button" onClick={() => setOnboardingVisible(true)}>Abrir onboarding</button>}</div>}
             {section === 'overview' && (
               <Overview
                 greeting={greeting}

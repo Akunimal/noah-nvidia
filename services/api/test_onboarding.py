@@ -122,3 +122,155 @@ def test_extract_forbids_demo_tenant_before_provider_call(monkeypatch) -> None:
 
     assert response.status_code == 403
     assert response.json()["detail"]["code"] == "ONBOARDING_DEMO_FORBIDDEN"
+
+
+def test_onboarding_state_is_empty_and_does_not_expose_private_fields() -> None:
+    tenant_id = "tenant-phase4-state"
+    response = client.get("/api/v1/onboarding", headers={"Authorization": "Bearer " + tenant_id})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tenant_id"] == tenant_id
+    assert body["workspace"] == {
+        "mode": "playground",
+        "data_source": "empty",
+        "fixture_id": None,
+        "synthetic": False,
+    }
+    assert body["onboarding"] == {
+        "status": "not_started",
+        "source": None,
+        "draft": None,
+        "updated_at": None,
+    }
+    assert "prompt" not in response.text
+    assert "provider_result" not in response.text
+
+
+def test_complete_applies_reviewed_json_once_and_is_tenant_safe() -> None:
+    tenant_id = "tenant-phase4-complete"
+    headers = {
+        "Authorization": "Bearer " + tenant_id,
+        "Idempotency-Key": "phase4-complete-1",
+    }
+    before_demo = deepcopy(client.get("/api/v1/bootstrap", headers={"Authorization": "Bearer demo-owner"}).json())
+
+    first = client.post(
+        "/api/v1/onboarding/complete",
+        headers=headers,
+        json={"confirmation": "confirm", "draft": onboarding_payload()},
+    )
+    assert first.status_code == 200
+    assert first.json()["idempotent"] is False
+    assert first.json()["onboarding"]["status"] == "completed"
+    assert first.json()["business"]["name"] == "Taller Norte"
+    assert first.json()["inventory"][0]["tenant_id"] == tenant_id
+
+    retry = client.post(
+        "/api/v1/onboarding/complete",
+        headers=headers,
+        json={"confirmation": "confirm", "draft": onboarding_payload()},
+    )
+    assert retry.status_code == 200
+    assert retry.json()["idempotent"] is True
+    assert len(TENANTS[tenant_id]["inventory"]) == 1
+
+    changed_payload = onboarding_payload()
+    changed_payload["business"] = {**changed_payload["business"], "name": "Otro negocio"}
+    reused = client.post(
+        "/api/v1/onboarding/complete",
+        headers=headers,
+        json={"confirmation": "confirm", "draft": changed_payload},
+    )
+    assert reused.status_code == 409
+    assert reused.json()["detail"]["code"] == "IDEMPOTENCY_KEY_REUSED"
+
+    second_key = client.post(
+        "/api/v1/onboarding/complete",
+        headers={**headers, "Idempotency-Key": "phase4-complete-2"},
+        json={"confirmation": "confirm", "draft": onboarding_payload()},
+    )
+    assert second_key.status_code == 409
+    assert second_key.json()["detail"]["code"] == "ONBOARDING_ALREADY_FINALIZED"
+    assert client.get("/api/v1/bootstrap", headers={"Authorization": "Bearer " + tenant_id}).json()["workspace"]["data_source"] == "onboarding"
+    assert client.get("/api/v1/bootstrap", headers={"Authorization": "Bearer demo-owner"}).json() == before_demo
+
+
+def test_skip_copies_only_synthetic_fixture_and_retries_without_duplicates() -> None:
+    tenant_id = "tenant-phase4-skip"
+    headers = {
+        "Authorization": "Bearer " + tenant_id,
+        "Idempotency-Key": "phase4-skip-1",
+    }
+    before_demo = deepcopy(client.get("/api/v1/bootstrap", headers={"Authorization": "Bearer demo-owner"}).json())
+    payload = {"confirmation": "skip", "source": "synthetic_fixture"}
+
+    first = client.post("/api/v1/onboarding/skip", headers=headers, json=payload)
+    assert first.status_code == 200
+    assert first.json()["idempotent"] is False
+    assert first.json()["onboarding"] == {
+        "status": "skipped",
+        "source": "synthetic_fixture",
+        "draft": None,
+        "updated_at": first.json()["onboarding"]["updated_at"],
+    }
+    assert first.json()["business"]["name"] == "Atlas Services"
+
+    retry = client.post("/api/v1/onboarding/skip", headers=headers, json=payload)
+    assert retry.status_code == 200
+    assert retry.json()["idempotent"] is True
+    assert len(TENANTS[tenant_id]["services"]) == 3
+    assert len(TENANTS[tenant_id]["actions"]) == 3
+    assert all(item.get("tenant_id") == tenant_id for item in TENANTS[tenant_id]["services"].values())
+    assert all(item.get("tenant_id") == tenant_id for item in TENANTS[tenant_id]["actions"].values())
+
+    bootstrap = client.get("/api/v1/bootstrap", headers={"Authorization": "Bearer " + tenant_id})
+    assert bootstrap.status_code == 200
+    assert bootstrap.json()["workspace"] == {
+        "mode": "playground",
+        "data_source": "synthetic-fixture",
+        "fixture_id": "atlas-v1",
+        "synthetic": True,
+    }
+    assert client.get("/api/v1/services", headers={"Authorization": "Bearer " + tenant_id}).json()
+    assert client.get("/api/v1/bootstrap", headers={"Authorization": "Bearer demo-owner"}).json() == before_demo
+
+
+def test_skip_never_calls_a_model_and_requires_confirmation_key(monkeypatch) -> None:
+    tenant_id = "tenant-phase4-skip-no-model"
+
+    async def should_not_call(*args, **kwargs) -> ProviderResult:
+        raise AssertionError("skip must not call a provider")
+
+    monkeypatch.setattr(router, "complete", should_not_call)
+    missing_key = client.post(
+        "/api/v1/onboarding/skip",
+        headers={"Authorization": "Bearer " + tenant_id},
+        json={"confirmation": "skip", "source": "synthetic_fixture"},
+    )
+    assert missing_key.status_code == 400
+    assert missing_key.json()["detail"]["code"] == "ONBOARDING_IDEMPOTENCY_KEY_REQUIRED"
+
+    response = client.post(
+        "/api/v1/onboarding/skip",
+        headers={"Authorization": "Bearer " + tenant_id, "Idempotency-Key": "phase4-skip-no-model"},
+        json={"confirmation": "skip", "source": "synthetic_fixture"},
+    )
+    assert response.status_code == 200
+
+
+def test_complete_rejects_missing_required_business_fields_without_writing() -> None:
+    tenant_id = "tenant-phase4-required"
+    payload = onboarding_payload()
+    payload["business"] = {**payload["business"], "name": None}
+    payload["missing_fields"] = ["business.name", *payload["missing_fields"]]
+
+    response = client.post(
+        "/api/v1/onboarding/complete",
+        headers={"Authorization": "Bearer " + tenant_id, "Idempotency-Key": "phase4-required-1"},
+        json={"confirmation": "confirm", "draft": payload},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "ONBOARDING_REQUIRED_FIELDS"
+    assert TENANTS[tenant_id]["onboarding"]["status"] == "not_started"
+    assert TENANTS[tenant_id]["inventory"] == {}
