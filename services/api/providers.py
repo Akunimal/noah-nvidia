@@ -8,6 +8,7 @@ effects; the deterministic executor owns those transitions.
 
 from __future__ import annotations
 
+import asyncio
 import os
 from dataclasses import dataclass
 from typing import Any
@@ -140,23 +141,45 @@ class NebiusProvider(Provider):
             # JSON mode only prevents prose/Markdown wrappers.
             "response_format": {"type": "json_object"},
             "temperature": 0.1,
-            "max_tokens": 900,
+            "max_tokens": 1600,
         }
-        try:
-            async with httpx.AsyncClient(timeout=45) as client:
-                response = await client.post(
-                    self.base_url + "/chat/completions",
-                    headers={"Authorization": "Bearer " + self.api_key, "Content-Type": "application/json"},
-                    json=payload,
-                )
-            response.raise_for_status()
-            body = response.json()
-            text = body.get("choices", [{}])[0].get("message", {}).get("content")
-            if not text:
-                return ProviderResult(self.name, self.model, None, "NEBIUS_EMPTY_RESPONSE")
-            return ProviderResult(self.name, self.model, str(text))
-        except (httpx.HTTPError, ValueError) as exc:
-            return ProviderResult(self.name, self.model, None, type(exc).__name__ + ": " + str(exc)[:180])
+        retryable_statuses = {408, 429, 500, 502, 503, 504}
+        for attempt in range(2):
+            try:
+                async with httpx.AsyncClient(timeout=45) as client:
+                    response = await client.post(
+                        self.base_url + "/chat/completions",
+                        headers={"Authorization": "Bearer " + self.api_key, "Content-Type": "application/json"},
+                        json=payload,
+                    )
+                response.raise_for_status()
+                body = response.json()
+                text = body.get("choices", [{}])[0].get("message", {}).get("content")
+                if not text:
+                    if attempt == 0:
+                        await asyncio.sleep(0.25)
+                        continue
+                    return ProviderResult(self.name, self.model, None, "NEBIUS_EMPTY_RESPONSE")
+                return ProviderResult(self.name, self.model, str(text))
+            except httpx.HTTPStatusError as exc:
+                status = exc.response.status_code
+                if attempt == 0 and status in retryable_statuses:
+                    await asyncio.sleep(0.25)
+                    continue
+                return ProviderResult(self.name, self.model, None, f"NEBIUS_HTTP_{status}")
+            except httpx.TimeoutException:
+                if attempt == 0:
+                    await asyncio.sleep(0.25)
+                    continue
+                return ProviderResult(self.name, self.model, None, "NEBIUS_TIMEOUT")
+            except httpx.TransportError:
+                if attempt == 0:
+                    await asyncio.sleep(0.25)
+                    continue
+                return ProviderResult(self.name, self.model, None, "NEBIUS_TRANSPORT_ERROR")
+            except ValueError:
+                return ProviderResult(self.name, self.model, None, "NEBIUS_INVALID_RESPONSE")
+        return ProviderResult(self.name, self.model, None, "NEBIUS_PROVIDER_ERROR")
 
 
 NVIDIA_NIM_BASE_URL = "https://integrate.api.nvidia.com/v1"

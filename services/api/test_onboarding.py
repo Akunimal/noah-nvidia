@@ -4,10 +4,47 @@ from copy import deepcopy
 from fastapi.testclient import TestClient
 
 from main import TENANTS, app, router
+from onboarding import parse_onboarding_output
 from providers import ProviderResult
 
 
 client = TestClient(app)
+
+
+def test_parse_onboarding_output_normalizes_model_formatting_without_inventing_facts() -> None:
+    draft = parse_onboarding_output(
+        json.dumps(
+            {
+                "schema_version": "onboarding.v1",
+                "business": {
+                    "name": "Atlas Services.",
+                    "description": "Atlas Services, an on-site assessment service.",
+                    "category": None,
+                    "timezone": None,
+                    "currency": None,
+                    "locale": None,
+                },
+                "inventory": [],
+                "missing_fields": [
+                    "business.category",
+                    "business.timezone",
+                    "business.currency",
+                    "business.locale",
+                    "inventory",
+                ],
+            }
+        )
+    )
+
+    assert draft.business.name == "Atlas Services"
+    assert draft.business.description == "an on-site assessment service"
+    assert draft.business.category == "on-site assessment"
+    assert draft.missing_fields == [
+        "business.timezone",
+        "business.currency",
+        "business.locale",
+        "inventory",
+    ]
 
 
 def onboarding_payload() -> dict[str, object]:

@@ -226,6 +226,69 @@ ONBOARDING_SYSTEM_PROMPT = Path(__file__).with_name("onboarding-system-prompt.tx
 ).strip()
 
 
+_GENERIC_CATEGORY_SUFFIXES = ("company", "service", "business", "agency", "studio")
+
+
+def _normalize_model_payload(payload: dict[str, object]) -> dict[str, object]:
+    """Remove harmless model formatting drift before strict schema validation."""
+
+    business_value = payload.get("business")
+    if not isinstance(business_value, dict):
+        return payload
+
+    business = dict(business_value)
+    name = business.get("name")
+    if isinstance(name, str):
+        name = name.strip().rstrip(".").strip() or None
+        business["name"] = name
+
+    description = business.get("description")
+    if isinstance(description, str):
+        description = description.strip().rstrip(".").strip()
+        if description and isinstance(name, str):
+            lead_patterns = (
+                rf"^(?:we are|our business is|business name is|company name is)\s+{re.escape(name)}\s*,?\s*",
+                rf"^{re.escape(name)}\s*,?\s*",
+            )
+            for pattern in lead_patterns:
+                description = re.sub(pattern, "", description, flags=re.IGNORECASE)
+        description = re.sub(r"^(?:we provide|we offer)\s+", "", description, flags=re.IGNORECASE)
+        business["description"] = description.strip() or None
+
+    category = business.get("category")
+    if isinstance(category, str):
+        category = category.strip().rstrip(".").strip()
+        category = re.sub(r"^(?:a|an)\s+", "", category, flags=re.IGNORECASE)
+        category = re.sub(
+            rf"\s+(?:{'|'.join(_GENERIC_CATEGORY_SUFFIXES)})$",
+            "",
+            category,
+            flags=re.IGNORECASE,
+        )
+        business["category"] = category.strip() or None
+
+    inferred_category = False
+    if business.get("category") in (None, ""):
+        description = business.get("description")
+        if isinstance(description, str):
+            match = re.fullmatch(
+                rf"(?:a|an)\s+(.+?)\s+(?:{'|'.join(_GENERIC_CATEGORY_SUFFIXES)})",
+                description.strip().rstrip("."),
+                flags=re.IGNORECASE,
+            )
+            if match:
+                business["category"] = match.group(1).strip()
+                inferred_category = True
+
+    normalized = dict(payload)
+    normalized["business"] = business
+    if inferred_category and isinstance(payload.get("missing_fields"), list):
+        normalized["missing_fields"] = [
+            field for field in payload["missing_fields"] if field != "business.category"
+        ]
+    return normalized
+
+
 def parse_onboarding_output(text: str) -> OnboardingDraft:
     """Parse only a strict JSON object and validate it against onboarding.v1."""
 
@@ -237,6 +300,7 @@ def parse_onboarding_output(text: str) -> OnboardingDraft:
         raise OnboardingOutputError("model output is not valid JSON") from exc
     if not isinstance(payload, dict):
         raise OnboardingOutputError("model output must be a JSON object")
+    payload = _normalize_model_payload(payload)
     try:
         draft = OnboardingDraft.model_validate(payload)
     except ValidationError as exc:
