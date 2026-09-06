@@ -1,6 +1,6 @@
 # Promptfoo local evaluation
 
-- Generated: 2026-09-06T23:24:42.456Z
+- Generated: 2026-09-06T23:34:53.935Z
 - Mode: offline deterministic synthetic provider
 - Provider: `deterministic-demo`
 - Model label: `local-onboarding-fixture-v1`

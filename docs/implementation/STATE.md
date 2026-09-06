@@ -6,8 +6,9 @@
 
 - Repositorio: `Akunimal/noah-nvidia`
 - Rama: `main`
-- Código funcional live verificado: `f42afc7`; deploy manual del API
-  `dep-dael3k0n74is73eb8rm0` y del frontend `dep-dael3pgn74is73eb9ft0`.
+- Código funcional live verificado: API `15dd751`; deploy manual final del API
+  `dep-daevpi8n74is73fn868g` con el modo público restaurado a `scheduled`;
+  frontend live verificado en el servicio Render `noah-nvidia-web`.
 - Despliegue: manual; Auto-Deploy está en `Off` en API y frontend; Vercel queda
   fuera del flujo.
 - Backend live: `https://noah-nvidia-api.onrender.com` (Render Web Service, plan Free).
@@ -131,9 +132,9 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Build Render del API | OK tras fijar Python 3.12.10 | El primer deploy de `8af42c3` falló por Python 3.14; evidencia en `evidence/render-build-incident-2026-09-05.md` |
 | Política de deploy | OK | Auto-Deploy desactivado en ambos servicios; los próximos releases se disparan manualmente |
 | OpenCode2API free | Contrato local OK; Nemotron-only enforced; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
-| Public AI release guard | OK local + live público | Render `dep-dael3k0n74is73eb8rm0` / `dep-dael3pgn74is73eb9ft0` live desde `f42afc7`; bootstrap declara ventana programada, `remaining_calls=20`, `server_configured=true`; panel público visible sin consumir crédito |
+| Public AI release guard | OK local + live público | API `dep-daevpi8n74is73fn868g` live desde `15dd751`; bootstrap declara `mode=scheduled`, `effective_mode=synthetic`, `credit_state=synthetic` y `remaining_calls=20`; panel público visible sin consumir crédito |
 | Reviewer UI language | OK local + live público | La superficie visible del reviewer, el wizard, el panel NVIDIA/BYOK y los mensajes públicos de la API están en inglés; la entrada libre conserva soporte multilingüe |
-| Evaluación Promptfoo | Harness local cerrado; conexión/paridad pendiente | `npm run eval:promptfoo:local`: 15/15, 0 errores, provider sintético determinista, sin llamadas de modelo; evidencia en `evidence/promptfoo-local.md`; aún falta la evaluación conectada y la verificación de modelo |
+| Evaluación Promptfoo | Gate 7 cerrado para Nebius conectado | Local y API conectada: 15/15, 0 errores; provenance `nebius` + `nvidia/nemotron-3-super-120b-a12b`, guardrail 400 esperado y efectos externos desactivados; evidencia redactada en `evidence/promptfoo-local.md` y `evidence/promptfoo-api.md`; no se afirma paridad de pesos con el alias OpenCode2API |
 | Cutover público 2026-10-27 | Programado | Mantener la URL abierta, confirmar Nebius/Nemotron efectivo, mantener OpenCode2API desactivado y repetir smoke limpio con fallback y cuotas |
 | Paquete de entrega y freeze | Pendiente | README/Devpost/video/instrucciones en inglés, licencia, evidencia redactada, Graphify actualizado y release reproducible |
 | Google OAuth | OK — lectura verificada | Consentimiento real, callback, token cifrado y sync de lectura verificados con `gesecseguridad@gmail.com`; efectos externos siguen apagados |
@@ -272,31 +273,34 @@ Estado: **pendiente**.
 
 ### Gate 7 — Evaluación Promptfoo y paridad honesta
 
-Estado: **harness local cerrado; evaluación conectada/paridad pendiente**.
+Estado: **cerrado para la ruta conectada Nebius/NVIDIA Nemotron; sin afirmación de paridad de pesos con OpenCode2API**.
 
 - El harness local ya ejecuta 15 casos sintéticos con la misma instrucción
   canónica (`services/api/onboarding-system-prompt.txt`) y el mismo schema
   `onboarding.v1` que la extracción de producción.
 - El provider local es determinista y está rotulado como sintético; valida
   JSON estricto, `missing_fields`, inventario, prompt injection, procedencia y
-  ausencia de efectos externos. La ejecución cerrada dio 8/8, 0 errores y
+  ausencia de efectos externos. La ejecución cerrada dio 15/15, 0 errores y
   0 llamadas de modelo; evidencia redactada en
   `evidence/promptfoo-local.md`.
 - Promptfoo se instala solo para la ejecución mediante `npx` fijado a
   `0.122.2`; no se agrega como dependencia runtime ni se guardan resultados
   crudos en el repo (`.promptfoo/` está ignorado). El runner desactiva
   telemetría, actualizaciones, generación remota y sharing.
-- La evaluación conectada debe reutilizar los mismos casos, instrucciones,
-  schema y assertions, con endpoint y clave únicamente en el entorno privado.
-- Verificar primero si OpenCode2API admite exactamente el modelo canónico
-  nvidia/nemotron-3-super-120b-a12b. El alias nemotron-3-ultra-free no se
-  considera equivalente sin evidencia.
-- Si el modelo exacto no está disponible, publicar la diferencia como
-  comparación de contrato y guardrails, separando siempre provider y model.
+- La evaluación conectada reutilizó los mismos 15 casos, instrucciones, schema
+  y assertions mediante el endpoint privado de evaluación. Dio 15/15, 0
+  errores, con `provider=nebius`, `model=nvidia/nemotron-3-super-120b-a12b`,
+  sin efectos externos; el caso de prompt injection verificó el 400
+  `PROMPT_INJECTION_BLOCKED` esperado.
+- OpenCode2API sigue limitado al sandbox sintético NVIDIA-only y usa el alias
+  `nemotron-3-ultra-free`; no hay evidencia de igualdad de pesos con el
+  modelo canónico. Por eso Gate 7 se cierra como paridad de contrato,
+  guardrails y provenance de la ruta Nebius, no como paridad de modelo.
 - Inyectar endpoint y clave solo por el entorno privado; no guardar secretos,
   prompts privados ni respuestas completas en el repo o Graphify.
-- Guardar evidencia redactada de schema, missing_fields, prompt injection,
-  ausencia de acciones y fallback determinístico para cada provider/modelo.
+- La evidencia redactada de schema, `missing_fields`, prompt injection,
+  ausencia de acciones y provenance queda en
+  `evidence/promptfoo-local.md` y `evidence/promptfoo-api.md`.
 
 ### Gate 8 — Cutover público y hardening
 
@@ -372,8 +376,8 @@ Estado: **pendiente**.
   persiste el tenant público en Neon.
 - Efectos Gmail/Calendar, pagos y demás mutaciones externas permanecen
   desactivados.
-- Pruebas locales: 54 Python, Vitest, typecheck, lint, build y Promptfoo
-  sintético (15/15) pasan.
+- Pruebas locales: 56 Python, Vitest, typecheck, lint, build y Promptfoo
+  sintético (15/15) pasan; la evaluación conectada también dio 15/15.
 
 ### Producción — todavía no declarar
 
@@ -389,11 +393,10 @@ Estado: **pendiente**.
 ## Próximo paso exacto
 
 La demo es entregable con Neon Free server-only y el slice OAuth de lectura
-está verificado. Las fases 0 a 5 del onboarding quedaron cerradas con skip,
-confirmación, fallback manual, nueva pestaña y aislamiento de flujo. El
-harness local de Gate 7 ya está cerrado; el siguiente bloque operativo es
-Gate 6: implementar y verificar el tour guiado. En paralelo queda pendiente
-el smoke Neon de un tenant privado con bearer válido y la evaluación
-conectada/paridad de Gate 7. Después siguen Gate 8 (cutover del 2026-10-27) y
-Gate 9 (paquete de entrega/freeze), sin habilitar planes pagos, Supabase,
-Vercel ni efectos externos.
+está verificado. Las fases 0 a 5 del onboarding y Gate 7 quedaron cerrados
+con skip, confirmación, fallback manual, nueva pestaña, aislamiento de flujo
+y evaluación conectada Nebius 15/15. El siguiente bloque operativo es Gate
+6: implementar y verificar el tour guiado. En paralelo queda pendiente el
+smoke Neon de un tenant privado con bearer válido. Después siguen Gate 8
+(cutover del 2026-10-27) y Gate 9 (paquete de entrega/freeze), sin habilitar
+planes pagos, Supabase, Vercel ni efectos externos.

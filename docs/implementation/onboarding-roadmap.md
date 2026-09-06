@@ -49,8 +49,8 @@ hacer pasar datos ficticios por datos reales.
     cuota separada. Nunca se persiste ni se expone la clave.
 12. **Evaluación de proveedor:** Promptfoo evalúa el mismo conjunto de casos,
     instrucciones y contrato JSON que usará la ruta Nebius. El harness local
-    determinista ya está cerrado sin gastar crédito; la evaluación conectada
-    queda separada y usa endpoint/clave solo por variables privadas.
+    y la evaluación conectada ya dieron 15/15; el endpoint y la clave solo
+    entran por variables privadas.
     OpenCode2API solo participa como sandbox sintético, con endpoint y clave
     por variables de entorno. No se afirma paridad de pesos hasta verificar
     que el gateway expone exactamente `nvidia/nemotron-3-super-120b-a12b`.
@@ -315,8 +315,15 @@ Como mínimo se verifican:
 
 - El harness local ejecuta 15/15 casos sintéticos, valida el prompt canónico y
   `onboarding.v1`, y demuestra cero llamadas de modelo y cero efectos externos.
-- La ejecución conectada reutiliza los mismos casos y assertions; su provider,
-  modelo, costo/uso y resultado se registran por separado.
+- La ejecución conectada reutilizó los mismos casos y assertions y dio 15/15;
+  su provider, modelo, uso y resultado quedan registrados por separado en
+  `evidence/promptfoo-api.md`.
+
+Resultado actual: Gate 7 queda cerrado para la ruta Nebius conectada con el
+modelo `nvidia/nemotron-3-super-120b-a12b`. Esto demuestra paridad de contrato,
+guardrails y provenance con la API desplegada, no igualdad de pesos con
+OpenCode2API, cuyo alias `nemotron-3-ultra-free` permanece en el sandbox
+sintético NVIDIA-only.
 
 - JSON válido y estricto contra `onboarding.v1`;
 - `missing_fields` correcto, campos desconocidos rechazados y no invención de
@@ -365,7 +372,7 @@ Como mínimo se verifican:
 | 4 | Confirmación y skip | Aplicación idempotente, auditoría, fixture sintético y warning verificable | **Cerrada · Render publicado** |
 | 5 | Prueba de lado a lado | Navegador limpio: demo, onboarding, edición, confirmación, skip y aislamiento; evidencia guardada | **Cerrada · Render público verificado** |
 | 6 | Tour guiado | Anchors declarativos, teclado/reduced motion y persistencia posterior a onboarding | Pendiente |
-| 7 | Evaluación de proveedor | Harness local Promptfoo 15/15 cerrado; modelo canónico conectado verificado o diferencia documentada; evidencia redactada | **Local cerrado · conexión pendiente** |
+| 7 | Evaluación de proveedor | Harness local y conexión Promptfoo 15/15; modelo/proveedor documentados por separado; diferencia de pesos OpenCode2API explícita; evidencia redactada | **Cerrada para Nebius · sin paridad de pesos OpenCode2API** |
 | 8 | Cutover y hardening del reviewer | URL abierta, Nebius efectivo desde el 2026-10-27, OpenCode2API desactivado, cuotas/fallback/CORS/cold start verificados | Pendiente |
 | 9 | Entrega y freeze | README, Devpost, video público menor a 3 minutos, licencia, instrucciones de prueba, Graphify y release reproducible | Pendiente |
 
@@ -376,8 +383,8 @@ Render PostgreSQL legacy y no es la deadline del hackathon.
 
 ### Calendario operativo
 
-- **2026-09-06 a 2026-09-20:** Promptfoo, verificación de modelo y evidencia
-  conectada de Nebius.
+- **2026-09-06 a 2026-09-20:** Gate 7 cerrado con Promptfoo local/conectado;
+  avanzar al tour y preparar evidencia de entrega.
 - **2026-09-21 a 2026-10-10:** tour guiado, hardening del reviewer y nueva
   prueba de navegador limpio; retirar referencias obsoletas al 5 de octubre.
 - **2026-10-11 a 2026-10-20:** README/Devpost en inglés, video, instrucciones
@@ -403,9 +410,9 @@ Render PostgreSQL legacy y no es la deadline del hackathon.
 - [ ] El tour no aparece antes de completar o saltear explícitamente.
 - [x] Promptfoo local ejecuta los mismos casos, prompt y schema con provider
       sintético determinista: 15/15, sin llamadas de modelo ni efectos externos.
-- [ ] La evaluación conectada reutiliza los mismos casos y assertions; la
-      paridad de modelo se confirma o se etiqueta honestamente como comparación
-      de contrato.
+- [x] La evaluación conectada reutiliza los mismos casos y assertions: 15/15
+      con `nebius` + `nvidia/nemotron-3-super-120b-a12b`; la diferencia de
+      pesos con OpenCode2API queda etiquetada honestamente.
 - [ ] El 2026-10-27 `bootstrap.public_ai` y una extracción real muestran
       Nebius/Nemotron, mientras OpenCode2API permanece desactivado.
 - [ ] El reviewer puede completar el flujo sin costo durante el judging; si el
