@@ -1,6 +1,6 @@
 # Public AI release guard
 
-> Implemented 2026-09-05. This record contains no provider keys, OAuth
+> Implemented 2026-09-05; Render verified 2026-09-06. This record contains no provider keys, OAuth
 > credentials, database URLs, model responses, or private user data.
 
 ## Decision
@@ -44,7 +44,11 @@ only, and the open time is not advanced during routine testing.
   validation, and absence of the BYOK key from the response/tenant snapshot.
 - Frontend tests and build cover the existing console; typecheck and lint pass
   with the public runtime panel and in-memory key handling.
-- Render verification remains a manual post-commit step: set only the listed
-  nonsecret policy variables, deploy both services from the commit, and confirm
-  `bootstrap.public_ai` reports `mode=scheduled`, `effective_mode=synthetic`
-  before the opening timestamp.
+- Render verification completed without opening the scheduled window: the API
+  deploy `dep-daeddkmq1p3s738t49sg` and frontend deploy
+  `dep-daede96q1p3s738t6kv0` both reached `Deploy succeeded | Live` from
+  `3d9d784`. Public `bootstrap` reports `mode=scheduled`,
+  `effective_mode=synthetic`, `remaining_calls=20`,
+  `reviewer_byok_allowed=true`, and `server_configured=true`; the embedded
+  public UI shows `Demo sintética programada` and the scheduled opening date.
+  No NVIDIA/Nebius call, key reveal, or external effect was performed.

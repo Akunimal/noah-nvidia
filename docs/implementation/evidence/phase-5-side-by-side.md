@@ -1,6 +1,6 @@
 # Fase 5 — prueba lado a lado
 
-Fecha: 2026-09-05  
+Fecha: 2026-09-05 — actualización live: 2026-09-06
 Estado: **cerrada para demo pública; smoke privado Neon pendiente**
 
 ## Alcance probado
@@ -44,7 +44,7 @@ activa el modo de fixture para el Overview y carga la actividad sintética.
 ## Verificaciones automatizadas
 
 ```text
-services/api: 47 passed, 1 warning
+services/api: 52 passed, 1 warning
 apps/web: typecheck OK
 apps/web: lint OK
 apps/web: Vitest 2 files / 6 tests passed
@@ -73,9 +73,9 @@ frontend conserva sólo `VITE_API_BASE_URL`.
 
 ## Verificación live pública
 
-- El API se publicó manualmente desde `f461d08` como
-  `dep-daecidid0e5s73803q60`; el frontend se publicó desde el mismo commit como
-  `dep-daecj89t0dsc739miuug`. Ambos terminaron `Deploy succeeded | Live`.
+- El API se publicó manualmente desde `3d9d784` como
+  `dep-daeddkmq1p3s738t49sg`; el frontend se publicó desde el mismo commit como
+  `dep-daede96q1p3s738t6kv0`. Ambos terminaron `Deploy succeeded | Live`.
 - El API respondió `200` en `/health`, `/api/v1/bootstrap` y `/openapi.json`.
   El bootstrap público declaró `public_demo=true` y CORS permitió únicamente
   el origen del Static Site.
@@ -88,6 +88,18 @@ frontend conserva sólo `VITE_API_BASE_URL`.
   ni efectos externos.
 - El Static Site mantiene únicamente `VITE_API_BASE_URL`; no se abrió ni copió
   ningún secreto de Render y el bundle publicado no contiene el bearer anterior.
+
+## Verificación live del guard NVIDIA
+
+- La configuración no secreta de Render dejó `NOAH_PUBLIC_AI_MODE=scheduled`,
+  apertura `2026-10-27T17:00:00Z`, cierre `2026-10-30T17:00:00Z`, límite
+  server-side `20` y límite BYOK `5`.
+- `bootstrap.public_ai` respondió `mode=scheduled`,
+  `effective_mode=synthetic`, `remaining_calls=20`,
+  `reviewer_byok_allowed=true` y `server_configured=true`.
+- Una carga limpia del Static Site mostró `Demo sintética programada`, la fecha
+  de apertura y `Usar clave temporal`. No se ingresó ninguna clave ni se
+  adelantó el reloj; la verificación no consumió crédito.
 
 ## Límite deliberado de la demo pública
 
