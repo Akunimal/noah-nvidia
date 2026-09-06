@@ -6,8 +6,8 @@
 
 - Repositorio: `Akunimal/noah-nvidia`
 - Rama: `main`
-- Código funcional live verificado: `7d9d150`; última implementación
-  versionada (fase 4) en `7d9d150`; deploy manual del API
+- Código funcional live verificado: `7d9d150`; último cambio versionado de UI y
+  evidencia de fase 5: `056b92e`; deploy manual del API
   `dep-daebum9t0dsc739k7kng` y del frontend `dep-daebvfou01pc73dsgjmg`.
 - Despliegue: manual; Auto-Deploy está en `Off` en API y frontend; Vercel queda
   fuera del flujo.
