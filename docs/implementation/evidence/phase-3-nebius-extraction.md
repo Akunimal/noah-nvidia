@@ -1,7 +1,7 @@
 # Fase 3 — extracción estructurada con Nebius
 
 Fecha: 2026-09-05  
-Estado: **cerrada en local; deploy manual pendiente**
+Estado: **cerrada; deploy manual aprobado; smoke playground live pendiente de auth**
 
 ## Alcance
 
@@ -27,6 +27,11 @@ sintético autorizado.
   ofrece reintentar o editar un borrador manual vacío.
 - `contracts/openapi.yaml` fue regenerado desde la app y documenta el endpoint
   y sus modelos.
+- API desplegada en Render desde `f7d0057`:
+  `dep-daeb0sn40ujc73ehc5tg` (`Deploy succeeded | Live`).
+- Frontend desplegado en Render desde `f7d0057`:
+  `dep-daeb1hht0dsc739h0pug` (`Deploy succeeded | Live`).
+- `/health` devolvió 200 y `/openapi.json` live contiene la ruta de extracción.
 
 ## Verificación automatizada
 
@@ -50,7 +55,8 @@ tenant demo y salida inválida sin eco del contenido.
 
 ## Límite honesto
 
-Esta evidencia demuestra el contrato y el comportamiento local con una
-respuesta Nebius simulada; no afirma todavía una extracción live desde Render.
-El deploy manual y la prueba lado a lado quedan para la siguiente actividad,
-sin cambiar claves ni habilitar efectos externos.
+Esta evidencia demuestra el contrato local y el deploy live. La extracción
+playground end-to-end todavía necesita un bearer de producción asociado a un
+tenant no-demo: el intento con un token sintético fue rechazado con 401 por
+`NOAH_REQUIRE_AUTH` antes de contactar Nebius. No se cambió auth para forzar la
+prueba ni se habilitaron efectos externos.

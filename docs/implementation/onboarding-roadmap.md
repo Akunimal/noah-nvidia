@@ -246,7 +246,7 @@ completar manualmente o reintentar, nunca reenviar el texto a otra ruta.
 | 0 | Contrato, modos, límites de proveedor, skip y criterios anti-drift | Schema versionado, rutas reservadas, copia exacta del warning y reglas alineadas con `STATE.md` | **Cerrada** |
 | 1 | Aislamiento demo/playground | Demo conserva Atlas; tenant nuevo queda vacío; snapshots tenant-safe no cruzan datos | **Cerrada en local** |
 | 2 | Shell del wizard | Estados bienvenida, texto, carga, revisión y salida; sin llamada de modelo todavía | **Cerrada en local** |
-| 3 | Extracción Nebius | Prompt estructurado, parseo estricto, errores visibles, sin escritura automática | **Cerrada en local** |
+| 3 | Extracción Nebius | Prompt estructurado, parseo estricto, errores visibles, sin escritura automática | **Cerrada · Render publicado** |
 | 4 | Confirmación y skip | Aplicación idempotente, auditoría, fixture sintético y warning verificable | Pendiente |
 | 5 | Prueba de lado a lado | Navegador limpio: demo, onboarding, edición, confirmación, skip y aislamiento; evidencia guardada | Pendiente |
 | 6 | Tour guiado | Anchors declarativos, teclado/reduced motion y persistencia posterior a onboarding | Pendiente |

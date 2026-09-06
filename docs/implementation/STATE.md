@@ -6,10 +6,9 @@
 
 - Repositorio: `Akunimal/noah-nvidia`
 - Rama: `main`
-- Código funcional live verificado: `5e01dc8`; última implementación
-  versionada (fase 3, todavía no desplegada) en `71daea9`; deploy manual del
-  API `dep-dae6npm1egvs73b5eqp0` y del frontend
-  `dep-dae5p42d0e5s73f8v70g`.
+- Código funcional live verificado: `f7d0057`; última implementación
+  versionada (fase 3) en `71daea9`; deploy manual del API
+  `dep-daeb0sn40ujc73ehc5tg` y del frontend `dep-daeb1hht0dsc739h0pug`.
 - Despliegue: manual; Auto-Deploy está en `Off` en API y frontend; Vercel queda
   fuera del flujo.
 - Backend live: `https://noah-nvidia-api.onrender.com` (Render Web Service, plan Free).
@@ -35,8 +34,10 @@ El workstream activo es el onboarding simple descrito en
 [`onboarding-roadmap.md`](onboarding-roadmap.md). Las **fases 0, 1, 2 y 3
 están cerradas en local**: el contrato `onboarding.v1` quedó versionado, el
 runtime ya separa `tenant-demo` del playground vacío y el wizard extrae un
-borrador estricto por Nebius sin persistirlo. El deploy manual y la prueba live
-de esta extracción todavía quedan pendientes.
+borrador estricto por Nebius sin persistirlo. El deploy manual está aprobado;
+la prueba live de un tenant playground requiere un bearer de producción
+no-demo válido. Un bearer sintético fue rechazado por `NOAH_REQUIRE_AUTH` antes
+del modelo.
 
 - Datos del usuario: solo Nebius/NVIDIA; OpenCode2API no recibe texto privado.
 - `ProviderResult`: sobre de procedencia, separado del JSON de negocio; ver
@@ -92,7 +93,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | API determinista | OK | 43 tests Python pasan con Python 3.12 y las versiones fijadas |
 | Frontend | OK | typecheck, lint, Vitest y build pasan |
 | Onboarding shell | OK en local | 6 Vitest; `components/OnboardingWizard.tsx`; evidencia en `evidence/phase-2-wizard-shell.md` |
-| Onboarding extraction | OK en local | `POST /api/v1/onboarding/extract`, 4 pruebas de Nebius/errores/aislamiento; evidencia en `evidence/phase-3-nebius-extraction.md` |
+| Onboarding extraction | OK local + deploy Render | `POST /api/v1/onboarding/extract`, 4 pruebas de Nebius/errores/aislamiento, `/openapi.json` live; smoke playground pendiente de bearer no-demo; evidencia en `evidence/phase-3-nebius-extraction.md` |
 | Smoke local | OK | Atlas Services, run succeeded, receipt generado |
 | Aislamiento demo/playground, aprobaciones e idempotencia | OK en tests locales | `services/api/test_main.py`; evidencia en `evidence/phase-1-playground.md` |
 | Router Nebius/OpenCode2API | Nebius live OK; OpenCode2API contrato local OK | OpenCode2API live sigue pendiente; evidencia en `evidence/gate-3-opencode2api.md` |
