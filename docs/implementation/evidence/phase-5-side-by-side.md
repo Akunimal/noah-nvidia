@@ -83,6 +83,9 @@ frontend conserva sólo `VITE_API_BASE_URL`.
   `NVIDIA API · sandbox`, `Playground · empty` y el wizard. El skip mostró la
   advertencia, terminó en `Skip entendido.` y luego cargó `Atlas Services`,
   `Playground · synthetic Atlas`, tres aprobaciones y las métricas del fixture.
+- Desde `Assistant` se envió una consulta de prueba y la respuesta visible
+  llegó con procedencia `deterministic-demo`, sin activar Nebius, OpenCode2API
+  ni efectos externos.
 - El Static Site mantiene únicamente `VITE_API_BASE_URL`; no se abrió ni copió
   ningún secreto de Render y el bundle publicado no contiene el bearer anterior.
 
