@@ -1,10 +1,10 @@
 # Onboarding simple de Noah Nvidia
 
-> Contrato y roadmap del workstream de onboarding. Fases 0, 1, 2 y 3 cerradas
-> en local; fase 4 cerrada en local y publicada en Render el 2026-09-05. La
-> fase 5 cerró la demo pública live sobre Render; la política de apertura pública
-> NVIDIA/Nemotron queda gobernada por backend y fecha. El smoke privado de Neon
-> queda separado. La fuente operativa general sigue siendo `STATE.md`.
+> Contrato y roadmap del workstream de onboarding. Las fases 0 a 5 están
+> cerradas; las fases 6 a 9 quedan como trabajo de entrega. La demo pública
+> live corre sobre Render y la política de apertura NVIDIA/Nemotron queda
+> gobernada por backend y fecha. El smoke privado de Neon queda separado. La
+> fuente operativa general sigue siendo `STATE.md`.
 
 ## Objetivo
 
@@ -47,6 +47,15 @@ hacer pasar datos ficticios por datos reales.
 11. **BYOK de reviewer:** como último recurso, una clave NVIDIA NIM o Nebius se
     acepta solo por headers de una sesión, con destino fijo, modelo Nemotron y
     cuota separada. Nunca se persiste ni se expone la clave.
+12. **Evaluación de proveedor:** Promptfoo evalúa el mismo conjunto de casos,
+    instrucciones y contrato JSON que usará la ruta Nebius. OpenCode2API solo
+    participa como sandbox sintético, con endpoint y clave por variables de
+    entorno. No se afirma paridad de pesos hasta verificar que el gateway
+    expone exactamente `nvidia/nemotron-3-super-120b-a12b`.
+13. **Cambio público:** el 2026-10-27 se conserva la URL pública y se verifica
+    el cambio efectivo a Nebius/NVIDIA; OpenCode2API permanece desactivado en
+    Render. Cambiar de proveedor no significa cerrar la demo ni crear una ruta
+    de fallback pública distinta de la ya documentada.
 
 ## Modos de uso
 
@@ -272,6 +281,58 @@ Nebius, fija el destino en el servidor y limita el número de llamadas. Si no
 hay ruta disponible, la UI ofrece completar manualmente o reintentar, nunca
 reenvía el texto a una familia ajena a NVIDIA.
 
+## Evaluación Promptfoo y cambio público
+
+Promptfoo será un arnés de evaluación y no una ruta nueva del producto. Debe
+probar el mismo flujo de extracción, las mismas instrucciones y el mismo
+contrato `onboarding.v1` que se usará con Nebius/Nemotron.
+
+### Gate de paridad honesta
+
+- El modelo canónico de producción es
+  `nvidia/nemotron-3-super-120b-a12b`.
+- Antes de ejecutar la evaluación se debe verificar el identificador real que
+  admite OpenCode2API. El alias sintético actual
+  `nemotron-3-ultra-free` no demuestra que sean los mismos pesos.
+- Si el gateway admite el modelo canónico, Promptfoo lo configura con ese
+  identificador y el resultado se registra como comparación del mismo modelo
+  por dos transportes.
+- Si no lo admite, se conservan los mismos casos, prompt, schema y assertions,
+  pero se reportan `provider` y `model` por separado como evaluación de
+  contrato/guardrails. No se llama “paridad de modelo” ni se cambia Nebius por
+  el alias gratuito.
+- La configuración de Promptfoo no contiene claves. El endpoint y el token
+  llegan únicamente por variables privadas del entorno; los casos usan datos
+  sintéticos de `tests/evals/cases.json`, nunca texto privado de onboarding.
+
+### Criterios de salida de la evaluación
+
+La evidencia debe conservar solo resultados redactados y metadatos seguros:
+proveedor, modelo, latencia, uso aproximado, pass/fail y errores de validación.
+Como mínimo se verifican:
+
+- JSON válido y estricto contra `onboarding.v1`;
+- `missing_fields` correcto, campos desconocidos rechazados y no invención de
+  inventario;
+- resistencia a prompt injection y ausencia de acciones externas;
+- procedencia visible mediante `ProviderResult`;
+- fallback determinístico honesto cuando no hay crédito o ruta disponible.
+
+### Checklist del cutover del 2026-10-27
+
+1. Mantener `https://noah-nvidia-web.onrender.com/` accesible y gratuita.
+2. Confirmar desde `bootstrap.public_ai` que el modo efectivo sea Nebius,
+   que el proveedor sea `nebius` y que el modelo sea el canónico.
+3. Confirmar `NOAH_ALLOW_FREE_SYNTHETIC=false` y que OpenCode2API no tenga una
+   URL o clave operativa en Render.
+4. Ejecutar desde un navegador limpio: bootstrap, extracción, revisión,
+   confirmación, skip, aislamiento y fallback por cuota; guardar evidencia
+   sin tokens ni prompts privados.
+5. Si el crédito lo permite, extender la ventana server-side de Nebius para
+   que el evaluador pueda usar el flujo real durante el período de judging.
+   Si no lo permite, mantener el flujo sintético completo, gratuito y
+   claramente rotulado; nunca simular que fue una respuesta NVIDIA real.
+
 ## Persistencia y auditoría
 
 - `extract` no guarda el prompt crudo ni el texto privado; como máximo guarda
@@ -297,11 +358,28 @@ reenvía el texto a una familia ajena a NVIDIA.
 | 4 | Confirmación y skip | Aplicación idempotente, auditoría, fixture sintético y warning verificable | **Cerrada · Render publicado** |
 | 5 | Prueba de lado a lado | Navegador limpio: demo, onboarding, edición, confirmación, skip y aislamiento; evidencia guardada | **Cerrada · Render público verificado** |
 | 6 | Tour guiado | Anchors declarativos, teclado/reduced motion y persistencia posterior a onboarding | Pendiente |
-| 7 | Entrega | Render manual, Graphify actualizado, README/demo script y checklist reproducible | Pendiente |
+| 7 | Evaluación de proveedor | Promptfoo con los mismos casos/prompts/schema; modelo canónico verificado o diferencia documentada; evidencia redactada | Pendiente |
+| 8 | Cutover y hardening del reviewer | URL abierta, Nebius efectivo desde el 2026-10-27, OpenCode2API desactivado, cuotas/fallback/CORS/cold start verificados | Pendiente |
+| 9 | Entrega y freeze | README, Devpost, video público menor a 3 minutos, licencia, instrucciones de prueba, Graphify y release reproducible | Pendiente |
 
 El orden deja el tour para el final y permite testear el flujo completo antes
-de invertir tiempo en pulido de presentación. La estimación vigente es de
-10–12 días de trabajo más buffer antes de la deadline del 2026-10-05.
+de invertir tiempo en pulido de presentación. La deadline oficial es el
+2026-10-30 a las 10:00 PDT (14:00 ART); el 2026-10-05 solo vence el recurso
+Render PostgreSQL legacy y no es la deadline del hackathon.
+
+### Calendario operativo
+
+- **2026-09-06 a 2026-09-20:** Promptfoo, verificación de modelo y evidencia
+  conectada de Nebius.
+- **2026-09-21 a 2026-10-10:** tour guiado, hardening del reviewer y nueva
+  prueba de navegador limpio; retirar referencias obsoletas al 5 de octubre.
+- **2026-10-11 a 2026-10-20:** README/Devpost en inglés, video, instrucciones
+  de evaluación y ensayo de entrega; congelar el alcance al terminar.
+- **2026-10-21 a 2026-10-26:** revisión final de créditos, secretos, CORS,
+  límites, rollback y deploy manual reproducible.
+- **2026-10-27:** cutover público a Nebius/Nemotron y smoke live de reviewer.
+- **2026-10-30 10:00 PDT:** enviar antes de la deadline y dejar la URL
+  disponible durante el judging, sin paywall ni claves expuestas.
 
 ## Criterios de aceptación del workstream
 
@@ -316,6 +394,14 @@ de invertir tiempo en pulido de presentación. La estimación vigente es de
 - [ ] Reiniciar el API conserva el estado en Neon y respeta el tenant (pendiente
       de smoke live con un tenant playground de producción).
 - [ ] El tour no aparece antes de completar o saltear explícitamente.
+- [ ] Promptfoo ejecuta los mismos casos y assertions; la paridad de modelo se
+      confirma o se etiqueta honestamente como comparación de contrato.
+- [ ] El 2026-10-27 `bootstrap.public_ai` y una extracción real muestran
+      Nebius/Nemotron, mientras OpenCode2API permanece desactivado.
+- [ ] El reviewer puede completar el flujo sin costo durante el judging; si el
+      crédito Nebius no alcanza, el fallback sintético queda visible y completo.
+- [ ] README, repositorio público con licencia, video en inglés, URL live y
+      pasos reproducibles cumplen el paquete de entrega.
 - [ ] Ninguna clave o token aparece en UI, logs, Graphify, contratos o commits.
 
 ## Límites acumulados

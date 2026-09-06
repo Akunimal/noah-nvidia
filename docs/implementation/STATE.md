@@ -30,8 +30,8 @@
 ## Onboarding workstream
 
 El workstream activo es el onboarding simple descrito en
-[`onboarding-roadmap.md`](onboarding-roadmap.md). Las **fases 0, 1, 2, 3 y 4
-están cerradas en local**: el contrato `onboarding.v1` quedó versionado, el
+[`onboarding-roadmap.md`](onboarding-roadmap.md). Las **fases 0 a 5 están
+cerradas (local y live según el gate)**: el contrato `onboarding.v1` quedó versionado, el
 runtime ya separa `tenant-demo` del playground vacío y el wizard extrae un
 borrador estricto por Nebius sin persistirlo. La fase 4 agrega confirmación y
 skip idempotentes, auditables y tenant-safe sobre el snapshot. El deploy manual
@@ -133,6 +133,9 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | OpenCode2API free | Contrato local OK; Nemotron-only enforced; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
 | Public AI release guard | OK local + live público | Render `dep-dael3k0n74is73eb8rm0` / `dep-dael3pgn74is73eb9ft0` live desde `f42afc7`; bootstrap declara ventana programada, `remaining_calls=20`, `server_configured=true`; panel público visible sin consumir crédito |
 | Reviewer UI language | OK local + live público | La superficie visible del reviewer, el wizard, el panel NVIDIA/BYOK y los mensajes públicos de la API están en inglés; la entrada libre conserva soporte multilingüe |
+| Evaluación Promptfoo | Pendiente | Debe usar los mismos casos, instrucciones, schema y assertions que Nebius; verificar si OpenCode2API expone exactamente el modelo canónico y etiquetar cualquier diferencia |
+| Cutover público 2026-10-27 | Programado | Mantener la URL abierta, confirmar Nebius/Nemotron efectivo, mantener OpenCode2API desactivado y repetir smoke limpio con fallback y cuotas |
+| Paquete de entrega y freeze | Pendiente | README/Devpost/video/instrucciones en inglés, licencia, evidencia redactada, Graphify actualizado y release reproducible |
 | Google OAuth | OK — lectura verificada | Consentimiento real, callback, token cifrado y sync de lectura verificados con `gesecseguridad@gmail.com`; efectos externos siguen apagados |
 | PostgreSQL durable | OK live en Neon Free; Render legacy expira 2026-10-05 | `NOAH_DATABASE_URL` privado, `postgres-jsonb Configured`, esquema Neon con 2 tablas y `tenant-demo` persistido tras reinicio; evidencia en `evidence/gate-5-postgresql.md` |
 | Vercel | Fuera de alcance | No importar ni desplegar proyectos |
@@ -255,6 +258,67 @@ Estado: **cerrado — Neon Free live aprobado; Render legacy expira el 2026-10-0
 - Nebius sigue siendo el proveedor de inferencia. PostgreSQL solo persiste
   estado; Vercel queda fuera del flujo.
 
+### Gate 6 — Tour guiado del reviewer
+
+Estado: **pendiente**.
+
+- Agregar anchors declarativos para el flujo principal sin acoplar el tour a
+  posiciones frágiles del DOM.
+- Mantener navegación por teclado, reduced motion y cierre/reapertura seguros.
+- Persistir que el tour fue visto solo después de complete o skip; nunca antes
+  de una decisión explícita de onboarding.
+- Mantener toda la superficie visible en inglés y no cambiar la frontera de
+  proveedores.
+
+### Gate 7 — Evaluación Promptfoo y paridad honesta
+
+Estado: **pendiente**.
+
+- Ejecutar Promptfoo con los mismos casos sintéticos, instrucciones, schema y
+  assertions que la extracción de producción.
+- Verificar primero si OpenCode2API admite exactamente el modelo canónico
+  nvidia/nemotron-3-super-120b-a12b. El alias nemotron-3-ultra-free no se
+  considera equivalente sin evidencia.
+- Si el modelo exacto no está disponible, publicar la diferencia como
+  comparación de contrato y guardrails, separando siempre provider y model.
+- Inyectar endpoint y clave solo por el entorno privado; no guardar secretos,
+  prompts privados ni respuestas completas en el repo o Graphify.
+- Guardar evidencia redactada de schema, missing_fields, prompt injection,
+  ausencia de acciones y fallback determinístico.
+
+### Gate 8 — Cutover público y hardening
+
+Estado: **programado para 2026-10-27**.
+
+- Mantener la URL pública accesible y gratuita; el cambio del proveedor no
+  cierra la demo.
+- Confirmar que bootstrap.public_ai y una extracción real declaren
+  Nebius/Nemotron con el modelo canónico dentro de la ventana.
+- Confirmar que NOAH_ALLOW_FREE_SYNTHETIC sea false y que Render no tenga una
+  URL o clave operativa de OpenCode2API.
+- Repetir smoke con navegador limpio, cold start, CORS, límites, cuota agotada,
+  fallback, confirmación, skip y aislamiento.
+- Antes del freeze, decidir la duración de la ventana server-side para que el
+  reviewer pueda probar gratis durante judging. Si el crédito no alcanza, el
+  sandbox sintético debe seguir completo y rotulado, sin fingir inferencia real.
+
+### Gate 9 — Paquete de entrega y freeze
+
+Estado: **pendiente**.
+
+- Preparar README, Devpost, instrucciones de evaluación y video público en
+  inglés; el video debe durar menos de tres minutos.
+- Confirmar repositorio público, licencia open source, URL live y explicación
+  visible de NVIDIA/Nemotron, Nebius Token Factory, límites y datos sintéticos.
+- Repetir pruebas locales, smoke live, escaneo de secretos, Graphify y deploy
+  manual reproducible; guardar solo evidencia segura.
+- Congelar alcance y configuración después del ensayo final. Cualquier cambio
+  posterior requiere nueva verificación, evidencia y actualización de este
+  estado.
+- Referencia temporal: la deadline oficial es 2026-10-30 10:00 PDT
+  (14:00 ART), no 2026-10-05. Las reglas están en
+  https://nebiusglobalaihackathon.devpost.com/rules.
+
 ## Reglas anti-drift
 
 - Nebius es la ruta conectada primaria; OpenCode2API es sandbox sintético.
@@ -312,9 +376,10 @@ Estado: **cerrado — Neon Free live aprobado; Render legacy expira el 2026-10-0
 ## Próximo paso exacto
 
 La demo es entregable con Neon Free server-only y el slice OAuth de lectura
-está verificado. Las fases 0, 1, 2, 3 y 4 del onboarding están cerradas y la
-fase 5 quedó verificada localmente en dos pestañas: skip, confirmación,
-fallback manual, nueva pestaña y aislamiento de flujo. El siguiente paso
-operativo es desplegar el guard de ventana pública y cerrar el smoke live del
-navegador; después queda el smoke Neon de un tenant privado con bearer válido, sin
-habilitar planes pagos, Supabase, Vercel ni efectos externos.
+está verificado. Las fases 0 a 5 del onboarding quedaron cerradas con skip,
+confirmación, fallback manual, nueva pestaña y aislamiento de flujo. El
+siguiente bloque operativo es Gate 6: implementar y verificar el tour guiado.
+En paralelo queda pendiente el smoke Neon de un tenant privado con bearer
+válido. Después se ejecutan Gate 7 (Promptfoo), Gate 8 (cutover del
+2026-10-27) y Gate 9 (paquete de entrega/freeze), sin habilitar planes pagos,
+Supabase, Vercel ni efectos externos.
