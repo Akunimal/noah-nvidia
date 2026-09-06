@@ -76,11 +76,13 @@ def test_required_auth_rejects_missing_token(monkeypatch) -> None:
 
 
 def test_public_demo_is_bounded_synthetic_and_never_calls_a_model(monkeypatch) -> None:
-    from main import PUBLIC_DEMO_TENANT_ID, TENANTS
+    from main import PUBLIC_DEMO_TENANT_ID, TENANTS, reset_public_model_budgets
 
     monkeypatch.setenv("NOAH_PUBLIC_DEMO", "true")
     monkeypatch.setenv("NOAH_REQUIRE_AUTH", "true")
     monkeypatch.setenv("NOAH_DEMO_AUTH", "false")
+    monkeypatch.setenv("NOAH_PUBLIC_AI_MODE", "synthetic")
+    reset_public_model_budgets()
     TENANTS.pop(PUBLIC_DEMO_TENANT_ID, None)
 
     async def should_not_call(*args, **kwargs):
@@ -108,14 +110,15 @@ def test_public_demo_is_bounded_synthetic_and_never_calls_a_model(monkeypatch) -
         )
         assert message.status_code == 200
         assert message.json()["provider"] == "deterministic-demo"
-        assert message.json()["provider_error"] == "PUBLIC_DEMO_MODEL_DISABLED"
+        assert message.json()["provider_error"] == "PUBLIC_DEMO_SYNTHETIC_MODE"
+        assert message.json()["public_ai"]["credit_state"] == "synthetic"
 
         extraction = client.post(
             "/api/v1/onboarding/extract",
             json={"text": "Somos una empresa de soporte técnico."},
         )
-        assert extraction.status_code == 403
-        assert extraction.json()["detail"]["code"] == "PUBLIC_DEMO_MODEL_INPUT_DISABLED"
+        assert extraction.status_code == 503
+        assert extraction.json()["detail"]["code"] == "PUBLIC_DEMO_SYNTHETIC_MODE"
 
         forbidden = client.patch("/api/v1/business", json={"name": "Not public"})
         assert forbidden.status_code == 403
@@ -126,6 +129,165 @@ def test_public_demo_is_bounded_synthetic_and_never_calls_a_model(monkeypatch) -
         assert oauth.json()["detail"]["code"] == "PUBLIC_DEMO_READ_ONLY"
     finally:
         TENANTS.pop(PUBLIC_DEMO_TENANT_ID, None)
+
+
+def test_public_scheduled_nvidia_mode_uses_one_global_budget(monkeypatch) -> None:
+    from main import TENANTS, reset_public_model_budgets
+    from providers import ProviderResult
+
+    monkeypatch.setenv("NOAH_PUBLIC_DEMO", "true")
+    monkeypatch.setenv("NOAH_REQUIRE_AUTH", "true")
+    monkeypatch.setenv("NOAH_DEMO_AUTH", "false")
+    monkeypatch.setenv("NOAH_PUBLIC_AI_MODE", "scheduled")
+    monkeypatch.setenv("NOAH_PUBLIC_AI_OPEN_AT", "2026-01-01T00:00:00Z")
+    monkeypatch.setenv("NOAH_PUBLIC_AI_DEADLINE_AT", "2026-12-31T23:59:59Z")
+    monkeypatch.setenv("NOAH_PUBLIC_MODEL_USAGE_LIMIT", "1")
+    reset_public_model_budgets()
+    TENANTS.pop("tenant-public-scheduled-one", None)
+    TENANTS.pop("tenant-public-scheduled-two", None)
+    calls: list[str] = []
+
+    async def fake_complete(prompt: str, system: str) -> ProviderResult:
+        calls.append(prompt)
+        return ProviderResult("nebius", "nvidia/nemotron-test", "Connected Nemotron response")
+
+    monkeypatch.setattr(router.nebius, "api_key", "synthetic-key")
+    monkeypatch.setattr(router.nebius, "complete", fake_complete)
+    try:
+        first = client.post(
+            "/api/v1/conversations/demo/messages",
+            headers={"X-Noah-Public-Workspace": "scheduled-one"},
+            json={"message": "Summarize the current workspace"},
+        )
+        second = client.post(
+            "/api/v1/conversations/demo/messages",
+            headers={"X-Noah-Public-Workspace": "scheduled-two"},
+            json={"message": "Summarize the current workspace"},
+        )
+        assert first.status_code == 200
+        assert first.json()["provider"] == "nebius"
+        assert first.json()["public_ai"]["effective_mode"] == "nebius"
+        assert first.json()["public_ai"]["credit_state"] == "exhausted"
+        assert second.status_code == 200
+        assert second.json()["provider"] == "deterministic-demo"
+        assert second.json()["provider_error"] == "PUBLIC_NVIDIA_CREDIT_EXHAUSTED"
+        assert len(calls) == 1
+    finally:
+        TENANTS.pop("tenant-public-scheduled-one", None)
+        TENANTS.pop("tenant-public-scheduled-two", None)
+
+
+def test_public_quota_failure_stops_server_funded_calls(monkeypatch) -> None:
+    from main import TENANTS, reset_public_model_budgets
+    from providers import ProviderResult
+
+    monkeypatch.setenv("NOAH_PUBLIC_DEMO", "true")
+    monkeypatch.setenv("NOAH_REQUIRE_AUTH", "true")
+    monkeypatch.setenv("NOAH_DEMO_AUTH", "false")
+    monkeypatch.setenv("NOAH_PUBLIC_AI_MODE", "nebius")
+    monkeypatch.setenv("NOAH_PUBLIC_MODEL_USAGE_LIMIT", "3")
+    reset_public_model_budgets()
+    TENANTS.pop("tenant-public-quota-one", None)
+    calls: list[str] = []
+
+    async def quota_complete(prompt: str, system: str) -> ProviderResult:
+        calls.append(prompt)
+        return ProviderResult("nebius", "nvidia/nemotron-test", None, "HTTPStatusError: 402 Payment Required")
+
+    monkeypatch.setattr(router.nebius, "api_key", "synthetic-key")
+    monkeypatch.setattr(router.nebius, "complete", quota_complete)
+    try:
+        first = client.post(
+            "/api/v1/conversations/demo/messages",
+            headers={"X-Noah-Public-Workspace": "quota-one"},
+            json={"message": "Review the workspace"},
+        )
+        second = client.post(
+            "/api/v1/conversations/demo/messages",
+            headers={"X-Noah-Public-Workspace": "quota-one", "Idempotency-Key": "quota-second"},
+            json={"message": "Review the next workspace"},
+        )
+        assert first.status_code == 200
+        assert first.json()["provider_error"] == "PUBLIC_NVIDIA_CREDIT_EXHAUSTED"
+        assert second.status_code == 200
+        assert second.json()["provider_error"] == "PUBLIC_NVIDIA_CREDIT_EXHAUSTED"
+        assert len(calls) == 1
+    finally:
+        TENANTS.pop("tenant-public-quota-one", None)
+
+
+def test_public_reviewer_byok_is_ephemeral_and_accepts_nvidia_nim(monkeypatch) -> None:
+    from main import TENANTS, reset_public_model_budgets
+    from providers import ProviderResult, ReviewerProvider
+
+    monkeypatch.setenv("NOAH_PUBLIC_DEMO", "true")
+    monkeypatch.setenv("NOAH_REQUIRE_AUTH", "true")
+    monkeypatch.setenv("NOAH_DEMO_AUTH", "false")
+    monkeypatch.setenv("NOAH_PUBLIC_AI_MODE", "synthetic")
+    monkeypatch.setenv("NOAH_PUBLIC_BYOK_USAGE_LIMIT", "2")
+    reset_public_model_budgets()
+    tenant_id = "tenant-public-byok-one"
+    TENANTS.pop(tenant_id, None)
+    reviewer_key = "reviewer-secret-that-must-not-persist"
+
+    async def fake_complete(self: ReviewerProvider, prompt: str, system: str) -> ProviderResult:
+        if "onboarding.v1" in system:
+            return ProviderResult(
+                "nvidia-nim",
+                self.model,
+                '{"schema_version":"onboarding.v1","business":{"name":"Taller Norte","description":"Mantenimiento industrial","category":"Servicios","timezone":"America/Argentina/Buenos_Aires","currency":"ARS","locale":"es-AR"},"inventory":[{"name":"Filtro","sku":null,"quantity":null,"unit":null}],"missing_fields":[]}',
+            )
+        return ProviderResult("nvidia-nim", self.model, "Reviewer Nemotron response")
+
+    monkeypatch.setattr(ReviewerProvider, "complete", fake_complete)
+    try:
+        response = client.post(
+            "/api/v1/conversations/demo/messages",
+            headers={
+                "X-Noah-Public-Workspace": "byok-one",
+                "X-Noah-Reviewer-Api-Key": reviewer_key,
+                "X-Noah-Reviewer-Provider": "nvidia-nim",
+                "X-Noah-Reviewer-Model": "nvidia/nemotron-3-nano-30b-a3b-reasoning",
+            },
+            json={"message": "Summarize the reviewer path"},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["provider"] == "nvidia-nim"
+        assert body["public_ai"]["credit_state"] == "synthetic"
+        assert reviewer_key not in response.text
+        assert reviewer_key not in repr(TENANTS[tenant_id])
+
+        extraction = client.post(
+            "/api/v1/onboarding/extract",
+            headers={
+                "X-Noah-Public-Workspace": "byok-one",
+                "X-Noah-Reviewer-Api-Key": reviewer_key,
+                "X-Noah-Reviewer-Provider": "nvidia-nim",
+                "X-Noah-Reviewer-Model": "nvidia/nemotron-3-nano-30b-a3b-reasoning",
+            },
+            json={"text": "Somos Taller Norte y hacemos mantenimiento industrial en Buenos Aires."},
+        )
+        assert extraction.status_code == 200
+        assert extraction.json()["provenance"]["provider"] == "nvidia-nim"
+        assert extraction.json()["draft"]["business"]["name"] == "Taller Norte"
+        assert reviewer_key not in extraction.text
+        assert reviewer_key not in repr(TENANTS[tenant_id])
+
+        invalid_model = client.post(
+            "/api/v1/conversations/demo/messages",
+            headers={
+                "X-Noah-Public-Workspace": "byok-one",
+                "X-Noah-Reviewer-Api-Key": reviewer_key,
+                "X-Noah-Reviewer-Provider": "nvidia-nim",
+                "X-Noah-Reviewer-Model": "gpt-4o",
+            },
+            json={"message": "This must be rejected"},
+        )
+        assert invalid_model.status_code == 400
+        assert invalid_model.json()["detail"]["code"] == "PUBLIC_NVIDIA_BYOK_NON_NVIDIA_MODEL"
+    finally:
+        TENANTS.pop(tenant_id, None)
 
 
 def test_jwt_subject_becomes_tenant(monkeypatch) -> None:

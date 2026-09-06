@@ -24,9 +24,25 @@ services:
       - key: NOAH_DEMO_AUTH
         value: "true"
       - key: NOAH_PUBLIC_DEMO
-        value: "false"
+        value: "true"
       - key: NOAH_ALLOW_SYNTHETIC_TENANTS
         value: "false"
+      - key: NOAH_ALLOW_FREE_SYNTHETIC
+        value: "false"
+      - key: NOAH_PUBLIC_AI_MODE
+        value: "scheduled"
+      - key: NOAH_PUBLIC_AI_OPEN_AT
+        value: "2026-10-27T17:00:00Z"
+      - key: NOAH_PUBLIC_AI_DEADLINE_AT
+        value: "2026-10-30T17:00:00Z"
+      - key: NOAH_PUBLIC_MODEL_USAGE_LIMIT
+        value: "20"
+      - key: NOAH_PUBLIC_BYOK_USAGE_LIMIT
+        value: "5"
+      - key: NOAH_NEBIUS_BASE_URL
+        value: "https://api.tokenfactory.nebius.com/v1"
+      - key: NOAH_NEBIUS_MODEL
+        value: "nvidia/nemotron-3-super-120b-a12b"
       - key: NOAH_NEBIUS_API_KEY
         sync: false
       - key: NOAH_OPENCODE2API_BASE_URL

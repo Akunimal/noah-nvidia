@@ -16,6 +16,7 @@
       "type": "string",
       "enum": [
         "nebius",
+        "nvidia-nim",
         "opencode2api",
         "deterministic-demo"
       ]

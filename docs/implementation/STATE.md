@@ -40,9 +40,13 @@ la prueba live de un tenant playground privado requiere un bearer de producción
 no-demo válido. La fase 5 ya fue recorrida lado a lado en local y live público,
 y corrigió la sincronización visual posterior a `skip`. El frontend público ya
 no envía un bearer `VITE_*`: cuando `NOAH_PUBLIC_DEMO=true`, usa un tenant
-sintético acotado y efímero. El texto público no llega a ningún modelo; el
-onboarding autenticado sigue usando Nebius/NVIDIA. El smoke live de Neon para
-un tenant privado aún requiere un bearer playground válido.
+sintético acotado y efímero. La ruta pública permanece sintética hasta la
+ventana programada y luego puede usar solo Nebius/Nemotron con un presupuesto
+global de instancia. Si falta crédito o aparece un error de cuota, vuelve al
+fallback determinístico. El reviewer puede usar BYOK NVIDIA NIM/Nebius en
+memoria, sin persistencia. El onboarding autenticado sigue usando
+Nebius/NVIDIA. El smoke live de Neon para un tenant privado aún requiere un
+bearer playground válido.
 
 - Datos del usuario: solo Nebius/NVIDIA; OpenCode2API no recibe texto privado.
 - `ProviderResult`: sobre de procedencia, separado del JSON de negocio; ver
@@ -56,9 +60,15 @@ un tenant privado aún requiere un bearer playground válido.
   banda explícita de sandbox y no pinta Atlas mientras el modo sea desconocido.
 - Wizard: el playground abre bienvenida, descripción, extracción Nebius,
   revisión editable y salida; `extract` no persiste ni llama a OpenCode2API.
-  Si Nebius no está disponible, la UI conserva el texto y ofrece reintento o
-  edición manual. Confirmar y skip persisten la decisión en Fase 4; el wizard
+  La demo pública puede extraer solo durante la ventana server-side o con
+  BYOK allowlisted; si no, conserva el texto y ofrece reintento, clave temporal
+  o edición manual. Confirmar y skip persisten la decisión en Fase 4; el wizard
   no reaparece después de completar o saltear.
+- Public AI: `NOAH_PUBLIC_AI_MODE=scheduled` abre automáticamente del
+  `2026-10-27T17:00:00Z` al `2026-10-30T17:00:00Z`; el límite server-side base es
+  20 llamadas y el límite BYOK base es 5. El estado seguro llega por
+  `bootstrap.public_ai`; las claves nunca llegan a bootstrap, logs, Graphify,
+  Neon ni el bundle.
 - Contrato JSON: `contracts/onboarding.v1.schema.json`.
 - Evidencia: `evidence/phase-0-onboarding.md`,
   `evidence/phase-1-playground.md`, `evidence/phase-2-wizard-shell.md` y
@@ -76,6 +86,8 @@ texto:
 3. `NvidiaRouter.complete()` devuelve el mismo tipo al endpoint de mensajes.
 4. `main.py` guarda `provider`, `model`, `provider_error` y la procedencia del
    mensaje en el run y en la respuesta API.
+5. `ReviewerProvider` usa el mismo sobre para una clave BYOK temporal de
+   NVIDIA NIM o Nebius; el secreto no entra al snapshot, auditoría ni respuesta.
 
 La prioridad runtime es:
 
@@ -88,6 +100,13 @@ En cualquier otro caso
   -> deterministic-demo / NO_NVIDIA_PROVIDER_CONFIGURED
 ```
 
+La ruta pública no usa esta prioridad antes de su ventana: permanece en
+`deterministic-demo`. Durante la ventana, llama directamente a Nebius con un
+presupuesto global de instancia. Si el crédito falta, se agota o devuelve una
+respuesta de cuota, el resultado público queda marcado como fallback honesto;
+no se abre OpenCode2API. BYOK se separa del crédito promocional y se limita con
+`NOAH_PUBLIC_BYOK_USAGE_LIMIT`.
+
 OpenCode2API solo entra si tiene `NOAH_OPENCODE2API_BASE_URL`, el tenant es el
 demo autorizado, `NOAH_ALLOW_FREE_SYNTHETIC=true` y el modelo configurado
 pertenece a la familia NVIDIA Nemotron. También se rechaza una respuesta cuyo
@@ -98,10 +117,10 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 
 | Área | Estado | Evidencia |
 |---|---|---|
-| API determinista | OK | 48 tests Python pasan con Python 3.12 y las versiones fijadas |
+| API determinista | OK | 52 tests Python pasan con Python 3.12 y las versiones fijadas |
 | Frontend | OK | typecheck, lint, Vitest y build pasan |
 | Onboarding shell | OK en local | 6 Vitest; `components/OnboardingWizard.tsx`; evidencia en `evidence/phase-2-wizard-shell.md` |
-| Onboarding extraction | OK local + API Render | `POST /api/v1/onboarding/extract`, 4 pruebas de Nebius/errores/aislamiento, `/openapi.json` live; la ruta pública rechaza texto de modelo por diseño; smoke privado pendiente de bearer no-demo; evidencia en `evidence/phase-3-nebius-extraction.md` |
+| Onboarding extraction | OK local + API Render | `POST /api/v1/onboarding/extract`, pruebas de Nebius/errores/aislamiento y ventana/BYOK pública; `/openapi.json` se regenera; smoke privado pendiente de bearer no-demo; evidencia en `evidence/phase-3-nebius-extraction.md` |
 | Onboarding complete/skip | OK local + live público | `GET /api/v1/onboarding`, confirmación/skip idempotentes, auditoría, copia Atlas tenant-safe y pruebas nuevas; deploy API `dep-daecidid0e5s73803q60` / frontend `dep-daecj89t0dsc739miuug` live; smoke Neon privado pendiente de bearer válido |
 | Prueba lado a lado | OK local + live público | Dos tenants sintéticos en local y pestaña pública Render; skip, confirmación, nueva pestaña, aislamiento efímero y corrección de fixture; evidencia en `evidence/phase-5-side-by-side.md`; smoke Neon privado pendiente |
 | Smoke local | OK | Atlas Services, run succeeded, receipt generado |
@@ -112,6 +131,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Build Render del API | OK tras fijar Python 3.12.10 | El primer deploy de `8af42c3` falló por Python 3.14; evidencia en `evidence/render-build-incident-2026-09-05.md` |
 | Política de deploy | OK | Auto-Deploy desactivado en ambos servicios; los próximos releases se disparan manualmente |
 | OpenCode2API free | Contrato local OK; Nemotron-only enforced; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
+| Public AI release guard | OK local; Render pendiente de deploy | Ventana UTC, presupuesto global Nebius, corte de cuota, fallback honesto y BYOK NVIDIA NIM/Nebius efímero |
 | Google OAuth | OK — lectura verificada | Consentimiento real, callback, token cifrado y sync de lectura verificados con `gesecseguridad@gmail.com`; efectos externos siguen apagados |
 | PostgreSQL durable | OK live en Neon Free; Render legacy expira 2026-10-05 | `NOAH_DATABASE_URL` privado, `postgres-jsonb Configured`, esquema Neon con 2 tablas y `tenant-demo` persistido tras reinicio; evidencia en `evidence/gate-5-postgresql.md` |
 | Vercel | Fuera de alcance | No importar ni desplegar proyectos |
@@ -268,12 +288,14 @@ Estado: **cerrado — Neon Free live aprobado; Render legacy expira el 2026-10-0
 - OpenCode2API solo existe como sandbox Nemotron-only; en Render permanece
   desactivado (`NOAH_ALLOW_FREE_SYNTHETIC=false`).
 - Frontend, `/health` y `/openapi.json` responden 200.
-- El sandbox público, si se habilita, está limitado a datos sintéticos,
-  propuestas determinísticas y confirmación/skip; no usa bearer en el bundle,
-  no llama a modelos ni persiste el tenant público en Neon.
+- El sandbox público está limitado a datos sintéticos, propuestas
+  determinísticas y confirmación/skip. Antes de la ventana no llama a modelos;
+  dentro de la ventana solo usa Nebius/Nemotron con límite global. BYOK de
+  reviewer es opcional, temporal y allowlisted. No usa bearer en el bundle ni
+  persiste el tenant público en Neon.
 - Efectos Gmail/Calendar, pagos y demás mutaciones externas permanecen
   desactivados.
-- Pruebas locales: 48 Python, Vitest, typecheck, lint y build pasan.
+- Pruebas locales: 52 Python, Vitest, typecheck, lint y build pasan.
 
 ### Producción — todavía no declarar
 
@@ -292,6 +314,6 @@ La demo es entregable con Neon Free server-only y el slice OAuth de lectura
 está verificado. Las fases 0, 1, 2, 3 y 4 del onboarding están cerradas y la
 fase 5 quedó verificada localmente en dos pestañas: skip, confirmación,
 fallback manual, nueva pestaña y aislamiento de flujo. El siguiente paso
-operativo es publicar el flag público y cerrar el smoke live del navegador;
-después queda el smoke Neon de un tenant privado con bearer válido, sin
+operativo es desplegar el guard de ventana pública y cerrar el smoke live del
+navegador; después queda el smoke Neon de un tenant privado con bearer válido, sin
 habilitar planes pagos, Supabase, Vercel ni efectos externos.

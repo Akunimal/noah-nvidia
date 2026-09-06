@@ -20,6 +20,25 @@
   rate blocks the call; it does not switch to a non-NVIDIA provider.
 - OpenCode2API remains synthetic-only and must never receive customer data.
 
+## Public demo window
+
+- Keep `NOAH_PUBLIC_AI_MODE=scheduled` in Render. The checked-in release window
+  opens at `2026-10-27T17:00:00Z` and closes at `2026-10-30T17:00:00Z`, roughly
+  72 hours before the official deadline in the configured UTC schedule.
+- Set `NOAH_PUBLIC_MODEL_USAGE_LIMIT` conservatively (the release baseline is
+  20 calls). The server-funded counter is process-local so public visitors are
+  bounded without writing ephemeral traffic to Neon.
+- If Nebius is missing, the promotion is exhausted, or the provider returns a
+  quota response, leave the instance in synthetic fallback and verify that the
+  UI says so. Do not replace it with OpenCode2API or another model family.
+- The reviewer BYOK fallback is optional and capped separately by
+  `NOAH_PUBLIC_BYOK_USAGE_LIMIT` (baseline 5). It accepts only NVIDIA NIM or
+  Nebius and Nemotron model IDs. The browser sends only the key/provider/model;
+  the backend chooses the fixed destination and never persists or logs the key.
+- To test the live route without spending credit, use a local mocked provider
+  test. Do not move the public open time forward in Render unless the operator
+  explicitly intends to consume promotional credit.
+
 ## Google reconnection
 
 1. Start `POST /api/v1/connections/google/start` and open the returned URL.

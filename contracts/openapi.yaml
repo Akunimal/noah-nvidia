@@ -2169,7 +2169,9 @@ components:
       properties:
         provider:
           type: string
-          const: nebius
+          enum:
+          - nebius
+          - nvidia-nim
           title: Provider
         model:
           type: string

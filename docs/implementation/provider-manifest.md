@@ -3,6 +3,7 @@
 | Capability | Provider | Default model or package | Runtime contract |
 |---|---|---|---|
 | Planning and drafting | Nebius Token Factory | nvidia/nemotron-3-super-120b-a12b | OpenAI-compatible chat completions |
+| Public reviewer fallback | NVIDIA NIM or Nebius (fixed server destinations) | NVIDIA Nemotron only | Ephemeral BYOK header, bounded and never persisted |
 | Free synthetic planning | OpenCode2API transport supplied by operator (NVIDIA Nemotron only) | nemotron-3-ultra-free | OpenAI-compatible chat completions with model-family validation |
 | Embeddings | NVIDIA NIM | nvidia/nemotron-3-embed-1b | input_type query/passage, 2048 dimensions |
 | Orchestration | NVIDIA NeMo Agent Toolkit | 1.8.x | registered tools and typed workflow |
@@ -15,6 +16,15 @@ GET /api/v1/providers/health. Missing keys are reported as configuration
 state. No non-NVIDIA model fallback is present. A deterministic demo response
 is clearly labeled when no model is configured. `NOAH_MODEL_USAGE_LIMIT` can
 stop new model calls before they consume the reserved demo budget.
+
+The public Render demo is synthetic by default. `NOAH_PUBLIC_AI_MODE=scheduled`
+opens the server-funded Nebius/Nemotron route only inside the configured UTC
+window (`NOAH_PUBLIC_AI_OPEN_AT` to `NOAH_PUBLIC_AI_DEADLINE_AT`) and enforces
+`NOAH_PUBLIC_MODEL_USAGE_LIMIT` in process memory. If the promotion is absent,
+exhausted, or returns a quota error, the UI states that fact and stays usable
+with deterministic proposals. A reviewer may optionally provide an NVIDIA NIM
+or Nebius key for that browser session; the backend chooses the fixed endpoint,
+accepts only Nemotron models, caps BYOK calls, and never stores or logs the key.
 
 OpenCode2API is a gateway, not an NVIDIA product. It is included only as
 transport to an operator-supplied free NVIDIA Nemotron pool. The configured

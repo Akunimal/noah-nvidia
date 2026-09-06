@@ -81,11 +81,38 @@ export interface WorkspaceInfo {
   synthetic: boolean;
 }
 
+export type ReviewerProviderName = 'nvidia-nim' | 'nebius';
+
+export interface ReviewerProviderConfig {
+  provider: ReviewerProviderName;
+  apiKey: string;
+  model?: string;
+}
+
+export interface PublicAiStatus {
+  mode: 'synthetic' | 'scheduled' | 'nebius';
+  effective_mode: 'synthetic' | 'nebius';
+  enabled: boolean;
+  window_open?: boolean;
+  provider?: string | null;
+  model?: string | null;
+  opens_at?: string | null;
+  deadline_at?: string | null;
+  credit_state: 'synthetic' | 'available' | 'unavailable' | 'exhausted' | 'closed';
+  remaining_calls?: number;
+  reviewer_byok_allowed: boolean;
+  server_configured?: boolean;
+  reason_code?: string;
+  message?: string;
+}
+
 export interface MessageResponse {
   assistant_message?: string;
   message?: string;
   provider?: string;
   model?: string;
+  provider_error?: string | null;
+  public_ai?: PublicAiStatus;
   action?: ApiAction;
   run?: { id: string; status: string };
 }
@@ -113,11 +140,12 @@ export interface BootstrapPayload {
   pending_approvals?: number;
   execution?: { external_effects_enabled?: boolean };
   usage?: { consumed?: number; reserved?: number; limit?: number; credit_label?: string };
+  public_ai?: PublicAiStatus;
   onboarding: OnboardingState;
 }
 
 export interface OnboardingProvenance {
-  provider: 'nebius';
+  provider: 'nebius' | 'nvidia-nim';
   model: string;
 }
 
@@ -177,12 +205,47 @@ interface ApiRequestInit {
   method?: string;
   headers?: Record<string, string>;
   body?: string;
+  includeReviewerCredentials?: boolean;
+}
+
+// Reviewer BYOK is deliberately process-memory-only. It is never written to
+// localStorage, a URL, the bundle, or a tenant snapshot.
+let reviewerConfig: ReviewerProviderConfig | null = null;
+
+export function configureReviewerProvider(config: ReviewerProviderConfig): void {
+  reviewerConfig = {
+    provider: config.provider,
+    apiKey: config.apiKey.trim(),
+    model: config.model?.trim() || undefined,
+  };
+}
+
+export function clearReviewerProvider(): void {
+  reviewerConfig = null;
+}
+
+export function reviewerProviderConfigured(): boolean {
+  return Boolean(reviewerConfig?.apiKey);
+}
+
+export function reviewerProviderName(): ReviewerProviderName | null {
+  return reviewerConfig?.provider || null;
+}
+
+function reviewerHeaders(): Record<string, string> {
+  if (!reviewerConfig?.apiKey) return {};
+  return {
+    'X-Noah-Reviewer-Api-Key': reviewerConfig.apiKey,
+    'X-Noah-Reviewer-Provider': reviewerConfig.provider,
+    ...(reviewerConfig.model ? { 'X-Noah-Reviewer-Model': reviewerConfig.model } : {}),
+  };
 }
 
 async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
+  const { includeReviewerCredentials, ...fetchInit } = init;
   const response = await fetch(apiBase + path, {
-    ...init,
-    headers: { ...authHeaders, ...(init.headers || {}) },
+    ...fetchInit,
+    headers: { ...authHeaders, ...(includeReviewerCredentials ? reviewerHeaders() : {}), ...(init.headers || {}) },
   });
   if (!response.ok) {
     let code = '';
@@ -206,6 +269,7 @@ export function extractOnboarding(text: string): Promise<OnboardingExtractionRes
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text }),
+    includeReviewerCredentials: true,
   });
 }
 
@@ -282,6 +346,7 @@ export function sendMessage(message: string, idempotencyKey: string): Promise<Me
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey },
     body: JSON.stringify({ message }),
+    includeReviewerCredentials: true,
   });
 }
 

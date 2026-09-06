@@ -55,8 +55,10 @@ import {
   type ApiReceivable,
   type OnboardingMutationResponse,
   type OnboardingStatus,
+  type PublicAiStatus,
 } from './lib/api';
 import OnboardingWizard from './components/OnboardingWizard';
+import PublicAiPanel from './components/PublicAiPanel';
 import type { OnboardingDraft } from './lib/onboarding';
 
 type Section = 'overview' | 'assistant' | 'approvals' | 'mail' | 'calendar' | 'finance' | 'knowledge' | 'settings';
@@ -155,6 +157,8 @@ function App() {
   const [isThinking, setIsThinking] = useState(false);
   const [apiOnline, setApiOnline] = useState(false);
   const [publicDemo, setPublicDemo] = useState(false);
+  const [publicAi, setPublicAi] = useState<PublicAiStatus | null>(null);
+  const [reviewerConfigured, setReviewerConfigured] = useState(false);
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('unknown');
   const [workspaceDataSource, setWorkspaceDataSource] = useState('empty');
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus>('not_started');
@@ -182,6 +186,7 @@ function App() {
         setApiOnline(health.ok);
         const [bootstrap, pending] = await Promise.all([getBootstrap(), getPendingActions()]);
         setPublicDemo(Boolean(bootstrap.public_demo));
+        setPublicAi(bootstrap.public_ai || null);
         const nextWorkspaceMode: WorkspaceMode = bootstrap.workspace?.mode === 'demo' ? 'demo' : 'playground';
         setWorkspaceMode(nextWorkspaceMode);
         setWorkspaceDataSource(bootstrap.workspace?.data_source || 'empty');
@@ -222,14 +227,21 @@ function App() {
 
   const pendingCount = approvals.length;
   const providerConfigured = primaryProviderConfigured || freeProviderConfigured;
+  const publicRuntimeReady = Boolean(publicAi?.enabled || reviewerConfigured);
   const runtimeLabel = publicDemo
-    ? 'Deterministic sandbox · no model calls'
+    ? reviewerConfigured
+      ? 'Reviewer BYOK · NVIDIA/Nemotron'
+      : publicAi?.enabled
+        ? `${publicAi.model || runtimeModel} · Nebius`
+        : publicAi?.credit_state === 'exhausted'
+          ? 'Credit exhausted · synthetic fallback'
+          : 'Scheduled synthetic sandbox'
     : primaryProviderConfigured
       ? `${runtimeModel} · Nebius`
       : freeProviderConfigured
         ? 'Nemotron sandbox · OpenCode2API'
         : 'Deterministic NVIDIA sandbox';
-  const runtimeOnline = apiOnline && !publicDemo && providerConfigured;
+  const runtimeOnline = apiOnline && (publicDemo ? publicRuntimeReady : providerConfigured);
   const demoMode = workspaceMode === 'demo';
   const fixtureMode = demoMode || workspaceDataSource === 'synthetic-fixture';
   const workspaceLabel = workspaceMode === 'demo'
@@ -258,6 +270,7 @@ function App() {
     setIsThinking(true);
     try {
       const payload = await sendMessage(trimmed, 'web-' + Date.now());
+      if (payload.public_ai) setPublicAi(payload.public_ai);
       const reply = payload?.assistant_message || payload?.message || 'I prepared the next step and left external effects waiting for approval.';
       setMessages((current) => [
         ...current,
@@ -266,7 +279,9 @@ function App() {
           role: 'noah',
           text: reply,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          source: payload?.provider ? 'Noah Nvidia · ' + payload.provider : 'Noah Nvidia · demo mode',
+           source: payload?.provider === 'deterministic-demo' && payload.provider_error
+             ? 'Noah Nvidia · synthetic fallback'
+             : payload?.provider ? 'Noah Nvidia · ' + payload.provider : 'Noah Nvidia · demo mode',
         },
       ]);
       if (payload?.action) {
@@ -289,9 +304,11 @@ function App() {
         {
           id: 'noah-' + Date.now(),
           role: 'noah',
-          text: 'I am running in local demo mode while the API wakes up. I can still map the request into a reviewable proposal; no email, calendar event, or financial record is changed automatically.',
+          text: publicDemo
+            ? 'La demo pública mantiene el sandbox sintético: la llamada NVIDIA/Nemotron no está disponible en este momento. Podés seguir probando propuestas sin efectos externos o activar una clave temporal de reviewer.'
+            : 'I am running in local demo mode while the API wakes up. I can still map the request into a reviewable proposal; no email, calendar event, or financial record is changed automatically.',
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          source: 'Noah Nvidia · sandbox',
+           source: publicDemo ? 'Noah Nvidia · honest fallback' : 'Noah Nvidia · sandbox',
         },
       ]);
     } finally {
@@ -449,9 +466,9 @@ function App() {
         </nav>
 
         <div className="sidebar-spacer" />
-        <div className="nvidia-status">
+         <div className="nvidia-status">
           <div className={'status-pulse ' + (runtimeOnline ? 'online' : '')} />
-          <div><strong>{runtimeOnline ? 'NVIDIA runtime online' : apiOnline ? 'NVIDIA API · sandbox' : 'NVIDIA demo runtime'}</strong><span>{runtimeOnline ? runtimeLabel : apiOnline ? 'No model key · no side effects' : 'Safe sandbox · no side effects'}</span></div>
+          <div><strong>{runtimeOnline ? 'NVIDIA runtime online' : apiOnline ? 'NVIDIA API · sandbox' : 'NVIDIA demo runtime'}</strong><span>{runtimeOnline ? runtimeLabel : apiOnline ? publicDemo ? (publicAi?.message || 'Synthetic sandbox · no side effects') : 'No model key · no side effects' : 'Safe sandbox · no side effects'}</span></div>
           <MoreHorizontal size={16} />
         </div>
         <button className="nav-item settings-item" onClick={() => setSection('settings')}><Settings2 size={18} /><span>Settings</span></button>
@@ -479,7 +496,8 @@ function App() {
         </header>
 
         <div className="page-content">
-          {onboardingVisible && workspaceMode === 'playground' ? <OnboardingWizard businessName={businessName} publicDemo={publicDemo} onExtract={extractOnboarding} onComplete={completeOnboarding} onSkip={skipOnboarding} onExit={exitOnboarding} /> : <>
+          {publicDemo && <PublicAiPanel status={publicAi} onConfigured={() => setReviewerConfigured(true)} onCleared={() => setReviewerConfigured(false)} />}
+          {onboardingVisible && workspaceMode === 'playground' ? <OnboardingWizard businessName={businessName} publicDemo={publicDemo} publicAi={publicAi} onExtract={extractOnboarding} onComplete={completeOnboarding} onSkip={skipOnboarding} onExit={exitOnboarding} /> : <>
             {workspaceMode === 'demo' && <div className="workspace-banner demo"><ShieldCheck size={17} /><div><strong>Demo sandbox</strong><span>Atlas Services is synthetic fixture data for the video. No external effects are enabled.</span></div></div>}
             {workspaceMode === 'playground' && <div className="workspace-banner playground"><Sparkles size={17} /><div><strong>{workspaceDataSource === 'synthetic-fixture' ? 'Playground · datos ficticios' : workspaceDataSource === 'onboarding' ? 'Playground configurado' : 'Playground vacío'}</strong><span>{workspaceDataSource === 'synthetic-fixture' ? 'Atlas Services es un fixture sintético para explorar. No son datos reales ni se ejecutan acciones externas.' : workspaceDataSource === 'onboarding' ? 'Tu configuración quedó aislada en este tenant. Las acciones externas siguen detrás de aprobación.' : 'Este tenant empieza sin datos ficticios. Lo que agregues quedará aislado de la demo.'}</span></div>{onboardingStatus === 'not_started' && <button className="text-button workspace-banner-action" type="button" onClick={() => setOnboardingVisible(true)}>Abrir onboarding</button>}</div>}
             {section === 'overview' && (

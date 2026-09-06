@@ -88,7 +88,7 @@ class OnboardingProviderResult(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    provider: Literal["nebius", "opencode2api", "deterministic-demo"]
+    provider: Literal["nebius", "nvidia-nim", "opencode2api", "deterministic-demo"]
     model: str = Field(min_length=1, max_length=160)
     text: str | None = Field(..., min_length=1, max_length=12000)
     error: str | None = Field(..., min_length=1, max_length=300)
@@ -103,7 +103,7 @@ class OnboardingProviderResult(BaseModel):
 class OnboardingProvenance(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    provider: Literal["nebius"]
+    provider: Literal["nebius", "nvidia-nim"]
     model: str = Field(min_length=1, max_length=160)
 
 

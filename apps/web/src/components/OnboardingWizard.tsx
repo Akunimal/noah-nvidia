@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
-import type { OnboardingExtractionResponse, OnboardingMutationResponse, OnboardingProvenance } from '../lib/api';
+import type { OnboardingExtractionResponse, OnboardingMutationResponse, OnboardingProvenance, PublicAiStatus } from '../lib/api';
 import {
   emptyOnboardingDraft,
   inventoryFromLines,
@@ -25,6 +25,7 @@ export type OnboardingDecision = 'completed' | 'skipped';
 interface OnboardingWizardProps {
   businessName: string;
   publicDemo?: boolean;
+  publicAi?: PublicAiStatus | null;
   onExit: (decision: OnboardingDecision, draft?: OnboardingDraft, business?: OnboardingMutationResponse['business']) => void;
   onExtract: (text: string) => Promise<OnboardingExtractionResponse>;
   onComplete: (draft: OnboardingDraft, idempotencyKey: string) => Promise<OnboardingMutationResponse>;
@@ -50,6 +51,12 @@ function inventoryNames(draft: OnboardingDraft): string {
 
 function readableExtractionError(value: unknown): string {
   const message = value instanceof Error ? value.message : '';
+  if (message.includes('PUBLIC_NVIDIA_NOT_OPEN')) return 'La demo pública todavía está en modo sintético. Podés activar una clave temporal de reviewer o completar el JSON manualmente.';
+  if (message.includes('PUBLIC_NVIDIA_WINDOW_CLOSED')) return 'La ventana pública de NVIDIA/Nemotron terminó. Podés activar una clave temporal o completar el JSON manualmente.';
+  if (message.includes('PUBLIC_NVIDIA_NOT_CONFIGURED')) return 'La instancia pública no tiene disponible la clave server-side de Nebius. Podés activar una clave temporal o completar el JSON manualmente.';
+  if (message.includes('PUBLIC_NVIDIA_CREDIT_LIMIT_NOT_CONFIGURED')) return 'La instancia pública no tiene un límite de crédito configurado. Podés activar una clave temporal o completar el JSON manualmente.';
+  if (message.includes('PUBLIC_NVIDIA_CREDIT_EXHAUSTED')) return 'El crédito promocional de la instancia pública se agotó. Podés activar una clave temporal o completar el JSON manualmente.';
+  if (message.includes('PUBLIC_NVIDIA_BYOK')) return 'La clave temporal no pudo generar el borrador. Revisá la ruta y el modelo Nemotron, o completá el JSON manualmente.';
   if (message.includes('PUBLIC_DEMO_MODEL_INPUT_DISABLED')) return 'La demo pública no envía textos de visitantes a un modelo. Podés completar el JSON manualmente; el onboarding autenticado usa Nebius/NVIDIA.';
   if (message.includes('NEBIUS_NOT_CONFIGURED')) return 'Nebius todavía no está configurado para este entorno. Podés completar el JSON manualmente o reintentar cuando la clave esté disponible.';
   if (message.includes('NEBIUS_NON_NVIDIA_MODEL')) return 'La configuración de Nebius no apunta a un modelo NVIDIA Nemotron. Corregí la variable del backend antes de reintentar.';
@@ -77,7 +84,7 @@ function makeIdempotencyKey(prefix: string): string {
   return `${prefix}-${random}`;
 }
 
-export default function OnboardingWizard({ businessName, onExit, onExtract, onComplete, onSkip, publicDemo = false }: OnboardingWizardProps) {
+export default function OnboardingWizard({ businessName, onExit, onExtract, onComplete, onSkip, publicDemo = false, publicAi = null }: OnboardingWizardProps) {
   const [step, setStep] = useState<OnboardingStep>('welcome');
   const [narrative, setNarrative] = useState('');
   const [inventoryText, setInventoryText] = useState('');
@@ -252,7 +259,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
         <div className="onboarding-example"><Sparkles size={14} /><span>Ejemplo útil: “Somos…, nos dedicamos a…, trabajamos con…”</span><button className="text-button" type="button" onClick={() => setNarrative('Somos Taller Norte y nos dedicamos al mantenimiento de equipos industriales. Atendemos fábricas de la zona.')}>Usar ejemplo</button></div>
         {error && <p className="onboarding-error" role="alert">{error}</p>}
         {extractionError && <div className="onboarding-error-panel" role="alert"><p className="onboarding-error">{extractionError}</p><div className="onboarding-error-actions"><button className="outline-button" type="button" onClick={retryExtraction}>Reintentar extracción</button><button className="text-button" type="button" onClick={startManualReview}>Completar manualmente</button></div></div>}
-        <div className="onboarding-local-note"><ShieldCheck size={14} /><span>{publicDemo ? 'Demo pública: el texto no se envía a ningún modelo. Podés completar el borrador manualmente; el flujo autenticado usa Nebius/NVIDIA.' : 'El texto se envía únicamente a Nebius/NVIDIA. OpenCode2API queda fuera del onboarding privado y todavía no se escribe ningún cambio.'}</span></div>
+        <div className="onboarding-local-note"><ShieldCheck size={14} /><span>{publicDemo ? publicAi?.enabled ? 'Demo pública: el texto se envía a Nebius/NVIDIA para armar un borrador; no se escribe ningún cambio hasta tu confirmación.' : 'Demo pública: el texto no se envía a un modelo mientras la ruta NVIDIA está cerrada o sin crédito. Podés usar una clave temporal o completar el borrador manualmente.' : 'El texto se envía únicamente a Nebius/NVIDIA. OpenCode2API queda fuera del onboarding privado y todavía no se escribe ningún cambio.'}</span></div>
         <div className="onboarding-actions"><button className="outline-button" type="button" onClick={() => setStep('welcome')}><ArrowLeft size={15} /> Atrás</button><button className="primary-button" type="submit" disabled={narrative.trim().length < 12}>Armar borrador <Sparkles size={15} /></button></div>
       </form>
     );
@@ -264,7 +271,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
         <div className="onboarding-loading-icon"><Loader2 size={25} /></div>
         <span className="label-kicker">PASO 2 · PREPARACIÓN</span>
         <h2>Armando un borrador revisable.</h2>
-        <p>Nebius está convirtiendo tu descripción en JSON onboarding.v1. La extracción no guarda business, inventario ni el texto original.</p>
+        <p>{publicDemo ? 'La ruta NVIDIA está convirtiendo tu descripción en JSON onboarding.v1. La extracción no guarda business, inventario ni el texto original.' : 'Nebius está convirtiendo tu descripción en JSON onboarding.v1. La extracción no guarda business, inventario ni el texto original.'}</p>
         <div className="onboarding-loading-track"><span /><span /><span /></div>
       </div>
     );
@@ -319,7 +326,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
     <section className="onboarding-page" aria-labelledby="onboarding-title">
       <div className="onboarding-heading">
         <div><span className="eyebrow">Playground · first setup</span><h1 id="onboarding-title">Onboarding.</h1><p>Un recorrido corto para darle contexto a Noah sin perder el control de tus datos.</p></div>
-        <div className="onboarding-meta"><span><span className="live-dot" /> Playground</span><small>Fase 4 · Neon + Nebius</small></div>
+        <div className="onboarding-meta"><span><span className="live-dot" /> Playground</span><small>{publicDemo ? 'Fase 4 · NVIDIA route' : 'Fase 4 · Neon + Nebius'}</small></div>
       </div>
       <div className="onboarding-stepper" aria-label="Onboarding progress">
         {stepLabels.map((label, index) => <div className={'onboarding-step ' + (index === currentIndex ? 'active ' : '') + (index < currentIndex ? 'done' : '')} key={label}><span>{index < currentIndex ? <Check size={13} /> : index + 1}</span><strong>{label}</strong></div>)}

@@ -116,11 +116,16 @@ empty. The database URL and encrypted token envelopes never reach Vite or the
 browser. Nebius remains the inference provider; PostgreSQL only stores state.
 
 For a video or hackathon review, `NOAH_PUBLIC_DEMO=true` exposes only the
-synthetic playground tenant. It allows the onboarding confirm/skip and
-supervised deterministic proposal loop, but never forwards public text to a
-model, opens Google OAuth, enables external effects, or writes that tenant to
-Neon. Each browser gets an opaque ephemeral playground id; keep it `false` for
-a private deployment.
+synthetic playground tenant. `NOAH_PUBLIC_AI_MODE=scheduled` keeps that surface
+synthetic until `NOAH_PUBLIC_AI_OPEN_AT`, then permits only a bounded,
+server-side Nebius/NVIDIA Nemotron route until `NOAH_PUBLIC_AI_DEADLINE_AT`.
+The global process-local cap is `NOAH_PUBLIC_MODEL_USAGE_LIMIT`; a quota error
+or exhausted promotion returns to deterministic mode with an honest banner.
+The reviewer fallback accepts a key for NVIDIA NIM or Nebius in memory for one
+browser session, chooses a fixed backend destination, validates Nemotron, and
+never stores or logs the key. Each browser gets an opaque ephemeral playground
+id; Google OAuth, external effects, and visitor writes to Neon remain off.
+Keep `NOAH_PUBLIC_DEMO=false` for a private deployment.
 
 Uploaded documents stay server-side; the browser receives metadata only. Text
 files can be indexed when NVIDIA embeddings are configured, while image pages

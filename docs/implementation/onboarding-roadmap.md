@@ -2,8 +2,9 @@
 
 > Contrato y roadmap del workstream de onboarding. Fases 0, 1, 2 y 3 cerradas
 > en local; fase 4 cerrada en local y publicada en Render el 2026-09-05. La
-> fase 5 cerró la demo pública live sobre Render; el smoke privado de Neon queda
-> separado. La fuente operativa general sigue siendo `STATE.md`.
+> fase 5 cerró la demo pública live sobre Render; la política de apertura pública
+> NVIDIA/Nemotron queda gobernada por backend y fecha. El smoke privado de Neon
+> queda separado. La fuente operativa general sigue siendo `STATE.md`.
 
 ## Objetivo
 
@@ -40,12 +41,19 @@ hacer pasar datos ficticios por datos reales.
    apagados durante este workstream.
 9. **Secretos:** claves, prompts completos, tokens y respuestas privadas no se
    guardan en el repo, Graphify, logs ni frontend.
+10. **Apertura pública:** la demo Render permanece sintética hasta la ventana
+    configurada en backend. Luego solo puede usar Nebius/NVIDIA Nemotron con un
+    límite global en memoria; un error de crédito vuelve a modo sintético.
+11. **BYOK de reviewer:** como último recurso, una clave NVIDIA NIM o Nebius se
+    acepta solo por headers de una sesión, con destino fijo, modelo Nemotron y
+    cuota separada. Nunca se persiste ni se expone la clave.
 
 ## Modos de uso
 
 | Modo | Tenant | Datos iniciales | Ruta de modelo | Propósito |
 |---|---|---|---|---|
 | Demo | `tenant-demo` | Fixture sintético Atlas, visible como sandbox | Nebius si está configurado; OpenCode2API solo si la demo sintética lo permite | Video y revisión rápida |
+| Demo pública | Tenant efímero por navegador | Vacío hasta skip explícito | Sintético programado; Nebius/Nemotron solo en ventana; BYOK allowlisted opcional | URL pública y evaluación |
 | Playground | Tenant aislado por autenticación | Vacío | Nebius para texto del usuario; fallback manual si no está disponible | Test libre de punta a punta |
 
 El modo no se decide por una bandera enviada desde el navegador. El backend lo
@@ -111,18 +119,22 @@ El paso de extracción ya está conectado al backend, pero sigue siendo una
 operación de borrador: no llama `ensure_tenant`, no guarda el prompt ni muta
 `business` o `inventory`.
 
-- `POST /api/v1/onboarding/extract` acepta solo texto acotado y un tenant de
-  playground; el tenant demo recibe `ONBOARDING_DEMO_FORBIDDEN`.
-- La ruta fuerza `NvidiaRouter.complete(..., allow_free_synthetic=false)` y
-  valida que la ruta efectiva sea Nebius con un modelo NVIDIA Nemotron. No
-  existe fallback a OpenCode2API para texto privado.
+- `POST /api/v1/onboarding/extract` acepta solo texto acotado. El tenant demo
+  de video sigue recibiendo `ONBOARDING_DEMO_FORBIDDEN`; el playground privado
+  usa Nebius y la demo pública puede usar únicamente la ventana server-side o
+  el BYOK allowlisted del reviewer.
+- La ruta privada fuerza `NvidiaRouter.complete(..., allow_free_synthetic=false)`
+  y valida Nebius con un modelo NVIDIA Nemotron. La ruta pública nunca usa
+  OpenCode2API y, si no hay ventana, crédito o clave válida, ofrece el camino
+  manual sin afirmar una extracción real.
 - `services/api/onboarding.py` valida respuesta estricta JSON contra el shape
   `onboarding.v1`, rechaza campos extra y exige que `missing_fields` coincida
   con los valores nulos y el inventario vacío.
 - `ProviderResult` conserva `provider`, `model`, `text` y `error`; en errores
   de parseo el API no devuelve el texto inválido al navegador.
 - El wizard muestra la procedencia/modelo en la revisión y conserva el texto
-  si Nebius no está configurado, ofreciendo reintento o edición manual.
+  si la ruta NVIDIA no está disponible, ofreciendo reintento, BYOK temporal o
+  edición manual.
 - OpenCode2API continúa limitado al sandbox sintético de la demo autorizada.
 
 La cobertura de la fase está en
@@ -197,8 +209,10 @@ Reglas de interpretación:
    “Comenzar” o “Saltar y explorar con datos ficticios”.
 2. **Descripción libre:** una caja de texto con un ejemplo corto; el usuario
    puede mencionar nombre, actividad e inventario si lo tiene.
-3. **Extracción:** el API envía el texto del usuario únicamente a Nebius y
-   recibe un `ProviderResult`. La extracción es un borrador y no muta el
+3. **Extracción:** el API envía el texto del usuario únicamente a Nebius o a
+   NVIDIA NIM allowlisted y recibe un `ProviderResult`. En la demo pública la
+   ruta server-side solo se abre dentro de la ventana programada; BYOK es
+   opcional y siempre temporal. La extracción es un borrador y no muta el
    negocio.
 4. **Revisión:** mostrar el JSON como campos editables, `missing_fields` y la
    procedencia/modelo sin revelar claves. El usuario puede corregir todo.
@@ -223,7 +237,7 @@ Estas son las rutas implementadas en la fase 4:
 | Operación | Efecto permitido | Requisito |
 |---|---|---|
 | `GET /api/v1/onboarding` | Lectura | Devuelve estado, modo y draft sanitizado |
-| `POST /api/v1/onboarding/extract` | Ninguno | Texto, tenant no demo, Nebius disponible |
+| `POST /api/v1/onboarding/extract` | Ninguno | Texto acotado; Nebius privado o ventana/BYOK público disponible |
 | `POST /api/v1/onboarding/complete` | Escribe business/inventory | JSON validado y confirmación explícita |
 | `POST /api/v1/onboarding/skip` | Siembra fixture sintético | Confirmación explícita e idempotency key |
 
@@ -241,7 +255,7 @@ texto privado del usuario
 POST onboarding/extract (sin escribir)
         |
         v
-NvidiaRouter -> NebiusProvider -> ProviderResult
+NvidiaRouter -> NebiusProvider / ReviewerProvider -> ProviderResult
         |
         v
 parseo estricto + onboarding.v1.schema.json
@@ -253,8 +267,10 @@ revisión humana -> complete -> snapshot Neon tenant-safe
 OpenCode2API queda fuera de ese camino. Solo puede aparecer en la demo
 sintética ya autorizada y siempre debe devolver `provider=opencode2api` dentro
 de `ProviderResult`; si el gateway declara un modelo que no es Nemotron, se
-rechaza. Si Nebius no está configurado para un playground, la UI debe ofrecer
-completar manualmente o reintentar, nunca reenviar el texto a otra ruta.
+rechaza. Para la demo pública, `ReviewerProvider` solo acepta NVIDIA NIM o
+Nebius, fija el destino en el servidor y limita el número de llamadas. Si no
+hay ruta disponible, la UI ofrece completar manualmente o reintentar, nunca
+reenvía el texto a una familia ajena a NVIDIA.
 
 ## Persistencia y auditoría
 
