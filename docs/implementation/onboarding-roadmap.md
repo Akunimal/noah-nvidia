@@ -1,7 +1,8 @@
 # Onboarding simple de Noah Nvidia
 
-> Contrato y roadmap del workstream de onboarding. Fases 0, 1, 2, 3 y 4 cerradas
-> en local el 2026-09-05. La fuente operativa general sigue siendo `STATE.md`.
+> Contrato y roadmap del workstream de onboarding. Fases 0, 1, 2 y 3 cerradas
+> en local; fase 4 cerrada en local y publicada en Render el 2026-09-05. La
+> fuente operativa general sigue siendo `STATE.md`.
 
 ## Objetivo
 
@@ -276,7 +277,7 @@ completar manualmente o reintentar, nunca reenviar el texto a otra ruta.
 | 1 | Aislamiento demo/playground | Demo conserva Atlas; tenant nuevo queda vacío; snapshots tenant-safe no cruzan datos | **Cerrada en local** |
 | 2 | Shell del wizard | Estados bienvenida, texto, carga, revisión y salida; sin llamada de modelo todavía | **Cerrada en local** |
 | 3 | Extracción Nebius | Prompt estructurado, parseo estricto, errores visibles, sin escritura automática | **Cerrada · Render publicado** |
-| 4 | Confirmación y skip | Aplicación idempotente, auditoría, fixture sintético y warning verificable | **Cerrada en local** |
+| 4 | Confirmación y skip | Aplicación idempotente, auditoría, fixture sintético y warning verificable | **Cerrada · Render publicado** |
 | 5 | Prueba de lado a lado | Navegador limpio: demo, onboarding, edición, confirmación, skip y aislamiento; evidencia guardada | Pendiente |
 | 6 | Tour guiado | Anchors declarativos, teclado/reduced motion y persistencia posterior a onboarding | Pendiente |
 | 7 | Entrega | Render manual, Graphify actualizado, README/demo script y checklist reproducible | Pendiente |

@@ -1,7 +1,7 @@
 # Fase 4 — confirmación y skip persistentes
 
 Fecha: 2026-09-05  
-Estado: **cerrada en local; deploy manual de Render pendiente**
+Estado: **cerrada; deploy manual de Render publicado**
 
 ## Alcance
 
@@ -59,7 +59,19 @@ comprueba que un payload incompleto no escribe business ni inventory.
 
 ## Pendiente para cerrar live
 
-1. Commit/push de esta fase.
-2. Deploy manual de API y frontend en Render con las mismas variables privadas.
-3. Prueba lado a lado con un bearer playground válido: skip y confirmación,
+1. Prueba lado a lado con un bearer playground válido: skip y confirmación,
    refresh/reinicio y aislamiento respecto de `tenant-demo`.
+
+## Evidencia live de publicación
+
+- Commit publicado: `7d9d150`.
+- API Render: `dep-daebum9t0dsc739k7kng`, `Deploy succeeded | Live`.
+- Frontend Render: `dep-daebvfou01pc73dsgjmg`, `Deploy succeeded | Live`.
+- `GET https://noah-nvidia-api.onrender.com/health`: HTTP 200.
+- `GET https://noah-nvidia-api.onrender.com/openapi.json`: HTTP 200 y las
+  cuatro rutas onboarding están presentes.
+- `GET https://noah-nvidia-web.onrender.com/`: HTTP 200.
+- La lectura autenticada con el bearer sintético `demo-owner` devolvió
+  `AUTH_REQUIRED`; no se modificó la política de auth ni se buscó exponer o
+  reutilizar una credencial de producción. El smoke de mutación queda para un
+  bearer playground válido.

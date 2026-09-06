@@ -6,9 +6,9 @@
 
 - Repositorio: `Akunimal/noah-nvidia`
 - Rama: `main`
-- Código funcional live verificado: `f7d0057`; última implementación
-  versionada (fase 3) en `71daea9`; deploy manual del API
-  `dep-daeb0sn40ujc73ehc5tg` y del frontend `dep-daeb1hht0dsc739h0pug`.
+- Código funcional live verificado: `7d9d150`; última implementación
+  versionada (fase 4) en `7d9d150`; deploy manual del API
+  `dep-daebum9t0dsc739k7kng` y del frontend `dep-daebvfou01pc73dsgjmg`.
 - Despliegue: manual; Auto-Deploy está en `Off` en API y frontend; Vercel queda
   fuera del flujo.
 - Backend live: `https://noah-nvidia-api.onrender.com` (Render Web Service, plan Free).
@@ -98,7 +98,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Frontend | OK | typecheck, lint, Vitest y build pasan |
 | Onboarding shell | OK en local | 6 Vitest; `components/OnboardingWizard.tsx`; evidencia en `evidence/phase-2-wizard-shell.md` |
 | Onboarding extraction | OK local + deploy Render | `POST /api/v1/onboarding/extract`, 4 pruebas de Nebius/errores/aislamiento, `/openapi.json` live; smoke playground pendiente de bearer no-demo; evidencia en `evidence/phase-3-nebius-extraction.md` |
-| Onboarding complete/skip | OK local | `GET /api/v1/onboarding`, confirmación/skip idempotentes, auditoría, copia Atlas tenant-safe y 5 pruebas nuevas; deploy + smoke Neon playground pendiente |
+| Onboarding complete/skip | OK local + deploy Render | `GET /api/v1/onboarding`, confirmación/skip idempotentes, auditoría, copia Atlas tenant-safe y 5 pruebas nuevas; deploy `dep-daebum9t0dsc739k7kng` / `dep-daebvfou01pc73dsgjmg` live; smoke Neon playground pendiente de bearer válido |
 | Smoke local | OK | Atlas Services, run succeeded, receipt generado |
 | Aislamiento demo/playground, aprobaciones e idempotencia | OK en tests locales | `services/api/test_main.py`; evidencia en `evidence/phase-1-playground.md` |
 | Router Nebius/OpenCode2API | Nebius live OK; OpenCode2API contrato local OK | OpenCode2API live sigue pendiente; evidencia en `evidence/gate-3-opencode2api.md` |
@@ -282,9 +282,9 @@ Estado: **cerrado — Neon Free live aprobado; Render legacy expira el 2026-10-0
 
 La demo es entregable con Neon Free server-only y el slice OAuth de lectura
 está verificado. Las fases 0, 1, 2, 3 y 4 del onboarding están cerradas en
-local: el contrato, el aislamiento, el shell, la extracción estricta a Nebius
-y las mutaciones idempotentes están versionados. El siguiente paso exacto es
-publicar manualmente la fase 4 en Render y hacer la prueba lado a lado con un
-bearer playground válido: confirmación, skip, refresh/reinicio y aislamiento
-respecto de `tenant-demo`, sin habilitar planes pagos, Supabase, Vercel ni
-efectos externos.
+local y la fase 4 ya está publicada en Render desde `7d9d150`: el contrato,
+el aislamiento, el shell, la extracción estricta a Nebius y las mutaciones
+idempotentes están versionados. El siguiente paso exacto es la fase 5, prueba
+lado a lado con un bearer playground válido: confirmación, skip,
+refresh/reinicio y aislamiento respecto de `tenant-demo`, sin habilitar planes
+pagos, Supabase, Vercel ni efectos externos.
