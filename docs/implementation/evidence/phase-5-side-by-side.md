@@ -16,10 +16,10 @@ claves ni datos reales.
 
 ## Recorrido `skip`
 
-1. La bienvenida mostró el wizard de playground y el botón `Saltar y explorar`.
+1. La bienvenida mostró el wizard de playground y el botón `Skip and explore`.
 2. El warning explicó que se cargarían datos ficticios y que no habría efectos
    externos.
-3. La confirmación explícita terminó en la pantalla `Skip entendido.`.
+3. La confirmación explícita terminó en la pantalla `Skip understood.`.
 4. El workspace pasó a `Playground · synthetic Atlas`, mostró `Atlas Services`,
    tres aprobaciones y la actividad/métricas del fixture.
 5. Una pestaña nueva leyó el mismo estado sin volver a mostrar el wizard.
@@ -27,11 +27,11 @@ claves ni datos reales.
 ## Recorrido de confirmación
 
 1. Se cargó una descripción natural de prueba.
-2. La extracción mostró el error visible `Nebius todavía no está configurado`
-   y ofreció `Completar manualmente`, sin intentar OpenCode2API.
+2. La extracción mostró el error visible `Nebius is not configured`
+   y ofreció `Complete manually`, sin intentar OpenCode2API.
 3. La revisión permitió completar nombre y actividad y mostró el JSON
    `onboarding.v1` antes de guardar.
-4. La confirmación terminó en `Playground configurado` con `Taller Norte`.
+4. La confirmación terminó en `Configured playground` con `Taller Norte`.
 5. Una pestaña nueva conservó el estado configurado y no reabrió el wizard.
 
 ## Corrección encontrada durante la prueba
@@ -66,22 +66,22 @@ los mensajes públicos devuelven `deterministic-demo` sin llamar a Nebius,
 OpenCode2API ni consumir crédito.
 
 La prueba local del mismo circuito confirmó `Playground · empty`, wizard,
-warning de skip, `Skip entendido.`, `Playground · synthetic Atlas`, tres
+warning de skip, `Skip understood.`, `Playground · synthetic Atlas`, tres
 aprobaciones y actividad del fixture. La variable no secreta
 `NOAH_PUBLIC_DEMO=true` quedó cargada manualmente en el API Render y el
 frontend conserva sólo `VITE_API_BASE_URL`.
 
 ## Verificación live pública
 
-- El API se publicó manualmente desde `3d9d784` como
-  `dep-daeddkmq1p3s738t49sg`; el frontend se publicó desde el mismo commit como
-  `dep-daede96q1p3s738t6kv0`. Ambos terminaron `Deploy succeeded | Live`.
+- El API se publicó manualmente desde `f42afc7` como
+  `dep-dael3k0n74is73eb8rm0`; el frontend se publicó desde el mismo commit como
+  `dep-dael3pgn74is73eb9ft0`. Ambos terminaron `Deploy succeeded | Live`.
 - El API respondió `200` en `/health`, `/api/v1/bootstrap` y `/openapi.json`.
   El bootstrap público declaró `public_demo=true` y CORS permitió únicamente
   el origen del Static Site.
 - En una pestaña nueva de `https://noah-nvidia-web.onrender.com/` la UI cargó
   `NVIDIA API · sandbox`, `Playground · empty` y el wizard. El skip mostró la
-  advertencia, terminó en `Skip entendido.` y luego cargó `Atlas Services`,
+  advertencia, terminó en `Skip understood.` y luego cargó `Atlas Services`,
   `Playground · synthetic Atlas`, tres aprobaciones y las métricas del fixture.
 - Desde `Assistant` se envió una consulta de prueba y la respuesta visible
   llegó con procedencia `deterministic-demo`, sin activar Nebius, OpenCode2API
@@ -97,9 +97,19 @@ frontend conserva sólo `VITE_API_BASE_URL`.
 - `bootstrap.public_ai` respondió `mode=scheduled`,
   `effective_mode=synthetic`, `remaining_calls=20`,
   `reviewer_byok_allowed=true` y `server_configured=true`.
-- Una carga limpia del Static Site mostró `Demo sintética programada`, la fecha
-  de apertura y `Usar clave temporal`. No se ingresó ninguna clave ni se
+- Una carga limpia del Static Site mostró `Scheduled synthetic demo`, la fecha
+  de apertura y `Use temporary key`. No se ingresó ninguna clave ni se
   adelantó el reloj; la verificación no consumió crédito.
+
+## Verificación de idioma del reviewer
+
+- El panel público muestra `Scheduled synthetic demo` y `Opens: Oct 27, 2026,
+  2:00 PM`.
+- El wizard muestra `Welcome`, `Describe`, `Review`, `Ready`, `Start setup` y
+  `Skip and explore`; las pantallas de revisión, fallback BYOK y errores también
+  están en inglés.
+- El bootstrap público devuelve el mensaje en inglés y la entrada libre sigue
+  aceptando texto en español para no romper el soporte multilingüe del producto.
 
 ## Límite deliberado de la demo pública
 

@@ -6,8 +6,8 @@
 
 - Repositorio: `Akunimal/noah-nvidia`
 - Rama: `main`
-- Código funcional live verificado: `3d9d784`; deploy manual del API
-  `dep-daeddkmq1p3s738t49sg` y del frontend `dep-daede96q1p3s738t6kv0`.
+- Código funcional live verificado: `f42afc7`; deploy manual del API
+  `dep-dael3k0n74is73eb8rm0` y del frontend `dep-dael3pgn74is73eb9ft0`.
 - Despliegue: manual; Auto-Deploy está en `Off` en API y frontend; Vercel queda
   fuera del flujo.
 - Backend live: `https://noah-nvidia-api.onrender.com` (Render Web Service, plan Free).
@@ -131,7 +131,8 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Build Render del API | OK tras fijar Python 3.12.10 | El primer deploy de `8af42c3` falló por Python 3.14; evidencia en `evidence/render-build-incident-2026-09-05.md` |
 | Política de deploy | OK | Auto-Deploy desactivado en ambos servicios; los próximos releases se disparan manualmente |
 | OpenCode2API free | Contrato local OK; Nemotron-only enforced; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
-| Public AI release guard | OK local + live público | Render `dep-daeddkmq1p3s738t49sg` / `dep-daede96q1p3s738t6kv0` live; bootstrap declara ventana programada, `remaining_calls=20`, `server_configured=true`; panel público visible sin consumir crédito |
+| Public AI release guard | OK local + live público | Render `dep-dael3k0n74is73eb8rm0` / `dep-dael3pgn74is73eb9ft0` live desde `f42afc7`; bootstrap declara ventana programada, `remaining_calls=20`, `server_configured=true`; panel público visible sin consumir crédito |
+| Reviewer UI language | OK local + live público | La superficie visible del reviewer, el wizard, el panel NVIDIA/BYOK y los mensajes públicos de la API están en inglés; la entrada libre conserva soporte multilingüe |
 | Google OAuth | OK — lectura verificada | Consentimiento real, callback, token cifrado y sync de lectura verificados con `gesecseguridad@gmail.com`; efectos externos siguen apagados |
 | PostgreSQL durable | OK live en Neon Free; Render legacy expira 2026-10-05 | `NOAH_DATABASE_URL` privado, `postgres-jsonb Configured`, esquema Neon con 2 tablas y `tenant-demo` persistido tras reinicio; evidencia en `evidence/gate-5-postgresql.md` |
 | Vercel | Fuera de alcance | No importar ni desplegar proyectos |
