@@ -26,6 +26,12 @@ must receive synthetic fixtures only. The API reports provider errors instead
 of silently switching to an unrelated model. NVIDIA NIM retrieval adapters
 require `NOAH_NVIDIA_NIM_API_KEY` and enforce 2048-dimensional embeddings.
 
+`POST /api/v1/onboarding/extract` is the private playground extraction route.
+It only uses configured Nebius/NVIDIA Nemotron, validates the response against
+`onboarding.v1`, returns `ProviderResult` provenance, and never writes tenant
+state. It rejects the synthetic demo tenant and does not use OpenCode2API as a
+fallback.
+
 Install `requirements-nvidia.txt` only on a connected worker that can run the
 pinned NeMo Agent Toolkit and NeMo Guardrails packages. The CPU API keeps the
 same deterministic policy boundary when those optional packages are absent.

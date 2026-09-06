@@ -1,7 +1,7 @@
 # Onboarding simple de Noah Nvidia
 
-> Contrato y roadmap del workstream de onboarding. Fases 0, 1 y 2 cerradas en
-> local el 2026-09-05. La fuente operativa general sigue siendo `STATE.md`.
+> Contrato y roadmap del workstream de onboarding. Fases 0, 1, 2 y 3 cerradas
+> en local el 2026-09-05. La fuente operativa general sigue siendo `STATE.md`.
 
 ## Objetivo
 
@@ -100,8 +100,31 @@ sin afirmar que la extracción real ya esté conectada:
 El helper local solo conserva texto que el usuario proporcionó y deja en
 `null` zona horaria, moneda y locale si no fueron indicados. Esto permite
 probar la interacción sin convertir un parser de UI en sustituto de Nebius.
-La fase 3 reemplazará esa transición local por extracción NVIDIA/Nebius; la
-fase 4 conectará confirmación, skip e idempotencia.
+La fase 3 reemplazó esa transición local por extracción NVIDIA/Nebius; la fase
+4 conectará confirmación, skip e idempotencia.
+
+## Implementación de fase 3
+
+El paso de extracción ya está conectado al backend, pero sigue siendo una
+operación de borrador: no llama `ensure_tenant`, no guarda el prompt ni muta
+`business` o `inventory`.
+
+- `POST /api/v1/onboarding/extract` acepta solo texto acotado y un tenant de
+  playground; el tenant demo recibe `ONBOARDING_DEMO_FORBIDDEN`.
+- La ruta fuerza `NvidiaRouter.complete(..., allow_free_synthetic=false)` y
+  valida que la ruta efectiva sea Nebius con un modelo NVIDIA Nemotron. No
+  existe fallback a OpenCode2API para texto privado.
+- `services/api/onboarding.py` valida respuesta estricta JSON contra el shape
+  `onboarding.v1`, rechaza campos extra y exige que `missing_fields` coincida
+  con los valores nulos y el inventario vacío.
+- `ProviderResult` conserva `provider`, `model`, `text` y `error`; en errores
+  de parseo el API no devuelve el texto inválido al navegador.
+- El wizard muestra la procedencia/modelo en la revisión y conserva el texto
+  si Nebius no está configurado, ofreciendo reintento o edición manual.
+- OpenCode2API continúa limitado al sandbox sintético de la demo autorizada.
+
+La cobertura de la fase está en
+[`evidence/phase-3-nebius-extraction.md`](evidence/phase-3-nebius-extraction.md).
 
 ## Contrato JSON v1
 
@@ -223,7 +246,7 @@ completar manualmente o reintentar, nunca reenviar el texto a otra ruta.
 | 0 | Contrato, modos, límites de proveedor, skip y criterios anti-drift | Schema versionado, rutas reservadas, copia exacta del warning y reglas alineadas con `STATE.md` | **Cerrada** |
 | 1 | Aislamiento demo/playground | Demo conserva Atlas; tenant nuevo queda vacío; snapshots tenant-safe no cruzan datos | **Cerrada en local** |
 | 2 | Shell del wizard | Estados bienvenida, texto, carga, revisión y salida; sin llamada de modelo todavía | **Cerrada en local** |
-| 3 | Extracción Nebius | Prompt estructurado, parseo estricto, errores visibles, sin escritura automática | Pendiente |
+| 3 | Extracción Nebius | Prompt estructurado, parseo estricto, errores visibles, sin escritura automática | **Cerrada en local** |
 | 4 | Confirmación y skip | Aplicación idempotente, auditoría, fixture sintético y warning verificable | Pendiente |
 | 5 | Prueba de lado a lado | Navegador limpio: demo, onboarding, edición, confirmación, skip y aislamiento; evidencia guardada | Pendiente |
 | 6 | Tour guiado | Anchors declarativos, teclado/reduced motion y persistencia posterior a onboarding | Pendiente |
@@ -235,14 +258,14 @@ de invertir tiempo en pulido de presentación. La estimación vigente es de
 
 ## Criterios de aceptación del workstream
 
-- [ ] Un texto de usuario produce un borrador `onboarding.v1` con procedencia
+- [x] Un texto de usuario produce un borrador `onboarding.v1` con procedencia
       Nebius y sin mutar el tenant.
-- [ ] Un JSON inválido, incompleto o con campos extra queda en revisión y
+- [x] Un JSON inválido, incompleto o con campos extra queda en revisión y
       muestra un error corregible.
+- [x] OpenCode2API nunca recibe el texto privado del playground.
 - [ ] Confirmar dos veces no duplica ni pisa otro tenant.
 - [ ] Skip muestra el warning, no llama al modelo y siembra solo datos
       sintéticos de Atlas.
-- [ ] OpenCode2API nunca recibe el texto privado del playground.
 - [ ] Reiniciar el API conserva el estado en Neon y respeta el tenant.
 - [ ] El tour no aparece antes de completar o saltear explícitamente.
 - [ ] Ninguna clave o token aparece en UI, logs, Graphify, contratos o commits.

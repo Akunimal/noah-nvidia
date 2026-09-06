@@ -32,6 +32,7 @@ import {
 import {
   advanceRun,
   decideAction,
+  extractOnboarding,
   getBootstrap,
   getCalendar,
   getDocuments,
@@ -412,7 +413,7 @@ function App() {
         </header>
 
         <div className="page-content">
-          {onboardingVisible && workspaceMode === 'playground' ? <OnboardingWizard businessName={businessName} onExit={exitOnboarding} /> : <>
+          {onboardingVisible && workspaceMode === 'playground' ? <OnboardingWizard businessName={businessName} onExtract={extractOnboarding} onExit={exitOnboarding} /> : <>
             {workspaceMode === 'demo' && <div className="workspace-banner demo"><ShieldCheck size={17} /><div><strong>Demo sandbox</strong><span>Atlas Services is synthetic fixture data for the video. No external effects are enabled.</span></div></div>}
             {workspaceMode === 'playground' && <div className="workspace-banner playground"><Sparkles size={17} /><div><strong>Playground vacío</strong><span>Este tenant empieza sin datos ficticios. Lo que agregues quedará aislado de la demo.</span></div><button className="text-button workspace-banner-action" type="button" onClick={() => setOnboardingVisible(true)}>Abrir onboarding</button></div>}
             {section === 'overview' && (

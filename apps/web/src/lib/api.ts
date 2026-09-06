@@ -1,3 +1,5 @@
+import type { OnboardingDraft } from './onboarding';
+
 export interface ApiAction {
   id: string;
   title: string;
@@ -110,6 +112,16 @@ export interface BootstrapPayload {
   usage?: { consumed?: number; reserved?: number; limit?: number; credit_label?: string };
 }
 
+export interface OnboardingProvenance {
+  provider: 'nebius';
+  model: string;
+}
+
+export interface OnboardingExtractionResponse {
+  draft: OnboardingDraft;
+  provenance: OnboardingProvenance;
+}
+
 const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 const authHeaders = { Authorization: `Bearer ${import.meta.env.VITE_NOAH_AUTH_TOKEN || 'demo-owner'}` };
 
@@ -124,12 +136,29 @@ async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
     ...init,
     headers: { ...authHeaders, ...(init.headers || {}) },
   });
-  if (!response.ok) throw new Error(`API_${response.status}`);
+  if (!response.ok) {
+    let code = '';
+    try {
+      const body = await response.json() as { detail?: { code?: string } | string; error?: string };
+      code = typeof body.detail === 'string' ? body.detail : body.detail?.code || body.error || '';
+    } catch {
+      // Keep the status-only fallback when the server did not return JSON.
+    }
+    throw new Error(`API_${response.status}${code ? ':' + code : ''}`);
+  }
   return response.json() as Promise<T>;
 }
 
 export function getBootstrap(): Promise<BootstrapPayload> {
   return request<BootstrapPayload>('/api/v1/bootstrap');
+}
+
+export function extractOnboarding(text: string): Promise<OnboardingExtractionResponse> {
+  return request<OnboardingExtractionResponse>('/api/v1/onboarding/extract', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
 }
 
 export function getPendingActions(): Promise<ApiAction[]> {

@@ -38,12 +38,6 @@ const businessFieldPaths: Array<[OnboardingBusinessField, string]> = [
   ['locale', 'business.locale'],
 ];
 
-function capture(text: string, pattern: RegExp): string | null {
-  const match = text.match(pattern);
-  const value = match?.[1]?.trim().replace(/[,.!?;]+$/, '');
-  return value || null;
-}
-
 export function inventoryFromLines(value: string): OnboardingInventoryItem[] {
   return value
     .split('\n')
@@ -61,31 +55,21 @@ export function missingFieldsFor(draft: Pick<OnboardingDraft, 'business' | 'inve
   return missing;
 }
 
-export function createShellDraft(narrative: string, inventoryText = ''): OnboardingDraft {
-  const description = narrative.replace(/\s+/g, ' ').trim() || null;
-  const business: OnboardingBusiness = {
-    name: capture(
-      description || '',
-      /(?:mi empresa se llama|la empresa se llama|nombre(?: de la empresa)? es|somos)\s+(.+?)(?=\s+(?:y|que|nos dedicamos|hacemos)\b|[,.!?;]|$)/i,
-    ),
-    description,
-    category: capture(
-      description || '',
-      /(?:nos dedicamos a|nos dedicamos al|hacemos|rubro es|actividad(?: principal)? es)\s+(.+?)(?=[.!?;]|$)/i,
-    ),
-    timezone: null,
-    currency: null,
-    locale: null,
-  };
-  const inventory = inventoryFromLines(inventoryText);
+export function emptyOnboardingDraft(): OnboardingDraft {
   const draft: OnboardingDraft = {
     schema_version: 'onboarding.v1',
-    business,
-    inventory,
+    business: {
+      name: null,
+      description: null,
+      category: null,
+      timezone: null,
+      currency: null,
+      locale: null,
+    },
+    inventory: [],
     missing_fields: [],
   };
-  draft.missing_fields = missingFieldsFor(draft);
-  return draft;
+  return withMissingFields(draft);
 }
 
 export function withMissingFields(draft: OnboardingDraft): OnboardingDraft {

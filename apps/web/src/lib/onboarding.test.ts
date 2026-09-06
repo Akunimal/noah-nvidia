@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { createShellDraft, inventoryFromLines, missingFieldsFor, withMissingFields } from './onboarding';
+import { emptyOnboardingDraft, inventoryFromLines, missingFieldsFor, withMissingFields } from './onboarding';
 
-describe('onboarding phase 2 shell draft', () => {
-  it('keeps the natural-language text reviewable without inventing context', () => {
-    const draft = createShellDraft('Somos Taller Norte y nos dedicamos a mantenimiento industrial.');
+describe('onboarding draft review helpers', () => {
+  it('starts a manual draft with every unknown field explicit', () => {
+    const draft = emptyOnboardingDraft();
 
     expect(draft.schema_version).toBe('onboarding.v1');
-    expect(draft.business.name).toBe('Taller Norte');
-    expect(draft.business.category).toBe('mantenimiento industrial');
+    expect(draft.business.name).toBeNull();
+    expect(draft.business.description).toBeNull();
     expect(draft.business.timezone).toBeNull();
     expect(draft.business.currency).toBeNull();
     expect(draft.missing_fields).toContain('business.timezone');
@@ -22,12 +22,14 @@ describe('onboarding phase 2 shell draft', () => {
   });
 
   it('recomputes missing fields after a human edit', () => {
-    const draft = createShellDraft('Nuestra empresa presta soporte técnico.');
+    const draft = emptyOnboardingDraft();
     const completed = withMissingFields({
       ...draft,
       business: {
         ...draft.business,
         name: 'Soporte Norte',
+        description: 'Soporte técnico.',
+        category: null,
         timezone: 'America/Argentina/Buenos_Aires',
         currency: 'ARS',
         locale: 'es-AR',

@@ -47,6 +47,33 @@ paths:
                 title: Response Providers Health Api V1 Providers Health Get
       security:
       - HTTPBearer: []
+  /api/v1/onboarding/extract:
+    post:
+      summary: Onboarding Extract
+      description: Extract a reviewable onboarding draft through Nebius without writing
+        state.
+      operationId: onboarding_extract_api_v1_onboarding_extract_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingExtractRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingExtractionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
   /api/v1/business:
     get:
       summary: Get Business
@@ -1500,7 +1527,7 @@ paths:
         required: false
         schema:
           type: string
-          default: '2026-09-05'
+          default: '2026-09-06'
           title: Date
       - name: duration_minutes
         in: query
@@ -1868,6 +1895,169 @@ components:
       required:
       - message
       title: MessageRequest
+    OnboardingBusiness:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 160
+            minLength: 1
+          - type: 'null'
+          title: Name
+        description:
+          anyOf:
+          - type: string
+            maxLength: 1000
+            minLength: 1
+          - type: 'null'
+          title: Description
+        category:
+          anyOf:
+          - type: string
+            maxLength: 120
+            minLength: 1
+          - type: 'null'
+          title: Category
+        timezone:
+          anyOf:
+          - type: string
+            maxLength: 64
+            minLength: 1
+          - type: 'null'
+          title: Timezone
+        currency:
+          anyOf:
+          - type: string
+            pattern: ^[A-Z]{3}$
+          - type: 'null'
+          title: Currency
+        locale:
+          anyOf:
+          - type: string
+            pattern: ^[a-z]{2}(?:-[A-Z]{2})?$
+          - type: 'null'
+          title: Locale
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - description
+      - category
+      - timezone
+      - currency
+      - locale
+      title: OnboardingBusiness
+    OnboardingDraft:
+      properties:
+        schema_version:
+          type: string
+          const: onboarding.v1
+          title: Schema Version
+        business:
+          $ref: '#/components/schemas/OnboardingBusiness'
+        inventory:
+          items:
+            $ref: '#/components/schemas/OnboardingInventoryItem'
+          type: array
+          maxItems: 100
+          title: Inventory
+        missing_fields:
+          items:
+            type: string
+            enum:
+            - business.name
+            - business.description
+            - business.category
+            - business.timezone
+            - business.currency
+            - business.locale
+            - inventory
+          type: array
+          title: Missing Fields
+      additionalProperties: false
+      type: object
+      required:
+      - schema_version
+      - business
+      - inventory
+      - missing_fields
+      title: OnboardingDraft
+    OnboardingExtractRequest:
+      properties:
+        text:
+          type: string
+          maxLength: 4000
+          minLength: 12
+          title: Text
+      additionalProperties: false
+      type: object
+      required:
+      - text
+      title: OnboardingExtractRequest
+    OnboardingExtractionResponse:
+      properties:
+        draft:
+          $ref: '#/components/schemas/OnboardingDraft'
+        provenance:
+          $ref: '#/components/schemas/OnboardingProvenance'
+      additionalProperties: false
+      type: object
+      required:
+      - draft
+      - provenance
+      title: OnboardingExtractionResponse
+    OnboardingInventoryItem:
+      properties:
+        name:
+          type: string
+          maxLength: 160
+          minLength: 1
+          title: Name
+        sku:
+          anyOf:
+          - type: string
+            maxLength: 80
+            minLength: 1
+          - type: 'null'
+          title: Sku
+        quantity:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: 'null'
+          title: Quantity
+        unit:
+          anyOf:
+          - type: string
+            maxLength: 32
+            minLength: 1
+          - type: 'null'
+          title: Unit
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - sku
+      - quantity
+      - unit
+      title: OnboardingInventoryItem
+    OnboardingProvenance:
+      properties:
+        provider:
+          type: string
+          const: nebius
+          title: Provider
+        model:
+          type: string
+          maxLength: 160
+          minLength: 1
+          title: Model
+      additionalProperties: false
+      type: object
+      required:
+      - provider
+      - model
+      title: OnboardingProvenance
     PaymentCreate:
       properties:
         amount_minor:

@@ -35,10 +35,29 @@ from pydantic import BaseModel, Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
 try:
-    from providers import NvidiaRouter, ProviderResult
+    from onboarding import (
+        ONBOARDING_SYSTEM_PROMPT,
+        OnboardingExtractRequest,
+        OnboardingExtractionResponse,
+        OnboardingProvenance,
+        OnboardingOutputError,
+        parse_onboarding_output,
+        provider_result_payload,
+    )
+    from providers import NvidiaRouter, ProviderResult, is_nvidia_nemotron_model
     from providers_nim import NemotronEmbedder, NemotronParser, NemotronReranker
 except ImportError:  # Allows uvicorn services.api.main:app from repository root.
+    from .onboarding import (
+        ONBOARDING_SYSTEM_PROMPT,
+        OnboardingExtractRequest,
+        OnboardingExtractionResponse,
+        OnboardingProvenance,
+        OnboardingOutputError,
+        parse_onboarding_output,
+        provider_result_payload,
+    )
     from .providers import NvidiaRouter, ProviderResult
+    from .providers import is_nvidia_nemotron_model
     from .providers_nim import NemotronEmbedder, NemotronParser, NemotronReranker
 
 try:
@@ -1129,6 +1148,103 @@ async def bootstrap(tenant_id: str = Depends(tenant_from_auth)) -> dict[str, Any
 @app.get("/api/v1/providers/health")
 async def providers_health(_: str = Depends(tenant_from_auth)) -> dict[str, Any]:
     return router.manifest()
+
+
+def onboarding_provider_error_result(result: ProviderResult, code: str) -> dict[str, object]:
+    """Return bounded provider provenance for an error without echoing model output."""
+
+    allowed_providers = {"nebius", "opencode2api", "deterministic-demo"}
+    provider = result.provider if result.provider in allowed_providers else "deterministic-demo"
+    return provider_result_payload(provider, result.model, None, code)
+
+
+@app.post("/api/v1/onboarding/extract", response_model=OnboardingExtractionResponse)
+async def onboarding_extract(
+    request: OnboardingExtractRequest,
+    tenant_id: str = Depends(tenant_from_auth),
+) -> OnboardingExtractionResponse:
+    """Extract a reviewable onboarding draft through Nebius without writing state."""
+
+    if tenant_id == TENANT_ID:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "ONBOARDING_DEMO_FORBIDDEN",
+                "message": "The synthetic demo tenant cannot receive private onboarding text.",
+            },
+        )
+
+    guardrail = inspect_prompt(request.text)
+    if not guardrail.allowed:
+        raise HTTPException(status_code=400, detail={"code": guardrail.code, "message": guardrail.reason})
+
+    nebius = router.nebius
+    if not nebius.configured():
+        result = ProviderResult(nebius.name, nebius.model, None, "NEBIUS_NOT_CONFIGURED")
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "NEBIUS_NOT_CONFIGURED",
+                "message": "Nebius no está configurado para extraer el borrador. Podés reintentar o completarlo manualmente.",
+                "provider_result": onboarding_provider_error_result(result, result.error or "NEBIUS_NOT_CONFIGURED"),
+            },
+        )
+    if not is_nvidia_nemotron_model(nebius.model):
+        result = ProviderResult(nebius.name, nebius.model, None, "NEBIUS_NON_NVIDIA_MODEL")
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "NEBIUS_NON_NVIDIA_MODEL",
+                "message": "La extracción de onboarding solo admite un modelo NVIDIA Nemotron.",
+                "provider_result": onboarding_provider_error_result(result, result.error or "NEBIUS_NON_NVIDIA_MODEL"),
+            },
+        )
+
+    result = await router.complete(request.text, ONBOARDING_SYSTEM_PROMPT, allow_free_synthetic=False)
+    if result.provider != "nebius":
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "ONBOARDING_PROVIDER_POLICY_VIOLATION",
+                "message": "La extracción privada no puede usar una ruta distinta de Nebius.",
+                "provider_result": onboarding_provider_error_result(result, "ONBOARDING_PROVIDER_POLICY_VIOLATION"),
+            },
+        )
+    if result.error or not result.text:
+        error_code = result.error or "NEBIUS_EMPTY_RESPONSE"
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "ONBOARDING_PROVIDER_ERROR",
+                "message": "Nebius no pudo generar el borrador. Podés reintentar sin perder el texto.",
+                "provider_result": onboarding_provider_error_result(result, error_code),
+            },
+        )
+
+    try:
+        draft = parse_onboarding_output(result.text)
+    except OnboardingOutputError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": exc.code,
+                "message": "Nebius devolvió una respuesta que no cumple onboarding.v1. Podés reintentar o completarlo manualmente.",
+                "provider_result": onboarding_provider_error_result(result, exc.code),
+            },
+        ) from exc
+
+    try:
+        provenance = OnboardingProvenance(provider=result.provider, model=result.model)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "ONBOARDING_PROVIDER_RESULT_INVALID",
+                "message": "La procedencia de la respuesta de Nebius no cumple el contrato.",
+                "provider_result": onboarding_provider_error_result(result, "ONBOARDING_PROVIDER_RESULT_INVALID"),
+            },
+        ) from exc
+    return OnboardingExtractionResponse(draft=draft, provenance=provenance)
 
 
 @app.get("/api/v1/business")

@@ -10,8 +10,9 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
+import type { OnboardingExtractionResponse, OnboardingProvenance } from '../lib/api';
 import {
-  createShellDraft,
+  emptyOnboardingDraft,
   inventoryFromLines,
   withMissingFields,
   type OnboardingBusinessField,
@@ -24,6 +25,7 @@ export type OnboardingDecision = 'completed' | 'skipped';
 interface OnboardingWizardProps {
   businessName: string;
   onExit: (decision: OnboardingDecision) => void;
+  onExtract: (text: string) => Promise<OnboardingExtractionResponse>;
 }
 
 const stepLabels = ['Bienvenida', 'Descripción', 'Revisión', 'Listo'];
@@ -39,25 +41,53 @@ function fieldValue(draft: OnboardingDraft, field: OnboardingBusinessField): str
   return draft.business[field] || '';
 }
 
-export default function OnboardingWizard({ businessName, onExit }: OnboardingWizardProps) {
+function inventoryNames(draft: OnboardingDraft): string {
+  return draft.inventory.map((item) => item.name).join('\n');
+}
+
+function readableExtractionError(value: unknown): string {
+  const message = value instanceof Error ? value.message : '';
+  if (message.includes('NEBIUS_NOT_CONFIGURED')) return 'Nebius todavía no está configurado para este entorno. Podés completar el JSON manualmente o reintentar cuando la clave esté disponible.';
+  if (message.includes('NEBIUS_NON_NVIDIA_MODEL')) return 'La configuración de Nebius no apunta a un modelo NVIDIA Nemotron. Corregí la variable del backend antes de reintentar.';
+  if (message.includes('PROMPT_INJECTION_BLOCKED')) return 'La descripción contiene una instrucción que intenta cambiar las reglas de Noah. Quitala y reintentá.';
+  if (message.includes('ONBOARDING_INVALID_MODEL_OUTPUT')) return 'Nebius respondió, pero el resultado no cumple el JSON onboarding.v1. Podés reintentar o completarlo manualmente.';
+  if (message.includes('ONBOARDING_PROVIDER_ERROR')) return 'Nebius no pudo generar el borrador. El texto sigue en este formulario; podés reintentar.';
+  return 'No pudimos generar el borrador desde Nebius. El texto sigue en este formulario; podés reintentar o completarlo manualmente.';
+}
+
+export default function OnboardingWizard({ businessName, onExit, onExtract }: OnboardingWizardProps) {
   const [step, setStep] = useState<OnboardingStep>('welcome');
   const [narrative, setNarrative] = useState('');
   const [inventoryText, setInventoryText] = useState('');
   const [draft, setDraft] = useState<OnboardingDraft | null>(null);
+  const [providerResult, setProviderResult] = useState<OnboardingProvenance | null>(null);
   const [skipConfirm, setSkipConfirm] = useState(false);
   const [error, setError] = useState('');
+  const [extractionError, setExtractionError] = useState('');
 
   useEffect(() => {
     if (step !== 'extracting') return undefined;
-    const timer = window.setTimeout(() => {
-      setDraft(createShellDraft(narrative, inventoryText));
+    let cancelled = false;
+    void onExtract(narrative.trim()).then((response) => {
+      if (cancelled) return;
+      setDraft(response.draft);
+      setInventoryText(inventoryNames(response.draft));
+      setProviderResult(response.provenance);
+      setExtractionError('');
       setStep('review');
-    }, 850);
-    return () => window.clearTimeout(timer);
-  }, [inventoryText, narrative, step]);
+    }).catch((reason: unknown) => {
+      if (cancelled) return;
+      setProviderResult(null);
+      setExtractionError(readableExtractionError(reason));
+      setStep('describe');
+    });
+    return () => { cancelled = true; };
+  }, [narrative, onExtract, step]);
 
   function beginDescription() {
     setSkipConfirm(false);
+    setError('');
+    setExtractionError('');
     setStep('describe');
   }
 
@@ -68,7 +98,27 @@ export default function OnboardingWizard({ businessName, onExit }: OnboardingWiz
       return;
     }
     setError('');
+    setExtractionError('');
+    setDraft(null);
+    setProviderResult(null);
     setStep('extracting');
+  }
+
+  function retryExtraction() {
+    setError('');
+    setExtractionError('');
+    setDraft(null);
+    setProviderResult(null);
+    setStep('extracting');
+  }
+
+  function startManualReview() {
+    setError('');
+    setExtractionError('');
+    setDraft(emptyOnboardingDraft());
+    setInventoryText('');
+    setProviderResult(null);
+    setStep('review');
   }
 
   function updateBusiness(field: OnboardingBusinessField, value: string) {
@@ -103,7 +153,7 @@ export default function OnboardingWizard({ businessName, onExit }: OnboardingWiz
       <div className="onboarding-skip-card" role="alertdialog" aria-labelledby="skip-title">
         <strong id="skip-title">Antes de saltear</strong>
         <p>Si salteás el onboarding, no se usarán tus datos. Se cargarán datos ficticios de Atlas Services para que puedas explorar la aplicación. No son datos reales y no se ejecutará ninguna acción externa.</p>
-        <small>Este shell de fase 2 todavía no siembra datos; la aplicación idempotente del fixture queda para la fase 4.</small>
+        <small>La aplicación idempotente del fixture queda para la fase 4.</small>
         <div className="onboarding-actions compact">
           <button className="outline-button" type="button" onClick={() => setSkipConfirm(false)}>Volver</button>
           <button className="primary-button" type="button" onClick={confirmSkip}>Entiendo, saltear</button>
@@ -122,7 +172,7 @@ export default function OnboardingWizard({ businessName, onExit }: OnboardingWiz
         <div className="onboarding-benefits">
           <div><span><ClipboardList size={15} /></span><div><strong>Lenguaje natural</strong><small>Escribí como lo explicarías a una persona.</small></div></div>
           <div><span><Database size={15} /></span><div><strong>JSON revisable</strong><small>Nombre, actividad e inventario opcional.</small></div></div>
-          <div><span><ShieldCheck size={15} /></span><div><strong>Sin efectos externos</strong><small>Esta fase no llama al modelo ni guarda cambios.</small></div></div>
+          <div><span><ShieldCheck size={15} /></span><div><strong>Control humano</strong><small>Nebius solo arma un borrador; no guarda cambios.</small></div></div>
         </div>
         <div className="onboarding-actions">
           <button className="primary-button" type="button" onClick={beginDescription}>Comenzar configuración <Sparkles size={15} /></button>
@@ -143,7 +193,8 @@ export default function OnboardingWizard({ businessName, onExit }: OnboardingWiz
         <label className="onboarding-field wide"><span>Descripción libre</span><textarea autoFocus value={narrative} onChange={(event) => setNarrative(event.target.value)} placeholder="Ej.: Somos Taller Norte y nos dedicamos al mantenimiento de equipos industriales. Atendemos fábricas de la zona y tenemos filtros y bombas en stock." maxLength={1000} /></label>
         <div className="onboarding-example"><Sparkles size={14} /><span>Ejemplo útil: “Somos…, nos dedicamos a…, trabajamos con…”</span><button className="text-button" type="button" onClick={() => setNarrative('Somos Taller Norte y nos dedicamos al mantenimiento de equipos industriales. Atendemos fábricas de la zona.')}>Usar ejemplo</button></div>
         {error && <p className="onboarding-error" role="alert">{error}</p>}
-        <div className="onboarding-local-note"><ShieldCheck size={14} /><span>Shell local de fase 2 · no se envía texto a Nebius, NVIDIA ni OpenCode2API.</span></div>
+        {extractionError && <div className="onboarding-error-panel" role="alert"><p className="onboarding-error">{extractionError}</p><div className="onboarding-error-actions"><button className="outline-button" type="button" onClick={retryExtraction}>Reintentar extracción</button><button className="text-button" type="button" onClick={startManualReview}>Completar manualmente</button></div></div>}
+        <div className="onboarding-local-note"><ShieldCheck size={14} /><span>El texto se envía únicamente a Nebius/NVIDIA. OpenCode2API queda fuera del onboarding privado y todavía no se escribe ningún cambio.</span></div>
         <div className="onboarding-actions"><button className="outline-button" type="button" onClick={() => setStep('welcome')}><ArrowLeft size={15} /> Atrás</button><button className="primary-button" type="submit" disabled={narrative.trim().length < 12}>Armar borrador <Sparkles size={15} /></button></div>
       </form>
     );
@@ -155,7 +206,7 @@ export default function OnboardingWizard({ businessName, onExit }: OnboardingWiz
         <div className="onboarding-loading-icon"><Loader2 size={25} /></div>
         <span className="label-kicker">PASO 2 · PREPARACIÓN</span>
         <h2>Armando un borrador revisable.</h2>
-        <p>Estamos mostrando la transición del wizard. En esta fase el borrador se genera localmente para probar el flujo visual; todavía no hay llamada a un proveedor.</p>
+        <p>Nebius está convirtiendo tu descripción en JSON onboarding.v1. La extracción no guarda business, inventario ni el texto original.</p>
         <div className="onboarding-loading-track"><span /><span /><span /></div>
       </div>
     );
@@ -182,7 +233,7 @@ export default function OnboardingWizard({ businessName, onExit }: OnboardingWiz
           </div>
         </div>
         <div className="onboarding-missing"><strong>Campos que faltan</strong>{draft.missing_fields.length ? draft.missing_fields.map((field) => <span key={field}>{field}</span>) : <span className="complete">Completo para revisar</span>}</div>
-        <div className="onboarding-provenance"><ShieldCheck size={14} /><span>Procedencia: shell local de fase 2 · sin ProviderResult todavía · sin escritura.</span></div>
+        <div className="onboarding-provenance"><ShieldCheck size={14} /><span>{providerResult ? `Procedencia: ${providerResult.provider} · ${providerResult.model} · borrador sin escritura.` : 'Procedencia: edición manual · sin llamada de proveedor · sin escritura.'}</span></div>
         <div className="onboarding-actions"><button className="outline-button" type="button" onClick={() => setStep('describe')}><ArrowLeft size={15} /> Editar descripción</button><button className="primary-button" type="button" onClick={confirmPreview}>Confirmar vista previa <Check size={15} /></button></div>
       </div>
     );
@@ -196,7 +247,7 @@ export default function OnboardingWizard({ businessName, onExit }: OnboardingWiz
         <span className="label-kicker">PASO 4 · SALIDA</span>
         <h2>{skipped ? 'Skip entendido.' : 'La vista previa está lista.'}</h2>
         <p>{skipped ? 'En la versión final, este camino cargará únicamente el fixture ficticio Atlas Services y no ejecutará acciones externas.' : 'El shape está listo para pasar a la etapa de confirmación real. En esta fase el shell no persiste business ni inventario.'}</p>
-        <div className="onboarding-exit-note"><ShieldCheck size={15} /><span>Fase 2: salir solo cambia la vista local. La escritura idempotente y el skip real llegan en la fase 4.</span></div>
+        <div className="onboarding-exit-note"><ShieldCheck size={15} /><span>Fase 3: salir solo cambia la vista local. La escritura idempotente y el skip real llegan en la fase 4.</span></div>
         <button className="primary-button" type="button" onClick={() => onExit(decision)}>{skipped ? 'Explorar playground vacío' : 'Entrar al playground'} <Sparkles size={15} /></button>
       </div>
     );
@@ -209,7 +260,7 @@ export default function OnboardingWizard({ businessName, onExit }: OnboardingWiz
     <section className="onboarding-page" aria-labelledby="onboarding-title">
       <div className="onboarding-heading">
         <div><span className="eyebrow">Playground · first setup</span><h1 id="onboarding-title">Onboarding.</h1><p>Un recorrido corto para darle contexto a Noah sin perder el control de tus datos.</p></div>
-        <div className="onboarding-meta"><span><span className="live-dot" /> Playground vacío</span><small>Fase 2 · shell local</small></div>
+        <div className="onboarding-meta"><span><span className="live-dot" /> Playground vacío</span><small>Fase 3 · extracción Nebius</small></div>
       </div>
       <div className="onboarding-stepper" aria-label="Onboarding progress">
         {stepLabels.map((label, index) => <div className={'onboarding-step ' + (index === currentIndex ? 'active ' : '') + (index < currentIndex ? 'done' : '')} key={label}><span>{index < currentIndex ? <Check size={13} /> : index + 1}</span><strong>{label}</strong></div>)}

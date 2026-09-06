@@ -135,6 +135,9 @@ button { cursor: pointer; }
 .onboarding-example .text-button { margin-left: auto; white-space: nowrap; }
 .onboarding-local-note { margin-top: 17px; color: #7890a6; }
 .onboarding-error { margin-top: 12px; color: var(--red); font-size: 10px; }
+.onboarding-error-panel { margin-top: 12px; padding: 11px 12px; border: 1px solid rgba(245, 125, 125, .22); border-radius: 8px; background: rgba(190, 61, 83, .06); }
+.onboarding-error-panel .onboarding-error { margin-top: 0; }
+.onboarding-error-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 11px; }
 .onboarding-loading, .onboarding-success { max-width: 640px; text-align: center; }
 .onboarding-loading-icon, .onboarding-success-icon { width: 64px; height: 64px; display: grid; place-items: center; margin: 0 auto 21px; border: 1px solid rgba(115, 221, 202, .3); border-radius: 19px; color: #8fe6d9; background: var(--green-soft); }
 .onboarding-loading-icon svg { animation: onboarding-spin 1.1s linear infinite; }
