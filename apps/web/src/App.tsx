@@ -305,7 +305,7 @@ function App() {
           id: 'noah-' + Date.now(),
           role: 'noah',
           text: publicDemo
-            ? 'La demo pública mantiene el sandbox sintético: la llamada NVIDIA/Nemotron no está disponible en este momento. Podés seguir probando propuestas sin efectos externos o activar una clave temporal de reviewer.'
+            ? 'The public demo is keeping the synthetic sandbox active: the NVIDIA/Nemotron call is not available right now. You can keep testing proposals without external effects or activate a temporary reviewer key.'
             : 'I am running in local demo mode while the API wakes up. I can still map the request into a reviewable proposal; no email, calendar event, or financial record is changed automatically.',
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
            source: publicDemo ? 'Noah Nvidia · honest fallback' : 'Noah Nvidia · sandbox',
@@ -499,7 +499,7 @@ function App() {
           {publicDemo && <PublicAiPanel status={publicAi} onConfigured={() => setReviewerConfigured(true)} onCleared={() => setReviewerConfigured(false)} />}
           {onboardingVisible && workspaceMode === 'playground' ? <OnboardingWizard businessName={businessName} publicDemo={publicDemo} publicAi={publicAi} onExtract={extractOnboarding} onComplete={completeOnboarding} onSkip={skipOnboarding} onExit={exitOnboarding} /> : <>
             {workspaceMode === 'demo' && <div className="workspace-banner demo"><ShieldCheck size={17} /><div><strong>Demo sandbox</strong><span>Atlas Services is synthetic fixture data for the video. No external effects are enabled.</span></div></div>}
-            {workspaceMode === 'playground' && <div className="workspace-banner playground"><Sparkles size={17} /><div><strong>{workspaceDataSource === 'synthetic-fixture' ? 'Playground · datos ficticios' : workspaceDataSource === 'onboarding' ? 'Playground configurado' : 'Playground vacío'}</strong><span>{workspaceDataSource === 'synthetic-fixture' ? 'Atlas Services es un fixture sintético para explorar. No son datos reales ni se ejecutan acciones externas.' : workspaceDataSource === 'onboarding' ? 'Tu configuración quedó aislada en este tenant. Las acciones externas siguen detrás de aprobación.' : 'Este tenant empieza sin datos ficticios. Lo que agregues quedará aislado de la demo.'}</span></div>{onboardingStatus === 'not_started' && <button className="text-button workspace-banner-action" type="button" onClick={() => setOnboardingVisible(true)}>Abrir onboarding</button>}</div>}
+            {workspaceMode === 'playground' && <div className="workspace-banner playground"><Sparkles size={17} /><div><strong>{workspaceDataSource === 'synthetic-fixture' ? 'Playground · fictional data' : workspaceDataSource === 'onboarding' ? 'Configured playground' : 'Empty playground'}</strong><span>{workspaceDataSource === 'synthetic-fixture' ? 'Atlas Services is synthetic fixture data for exploration. It is not real data, and no external actions are executed.' : workspaceDataSource === 'onboarding' ? 'Your configuration is isolated in this tenant. External actions remain behind approval.' : 'This tenant starts without fictional data. Anything you add stays isolated from the demo.'}</span></div>{onboardingStatus === 'not_started' && <button className="text-button workspace-banner-action" type="button" onClick={() => setOnboardingVisible(true)}>Open onboarding</button>}</div>}
             {section === 'overview' && (
               <Overview
                 greeting={greeting}

@@ -1156,19 +1156,19 @@ def public_ai_status() -> dict[str, Any]:
             credit_state = "available"
 
     if mode == "synthetic":
-        message = "La demo pública usa un sandbox sintético sin llamadas al modelo."
+        message = "The public demo uses a synthetic sandbox with no model calls."
     elif reason_code == "PUBLIC_NVIDIA_NOT_OPEN":
-        message = "La demo pública sigue en modo sintético. El modo NVIDIA/Nemotron se abrirá en la fecha programada."
+        message = "The public demo is still in synthetic mode. NVIDIA/Nemotron mode will open on the scheduled date."
     elif reason_code == "PUBLIC_NVIDIA_WINDOW_CLOSED":
-        message = "La ventana pública de NVIDIA/Nemotron ya terminó; la demo volvió al sandbox sintético."
+        message = "The public NVIDIA/Nemotron window has ended; the demo has returned to the synthetic sandbox."
     elif reason_code == "PUBLIC_NVIDIA_CREDIT_EXHAUSTED":
-        message = "El crédito promocional de esta instancia se agotó; la demo sigue disponible en modo sintético."
+        message = "This instance's promotional credit is exhausted; the demo remains available in synthetic mode."
     elif credit_state == "unavailable":
-        message = "El modo NVIDIA/Nemotron está programado, pero esta instancia no tiene crédito o configuración disponible."
+        message = "NVIDIA/Nemotron mode is scheduled, but this instance has no available credit or configuration."
     elif effective_mode == "nebius":
-        message = "Modo NVIDIA/Nemotron activo con límite de uso; las acciones externas siguen detrás de aprobación."
+        message = "NVIDIA/Nemotron mode is active with a usage limit; external actions remain behind approval."
     else:
-        message = "Sandbox sintético activo; las llamadas públicas a modelos están cerradas."
+        message = "Synthetic sandbox active; public model calls are closed."
 
     return {
         "mode": mode,
@@ -1195,14 +1195,14 @@ def reviewer_config_from_request(request: Request) -> ReviewerProvider | None:
     if not api_key:
         return None
     if len(api_key) > 512 or any(ord(character) < 32 for character in api_key):
-        raise HTTPException(status_code=400, detail={"code": "PUBLIC_NVIDIA_BYOK_INVALID", "message": "La clave temporal no tiene un formato aceptable."})
+        raise HTTPException(status_code=400, detail={"code": "PUBLIC_NVIDIA_BYOK_INVALID", "message": "The temporary key has an invalid format."})
     provider = request.headers.get(PUBLIC_REVIEWER_PROVIDER_HEADER, "nvidia-nim").strip().lower()
     model = request.headers.get(PUBLIC_REVIEWER_MODEL_HEADER, "").strip()
     if provider not in {"nvidia-nim", "nebius"} or len(model) > 160 or any(ord(character) < 32 for character in model):
-        raise HTTPException(status_code=400, detail={"code": "PUBLIC_NVIDIA_BYOK_INVALID", "message": "La ruta temporal debe ser NVIDIA NIM o Nebius y usar un modelo acotado."})
+        raise HTTPException(status_code=400, detail={"code": "PUBLIC_NVIDIA_BYOK_INVALID", "message": "The temporary route must be NVIDIA NIM or Nebius and use a bounded model."})
     reviewer = ReviewerProvider(provider, api_key, model or None)
     if not reviewer.model_allowed():
-        raise HTTPException(status_code=400, detail={"code": "PUBLIC_NVIDIA_BYOK_NON_NVIDIA_MODEL", "message": "La clave temporal solo puede usar un modelo NVIDIA Nemotron."})
+        raise HTTPException(status_code=400, detail={"code": "PUBLIC_NVIDIA_BYOK_NON_NVIDIA_MODEL", "message": "The temporary key may only use an NVIDIA Nemotron model."})
     return reviewer
 
 
@@ -1292,7 +1292,7 @@ def tenant_from_auth(
             status_code=403,
             detail={
                 "code": "PUBLIC_DEMO_READ_ONLY",
-                "message": "La demo pública sólo permite el playground sintético y no expone conexiones ni mutaciones privadas.",
+                "message": "The public demo only allows the synthetic playground and does not expose private connections or mutations.",
             },
         )
     if os.getenv("NOAH_REQUIRE_AUTH", "false").lower() == "true":
@@ -1733,15 +1733,15 @@ async def onboarding_extract(
                 "PUBLIC_NVIDIA_BYOK_LIMIT_NOT_CONFIGURED",
             } else 502
             message = {
-                "PUBLIC_NVIDIA_NOT_OPEN": "La demo pública todavía está en modo sintético. Podés completar el JSON manualmente o usar una clave temporal.",
-                "PUBLIC_DEMO_SYNTHETIC_MODE": "La demo pública está en modo sintético. Podés completar el JSON manualmente o usar una clave temporal.",
-                "PUBLIC_NVIDIA_WINDOW_CLOSED": "La ventana pública de NVIDIA/Nemotron terminó. Podés usar una clave temporal o completar el JSON manualmente.",
-                "PUBLIC_NVIDIA_NOT_CONFIGURED": "La instancia pública no tiene disponible la clave server-side de Nebius. Podés usar una clave temporal o completar el JSON manualmente.",
-                "PUBLIC_NVIDIA_CREDIT_LIMIT_NOT_CONFIGURED": "La instancia pública no tiene un límite de crédito configurado. Podés usar una clave temporal o completar el JSON manualmente.",
-                "PUBLIC_NVIDIA_CREDIT_EXHAUSTED": "El crédito promocional de la instancia pública se agotó. Podés usar una clave temporal o completar el JSON manualmente.",
-                "PUBLIC_NVIDIA_BYOK_LIMIT_REACHED": "La cuota temporal de la clave del reviewer se alcanzó. Podés completar el JSON manualmente.",
-                "PUBLIC_NVIDIA_BYOK_LIMIT_NOT_CONFIGURED": "La cuota temporal de reviewer no está configurada. Podés completar el JSON manualmente.",
-            }.get(code, "La ruta NVIDIA no pudo generar el borrador. Podés reintentar o completar el JSON manualmente.")
+                "PUBLIC_NVIDIA_NOT_OPEN": "The public demo is still in synthetic mode. You can complete the JSON manually or use a temporary key.",
+                "PUBLIC_DEMO_SYNTHETIC_MODE": "The public demo is in synthetic mode. You can complete the JSON manually or use a temporary key.",
+                "PUBLIC_NVIDIA_WINDOW_CLOSED": "The public NVIDIA/Nemotron window has ended. You can use a temporary key or complete the JSON manually.",
+                "PUBLIC_NVIDIA_NOT_CONFIGURED": "The public instance has no server-side Nebius key available. You can use a temporary key or complete the JSON manually.",
+                "PUBLIC_NVIDIA_CREDIT_LIMIT_NOT_CONFIGURED": "The public instance has no credit limit configured. You can use a temporary key or complete the JSON manually.",
+                "PUBLIC_NVIDIA_CREDIT_EXHAUSTED": "The public instance's promotional credit is exhausted. You can use a temporary key or complete the JSON manually.",
+                "PUBLIC_NVIDIA_BYOK_LIMIT_REACHED": "The reviewer's temporary-key quota has been reached. You can complete the JSON manually.",
+                "PUBLIC_NVIDIA_BYOK_LIMIT_NOT_CONFIGURED": "The reviewer's temporary-key quota is not configured. You can complete the JSON manually.",
+            }.get(code, "The NVIDIA route could not generate the draft. You can retry or complete the JSON manually.")
             raise HTTPException(
                 status_code=status_code,
                 detail={"code": code, "message": message, "provider_result": onboarding_provider_error_result(result, code)},
@@ -1751,7 +1751,7 @@ async def onboarding_extract(
                 status_code=502,
                 detail={
                     "code": "ONBOARDING_PROVIDER_POLICY_VIOLATION",
-                    "message": "El onboarding público solo puede usar Nebius o NVIDIA NIM.",
+                    "message": "Public onboarding can only use Nebius or NVIDIA NIM.",
                     "provider_result": onboarding_provider_error_result(result, "ONBOARDING_PROVIDER_POLICY_VIOLATION"),
                 },
             )
@@ -1764,7 +1764,7 @@ async def onboarding_extract(
                 status_code=503,
                 detail={
                     "code": "NEBIUS_NOT_CONFIGURED",
-                    "message": "Nebius no está configurado para extraer el borrador. Podés reintentar o completarlo manualmente.",
+                    "message": "Nebius is not configured to extract the draft. You can retry or complete it manually.",
                     "provider_result": onboarding_provider_error_result(result, result.error or "NEBIUS_NOT_CONFIGURED"),
                 },
             )
@@ -1774,7 +1774,7 @@ async def onboarding_extract(
                 status_code=503,
                 detail={
                     "code": "NEBIUS_NON_NVIDIA_MODEL",
-                    "message": "La extracción de onboarding solo admite un modelo NVIDIA Nemotron.",
+                    "message": "Onboarding extraction only supports an NVIDIA Nemotron model.",
                     "provider_result": onboarding_provider_error_result(result, result.error or "NEBIUS_NON_NVIDIA_MODEL"),
                 },
             )
@@ -1785,7 +1785,7 @@ async def onboarding_extract(
                 status_code=502,
                 detail={
                     "code": "ONBOARDING_PROVIDER_POLICY_VIOLATION",
-                    "message": "La extracción privada no puede usar una ruta distinta de Nebius.",
+                    "message": "Private extraction cannot use a route other than Nebius.",
                     "provider_result": onboarding_provider_error_result(result, "ONBOARDING_PROVIDER_POLICY_VIOLATION"),
                 },
             )
@@ -1796,7 +1796,7 @@ async def onboarding_extract(
             status_code=502,
             detail={
                 "code": error_code if is_public_demo_tenant(tenant_id) else "ONBOARDING_PROVIDER_ERROR",
-                "message": "La ruta NVIDIA no pudo generar el borrador. Podés reintentar sin perder el texto.",
+                "message": "The NVIDIA route could not generate the draft. You can retry without losing the text.",
                 "provider_result": onboarding_provider_error_result(result, error_code),
             },
         )
@@ -1808,7 +1808,7 @@ async def onboarding_extract(
             status_code=502,
             detail={
                 "code": exc.code,
-                "message": "La ruta NVIDIA devolvió una respuesta que no cumple onboarding.v1. Podés reintentar o completarlo manualmente.",
+                "message": "The NVIDIA route returned a response that does not match onboarding.v1. You can retry or complete it manually.",
                 "provider_result": onboarding_provider_error_result(result, exc.code),
             },
         ) from exc
@@ -1820,7 +1820,7 @@ async def onboarding_extract(
             status_code=502,
             detail={
                 "code": "ONBOARDING_PROVIDER_RESULT_INVALID",
-                "message": "La procedencia de la respuesta NVIDIA no cumple el contrato.",
+                "message": "The NVIDIA response provenance does not match the contract.",
                 "provider_result": onboarding_provider_error_result(result, "ONBOARDING_PROVIDER_RESULT_INVALID"),
             },
         ) from exc

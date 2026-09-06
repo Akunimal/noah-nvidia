@@ -19,10 +19,10 @@ interface PublicAiPanelProps {
 const NVIDIA_NIM_DEFAULT_MODEL = 'nvidia/nemotron-3-nano-30b-a3b-reasoning';
 
 function formatDate(value: string | null | undefined): string {
-  if (!value) return 'fecha no configurada';
+  if (!value) return 'date not configured';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat('es-AR', { dateStyle: 'medium', timeStyle: 'short' }).format(parsed);
+  return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(parsed);
 }
 
 function providerLabel(provider: ReviewerProviderName | null): string {
@@ -49,14 +49,14 @@ export default function PublicAiPanel({ status, onConfigured, onCleared }: Publi
 
   const configured = reviewerProviderConfigured();
   const statusTitle = status.credit_state === 'available'
-    ? 'NVIDIA/Nemotron público activo'
+    ? 'NVIDIA/Nemotron public active'
     : status.credit_state === 'exhausted'
-      ? 'Crédito promocional agotado'
+      ? 'Promotional credit exhausted'
       : status.credit_state === 'closed'
-        ? 'Ventana pública cerrada'
+        ? 'Public window closed'
         : status.credit_state === 'synthetic'
-          ? 'Demo sintética programada'
-          : 'NVIDIA/Nemotron no disponible';
+          ? 'Scheduled synthetic demo'
+          : 'NVIDIA/Nemotron unavailable';
 
   function changeProvider(nextProvider: ReviewerProviderName) {
     setProvider(nextProvider);
@@ -69,11 +69,11 @@ export default function PublicAiPanel({ status, onConfigured, onCleared }: Publi
     const trimmedKey = apiKey.trim();
     const trimmedModel = model.trim();
     if (!trimmedKey) {
-      setError('Ingresá una clave temporal para continuar.');
+      setError('Enter a temporary key to continue.');
       return;
     }
     if (!trimmedModel || !trimmedModel.toLowerCase().includes('nemotron')) {
-      setError('El modelo debe pertenecer a la familia NVIDIA Nemotron.');
+      setError('The model must belong to the NVIDIA Nemotron family.');
       return;
     }
     configureReviewerProvider({ provider, apiKey: trimmedKey, model: trimmedModel });
@@ -100,29 +100,29 @@ export default function PublicAiPanel({ status, onConfigured, onCleared }: Publi
           <div className="public-ai-kicker"><span className="live-dot" /> PUBLIC RUNTIME</div>
           <h2 id="public-ai-title">{statusTitle}</h2>
           <p>{status.message}</p>
-          {status.mode === 'scheduled' && status.credit_state === 'synthetic' && <small>Se abre: {formatDate(status.opens_at)}</small>}
-          {status.credit_state === 'available' && <small>Quedan {status.remaining_calls ?? 0} llamadas server-side en esta instancia.</small>}
-          {status.credit_state === 'exhausted' && <small>El límite se protege en memoria y se conserva la demo sin costo.</small>}
+          {status.mode === 'scheduled' && status.credit_state === 'synthetic' && <small>Opens: {formatDate(status.opens_at)}</small>}
+          {status.credit_state === 'available' && <small>{status.remaining_calls ?? 0} server-side calls remain for this instance.</small>}
+          {status.credit_state === 'exhausted' && <small>The limit is enforced in memory so the demo remains free.</small>}
         </div>
         <div className="public-ai-actions">
           {configured ? (
-            <button className="outline-button" type="button" onClick={removeReviewerKey}><X size={14} /> Quitar BYOK</button>
+            <button className="outline-button" type="button" onClick={removeReviewerKey}><X size={14} /> Remove BYOK</button>
           ) : (
-            <button className="outline-button" type="button" onClick={() => { setExpanded((current) => !current); setError(''); }}><KeyRound size={14} /> {expanded ? 'Cerrar BYOK' : 'Usar clave temporal'}</button>
+            <button className="outline-button" type="button" onClick={() => { setExpanded((current) => !current); setError(''); }}><KeyRound size={14} /> {expanded ? 'Close BYOK' : 'Use temporary key'}</button>
           )}
         </div>
       </div>
-      {saved && <div className="public-ai-byok-note"><ShieldCheck size={14} /><span>BYOK activo: {providerLabel(reviewerProviderName() || provider)}. La clave vive solo en la memoria de esta pestaña y se envía únicamente al endpoint de modelo.</span></div>}
+      {saved && <div className="public-ai-byok-note"><ShieldCheck size={14} /><span>BYOK active: {providerLabel(reviewerProviderName() || provider)}. The key lives only in this tab's memory and is sent only to the model endpoint.</span></div>}
       {expanded && !configured && (
         <form className="public-ai-form" onSubmit={handleSubmit}>
-          <div className="public-ai-form-heading"><div><strong>Fallback para reviewer</strong><span>Usá una clave propia si el crédito promocional no está disponible.</span></div><ShieldCheck size={16} /></div>
+          <div className="public-ai-form-heading"><div><strong>Reviewer fallback</strong><span>Use your own key if promotional credit is unavailable.</span></div><ShieldCheck size={16} /></div>
           <div className="public-ai-form-grid">
-            <label><span>Ruta allowlisted</span><select value={provider} onChange={(event) => changeProvider(event.target.value as ReviewerProviderName)}><option value="nvidia-nim">NVIDIA NIM</option><option value="nebius">Nebius Token Factory</option></select></label>
-            <label><span>Modelo Nemotron</span><input value={model} onChange={(event) => setModel(event.target.value)} autoComplete="off" /></label>
-            <label className="public-ai-key-field"><span>API key temporal</span><input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="No se guarda ni se muestra" autoComplete="off" /></label>
+            <label><span>Allowlisted route</span><select value={provider} onChange={(event) => changeProvider(event.target.value as ReviewerProviderName)}><option value="nvidia-nim">NVIDIA NIM</option><option value="nebius">Nebius Token Factory</option></select></label>
+            <label><span>Nemotron model</span><input value={model} onChange={(event) => setModel(event.target.value)} autoComplete="off" /></label>
+            <label className="public-ai-key-field"><span>Temporary API key</span><input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder="Never stored or displayed" autoComplete="off" /></label>
           </div>
           {error && <p className="onboarding-error" role="alert">{error}</p>}
-          <div className="public-ai-form-footer"><small>El navegador no envía base URL. El servidor elige el destino fijo, valida Nemotron y no persiste la clave.</small><button className="primary-button" type="submit">Activar en memoria <KeyRound size={14} /></button></div>
+          <div className="public-ai-form-footer"><small>The browser never sends a base URL. The server selects the fixed destination, validates Nemotron, and never persists the key.</small><button className="primary-button" type="submit">Enable in memory <KeyRound size={14} /></button></div>
         </form>
       )}
     </section>
