@@ -6,9 +6,8 @@
 
 - Repositorio: `Akunimal/noah-nvidia`
 - Rama: `main`
-- Código funcional live verificado: `7d9d150`; último cambio versionado de UI y
-  evidencia de fase 5: `056b92e`; deploy manual del API
-  `dep-daebum9t0dsc739k7kng` y del frontend `dep-daebvfou01pc73dsgjmg`.
+- Código funcional live verificado: `f461d08`; deploy manual del API
+  `dep-daecidid0e5s73803q60` y del frontend `dep-daecj89t0dsc739miuug`.
 - Despliegue: manual; Auto-Deploy está en `Off` en API y frontend; Vercel queda
   fuera del flujo.
 - Backend live: `https://noah-nvidia-api.onrender.com` (Render Web Service, plan Free).
@@ -37,13 +36,13 @@ runtime ya separa `tenant-demo` del playground vacío y el wizard extrae un
 borrador estricto por Nebius sin persistirlo. La fase 4 agrega confirmación y
 skip idempotentes, auditables y tenant-safe sobre el snapshot. El deploy manual
 está aprobado;
-la prueba live de un tenant playground requiere un bearer de producción
-no-demo válido. La fase 5 ya fue recorrida lado a lado en local y corrigió la
-sincronización visual posterior a `skip`. El frontend público ya no envía un
-bearer `VITE_*`: cuando `NOAH_PUBLIC_DEMO=true`, usa un tenant sintético
-acotado y efímero. El texto público no llega a ningún modelo; el onboarding
-autenticado sigue usando Nebius/NVIDIA. El smoke live de Neon para un tenant
-privado aún requiere un bearer playground válido.
+la prueba live de un tenant playground privado requiere un bearer de producción
+no-demo válido. La fase 5 ya fue recorrida lado a lado en local y live público,
+y corrigió la sincronización visual posterior a `skip`. El frontend público ya
+no envía un bearer `VITE_*`: cuando `NOAH_PUBLIC_DEMO=true`, usa un tenant
+sintético acotado y efímero. El texto público no llega a ningún modelo; el
+onboarding autenticado sigue usando Nebius/NVIDIA. El smoke live de Neon para
+un tenant privado aún requiere un bearer playground válido.
 
 - Datos del usuario: solo Nebius/NVIDIA; OpenCode2API no recibe texto privado.
 - `ProviderResult`: sobre de procedencia, separado del JSON de negocio; ver
@@ -102,9 +101,9 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | API determinista | OK | 48 tests Python pasan con Python 3.12 y las versiones fijadas |
 | Frontend | OK | typecheck, lint, Vitest y build pasan |
 | Onboarding shell | OK en local | 6 Vitest; `components/OnboardingWizard.tsx`; evidencia en `evidence/phase-2-wizard-shell.md` |
-| Onboarding extraction | OK local + deploy Render | `POST /api/v1/onboarding/extract`, 4 pruebas de Nebius/errores/aislamiento, `/openapi.json` live; smoke playground pendiente de bearer no-demo; evidencia en `evidence/phase-3-nebius-extraction.md` |
-| Onboarding complete/skip | OK local + deploy Render | `GET /api/v1/onboarding`, confirmación/skip idempotentes, auditoría, copia Atlas tenant-safe y 5 pruebas nuevas; deploy `dep-daebum9t0dsc739k7kng` / `dep-daebvfou01pc73dsgjmg` live; smoke Neon playground pendiente de bearer válido |
-| Prueba lado a lado | Parcial — local OK | Dos tenants sintéticos en pestañas separadas; skip, fallback manual, confirmación, nueva pestaña y corrección de fixture; evidencia en `evidence/phase-5-side-by-side.md`; live pendiente de bearer |
+| Onboarding extraction | OK local + API Render | `POST /api/v1/onboarding/extract`, 4 pruebas de Nebius/errores/aislamiento, `/openapi.json` live; la ruta pública rechaza texto de modelo por diseño; smoke privado pendiente de bearer no-demo; evidencia en `evidence/phase-3-nebius-extraction.md` |
+| Onboarding complete/skip | OK local + live público | `GET /api/v1/onboarding`, confirmación/skip idempotentes, auditoría, copia Atlas tenant-safe y pruebas nuevas; deploy API `dep-daecidid0e5s73803q60` / frontend `dep-daecj89t0dsc739miuug` live; smoke Neon privado pendiente de bearer válido |
+| Prueba lado a lado | OK local + live público | Dos tenants sintéticos en local y pestaña pública Render; skip, confirmación, nueva pestaña, aislamiento efímero y corrección de fixture; evidencia en `evidence/phase-5-side-by-side.md`; smoke Neon privado pendiente |
 | Smoke local | OK | Atlas Services, run succeeded, receipt generado |
 | Aislamiento demo/playground, aprobaciones e idempotencia | OK en tests locales | `services/api/test_main.py`; evidencia en `evidence/phase-1-playground.md` |
 | Router Nebius/OpenCode2API | Nebius live OK; OpenCode2API contrato local OK | OpenCode2API live sigue pendiente; evidencia en `evidence/gate-3-opencode2api.md` |

@@ -1,7 +1,7 @@
 # Fase 5 — prueba lado a lado
 
 Fecha: 2026-09-05  
-Estado: **en publicación; recorrido local cerrado, smoke live público pendiente**
+Estado: **cerrada para demo pública; smoke privado Neon pendiente**
 
 ## Alcance probado
 
@@ -44,7 +44,7 @@ activa el modo de fixture para el Overview y carga la actividad sintética.
 ## Verificaciones automatizadas
 
 ```text
-services/api: 46 passed, 1 warning
+services/api: 47 passed, 1 warning
 apps/web: typecheck OK
 apps/web: lint OK
 apps/web: Vitest 2 files / 6 tests passed
@@ -71,17 +71,27 @@ aprobaciones y actividad del fixture. La variable no secreta
 `NOAH_PUBLIC_DEMO=true` quedó cargada manualmente en el API Render y el
 frontend conserva sólo `VITE_API_BASE_URL`.
 
-## Límite live
+## Verificación live pública
 
-Render respondió `200` en `/health`, en el frontend y en `/openapi.json`. La
-verificación live final del frontend/API queda pendiente de completar el
-redeploy manual del API con el código de esta corrección. Antes de ella, las
-lecturas con el identificador sintético `demo-owner` respondían
-`401 AUTH_REQUIRED`: ese identificador no era un bearer de playground y
-`NOAH_REQUIRE_AUTH` quedó intacto. No se abrió ni copió ningún secreto de
-Render.
+- El API se publicó manualmente desde `f461d08` como
+  `dep-daecidid0e5s73803q60`; el frontend se publicó desde el mismo commit como
+  `dep-daecj89t0dsc739miuug`. Ambos terminaron `Deploy succeeded | Live`.
+- El API respondió `200` en `/health`, `/api/v1/bootstrap` y `/openapi.json`.
+  El bootstrap público declaró `public_demo=true` y CORS permitió únicamente
+  el origen del Static Site.
+- En una pestaña nueva de `https://noah-nvidia-web.onrender.com/` la UI cargó
+  `NVIDIA API · sandbox`, `Playground · empty` y el wizard. El skip mostró la
+  advertencia, terminó en `Skip entendido.` y luego cargó `Atlas Services`,
+  `Playground · synthetic Atlas`, tres aprobaciones y las métricas del fixture.
+- El Static Site mantiene únicamente `VITE_API_BASE_URL`; no se abrió ni copió
+  ningún secreto de Render y el bundle publicado no contiene el bearer anterior.
 
-Por lo tanto, la confirmación de Neon tras reinicio y el aislamiento live contra
-`tenant-demo` siguen pendientes de un bearer válido para un tenant playground.
-El entorno local comprueba el flujo de navegador y la API, pero no sustituye la
-prueba durable live.
+## Límite deliberado de la demo pública
+
+La ruta pública permanece acotada: su tenant se deriva de un identificador
+efímero del navegador, no se persiste en Neon, no llama a Nebius ni a
+OpenCode2API, rechaza extracción de texto de modelo y bloquea OAuth, mutaciones
+privadas y rutas fuera de la superficie sintética. `NOAH_REQUIRE_AUTH` sigue
+intacto para el flujo autenticado. La verificación durable de Neon y el
+aislamiento live contra `tenant-demo` siguen pendientes de un bearer válido para
+un tenant playground privado; no se considera sustituida por esta prueba.

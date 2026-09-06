@@ -2,7 +2,8 @@
 
 > Contrato y roadmap del workstream de onboarding. Fases 0, 1, 2 y 3 cerradas
 > en local; fase 4 cerrada en local y publicada en Render el 2026-09-05. La
-> fuente operativa general sigue siendo `STATE.md`.
+> fase 5 cerró la demo pública live sobre Render; el smoke privado de Neon queda
+> separado. La fuente operativa general sigue siendo `STATE.md`.
 
 ## Objetivo
 
