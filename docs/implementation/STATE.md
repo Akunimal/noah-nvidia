@@ -6,10 +6,11 @@
 
 - Repositorio: `Akunimal/noah-nvidia`
 - Rama: `main`
-- Código funcional live verificado: API `15dd751`; deploy manual final del API
-  `dep-daevpi8n74is73fn868g` con el modo público restaurado a `scheduled`;
-  frontend `7bceac6` live en Render mediante deploy
-  `dep-daf0deeq1p3s73b4qv20`.
+- Código funcional live verificado: baseline Render `660b93b`; deploy manual
+  del API `dep-daf0ncv40ujc7392grl0` y del frontend
+  `dep-daf0o0id0e5s73aahf5g`. Los commits más recientes de `main` quedan
+  pendientes de deploy manual y no se presentan como live hasta repetir el
+  gate.
 - Despliegue: manual; Auto-Deploy está en `Off` en API y frontend; Vercel queda
   fuera del flujo.
 - Backend live: `https://noah-nvidia-api.onrender.com` (Render Web Service, plan Free).
@@ -33,8 +34,8 @@
 
 El workstream activo es el onboarding simple descrito en
 [`onboarding-roadmap.md`](onboarding-roadmap.md). Las **fases 0 a 6 están
-cerradas según el gate (la fase 6 queda pendiente solo de publicar el frontend
-en Render)**: el contrato `onboarding.v1` quedó versionado, el
+cerradas según el gate y el frontend ya está publicado en Render**: el
+contrato `onboarding.v1` quedó versionado, el
 runtime ya separa `tenant-demo` del playground vacío y el wizard extrae un
 borrador estricto por Nebius sin persistirlo. La fase 4 agrega confirmación y
 skip idempotentes, auditables y tenant-safe sobre el snapshot. El deploy manual
