@@ -28,8 +28,9 @@ ROOT = Path(__file__).resolve().parents[1]
 API_ROOT = ROOT / "services" / "api"
 DEFAULT_API_URL = "https://noah-nvidia-api.onrender.com"
 DEFAULT_WEB_URL = "https://noah-nvidia-web.onrender.com"
-DEFAULT_TIMEOUT_SECONDS = 20.0
+DEFAULT_TIMEOUT_SECONDS = 30.0
 COMMAND_TIMEOUT_SECONDS = 300.0
+LIVE_RETRY_DELAY_SECONDS = 2.0
 MAX_LIVE_RESPONSE_BYTES = 4 * 1024 * 1024
 
 SECRET_PATTERNS = (
@@ -257,6 +258,25 @@ def http_request(url: str, method: str, headers: dict[str, str], timeout: float)
         return HttpResult(status=None, headers={}, body=b"", error=type(exc).__name__)
 
 
+def request_with_retry(
+    url: str,
+    method: str,
+    headers: dict[str, str],
+    timeout: float,
+    *,
+    attempts: int = 2,
+) -> HttpResult:
+    """Give a free Render instance one safe retry after a cold start."""
+
+    response = http_request(url, method, headers, timeout)
+    for _ in range(max(0, attempts - 1)):
+        if response.status is not None:
+            return response
+        time.sleep(LIVE_RETRY_DELAY_SECONDS)
+        response = http_request(url, method, headers, timeout)
+    return response
+
+
 def response_status(runner: CheckRunner, name: str, response: HttpResult, expected: int) -> bool:
     if response.status == expected:
         return runner.record(name, "PASS", f"HTTP {expected}")
@@ -276,7 +296,7 @@ def json_body(response: HttpResult) -> dict[str, Any] | None:
 
 
 def check_live(runner: CheckRunner, api_url: str, web_url: str, timeout: float, expected_mode: str, expected_persistence: str) -> None:
-    health = http_request(f"{api_url}/health", "GET", {}, timeout)
+    health = request_with_retry(f"{api_url}/health", "GET", {}, timeout)
     if response_status(runner, "Live API health", health, 200):
         health_body = json_body(health)
         if health_body and health_body.get("status") == "ok":
@@ -306,6 +326,12 @@ def check_live(runner: CheckRunner, api_url: str, web_url: str, timeout: float, 
             runner.record("Live API security headers", "PASS", "defensive headers and HTTPS HSTS are present")
     else:
         runner.skip("Live API security headers", "health request did not return a usable response")
+        runner.skip("Live CORS allowed origin", "API health unavailable")
+        runner.skip("Live CORS rejects foreign origin", "API health unavailable")
+        runner.skip("Live public bootstrap", "API health unavailable")
+        runner.skip("Live public safety contract", "API health unavailable")
+        runner.skip("Live OpenAPI", "API health unavailable")
+        return
 
     allowed_preflight = http_request(
         f"{api_url}/api/v1/bootstrap",
