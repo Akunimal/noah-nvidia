@@ -55,12 +55,18 @@ but does not seed anything until phase 4.
 
 ## Next execution steps
 
-Follow [STATE.md](STATE.md) instead of starting integrations from this record.
-The active order is:
+Follow [STATE.md](STATE.md) instead of restarting any closed implementation
+phase from this historical record. The onboarding, extraction, confirm/skip,
+side-by-side, tour, provider-evaluation, and reproducible-release work is
+already implemented and documented. The remaining delivery order is:
 
-1. Add confirm/skip persistence, idempotency, and restart recovery on Neon.
-2. Deploy the onboarding extraction manually to Render and run the side-by-side
-   browser verification.
-3. Run the original tenant, approval, retry, calendar, monetary, document,
-   and prompt-injection evaluations after connected evidence exists.
-4. Add the guided tour only after onboarding is complete and verified.
+1. Manually deploy the latest `main` to Render and repeat the safe live release
+   check; Render Auto-Deploy stays off and Vercel stays out of scope.
+2. Rehearse the clean-browser flow and, on the scheduled date, verify the
+   server-side Nebius/NVIDIA cutover, quota exhaustion, and OpenCode2API being
+   disabled in the public environment.
+3. Replace the operator-only placeholders in
+   [`docs/submission/`](../submission/README.md), record the short English
+   video, and submit before the official deadline.
+4. Freeze the scope and configuration. Any post-freeze change requires the
+   release check, Graphify refresh, evidence update, and a new manual deploy.

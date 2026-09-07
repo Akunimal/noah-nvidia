@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -6,6 +8,17 @@ from main import app, router
 
 client = TestClient(app)
 AUTH = {"Authorization": "Bearer demo-owner"}
+
+
+def freeze_main_time(monkeypatch, value: str) -> None:
+    frozen = datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+    class FrozenDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return frozen.astimezone(tz) if tz else frozen.replace(tzinfo=None)
+
+    monkeypatch.setattr("main.datetime", FrozenDateTime)
 
 
 def test_api_security_headers_and_exact_cors_policy(monkeypatch) -> None:
@@ -197,6 +210,53 @@ def test_public_demo_is_bounded_synthetic_and_never_calls_a_model(monkeypatch) -
         assert oauth.json()["detail"]["code"] == "PUBLIC_DEMO_READ_ONLY"
     finally:
         TENANTS.pop(PUBLIC_DEMO_TENANT_ID, None)
+
+
+def test_public_cutover_boundaries_and_credit_budget_are_deterministic(monkeypatch) -> None:
+    from main import public_ai_status, reset_public_model_budgets, reserve_public_model_usage, settle_public_model_usage
+
+    monkeypatch.setenv("NOAH_PUBLIC_DEMO", "true")
+    monkeypatch.setenv("NOAH_REQUIRE_AUTH", "true")
+    monkeypatch.setenv("NOAH_DEMO_AUTH", "false")
+    monkeypatch.setenv("NOAH_PUBLIC_AI_MODE", "scheduled")
+    monkeypatch.setenv("NOAH_PUBLIC_AI_OPEN_AT", "2026-10-27T17:00:00Z")
+    monkeypatch.setenv("NOAH_PUBLIC_AI_DEADLINE_AT", "2026-10-30T17:00:00Z")
+    monkeypatch.setenv("NOAH_PUBLIC_MODEL_USAGE_LIMIT", "1")
+    monkeypatch.setattr(router.nebius, "api_key", "cutover-test-key")
+    monkeypatch.setattr(router.nebius, "model", "nvidia/nemotron-3-super-120b-a12b")
+    reset_public_model_budgets()
+
+    freeze_main_time(monkeypatch, "2026-10-27T16:59:59Z")
+    before_open = public_ai_status()
+    assert before_open["effective_mode"] == "synthetic"
+    assert before_open["credit_state"] == "synthetic"
+    assert before_open["reason_code"] == "PUBLIC_NVIDIA_NOT_OPEN"
+    assert before_open["enabled"] is False
+
+    freeze_main_time(monkeypatch, "2026-10-27T17:00:00Z")
+    at_open = public_ai_status()
+    assert at_open["effective_mode"] == "nebius"
+    assert at_open["provider"] == "nebius"
+    assert at_open["model"] == "nvidia/nemotron-3-super-120b-a12b"
+    assert at_open["credit_state"] == "available"
+    assert at_open["enabled"] is True
+
+    reservation, error = reserve_public_model_usage("nebius")
+    assert reservation is not None
+    assert error is None
+    exhausted = public_ai_status()
+    assert exhausted["effective_mode"] == "nebius"
+    assert exhausted["credit_state"] == "exhausted"
+    assert exhausted["reason_code"] == "PUBLIC_NVIDIA_CREDIT_EXHAUSTED"
+    assert exhausted["remaining_calls"] == 0
+    settle_public_model_usage(reservation, consumed=True)
+
+    freeze_main_time(monkeypatch, "2026-10-30T17:00:00Z")
+    after_deadline = public_ai_status()
+    assert after_deadline["effective_mode"] == "synthetic"
+    assert after_deadline["credit_state"] == "closed"
+    assert after_deadline["reason_code"] == "PUBLIC_NVIDIA_WINDOW_CLOSED"
+    assert after_deadline["enabled"] is False
 
 
 def test_public_scheduled_nvidia_mode_uses_one_global_budget(monkeypatch) -> None:

@@ -29,6 +29,23 @@ def test_free_gateway_is_only_available_when_explicitly_allowed(monkeypatch) -> 
     assert provider.completions_url() == "https://gateway.example/v1/chat/completions"
 
 
+def test_cutover_policy_disables_opencode2api_even_when_gateway_is_configured(monkeypatch) -> None:
+    monkeypatch.setenv("NOAH_OPENCODE2API_BASE_URL", "https://gateway.example/v1")
+    monkeypatch.setenv("NOAH_OPENCODE2API_KEY", "synthetic-test-key")
+    monkeypatch.setenv("NOAH_OPENCODE2API_MODEL", "nemotron-3-ultra-free")
+    monkeypatch.setenv("NOAH_ALLOW_FREE_SYNTHETIC", "false")
+    monkeypatch.delenv("NOAH_NEBIUS_API_KEY", raising=False)
+
+    router = NvidiaRouter()
+    assert router.free.model_allowed() is True
+    assert router.free.configured() is True
+    result = asyncio.run(router.complete("synthetic prompt", "system", allow_free_synthetic=True))
+
+    assert result.provider == "deterministic-demo"
+    assert result.model == "no-model-call"
+    assert result.error == "NO_NVIDIA_PROVIDER_CONFIGURED"
+
+
 def test_opencode2api_rejects_non_nvidia_model_before_transport(monkeypatch) -> None:
     monkeypatch.setenv("NOAH_OPENCODE2API_BASE_URL", "https://gateway.example/v1")
     monkeypatch.setenv("NOAH_OPENCODE2API_MODEL", "gpt-4o")

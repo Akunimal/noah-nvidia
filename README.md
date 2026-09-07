@@ -11,6 +11,11 @@ history, credentials, database, customer data, fiscal module, or deployment
 configuration is included. See [DONOR_PROVENANCE.md](DONOR_PROVENANCE.md) for
 the boundary.
 
+The English hackathon delivery materials are collected in the
+[submission pack](docs/submission/README.md). It contains the reviewer guide,
+short demo script, honest provider/cost limits, and the final operator-only
+checklist without any secret values.
+
 ## Implemented vertical slice
 
 - New dark React/Vite console branded **Noah Nvidia** with Overview, Assistant,

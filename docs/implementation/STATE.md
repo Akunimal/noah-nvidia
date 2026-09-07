@@ -1,6 +1,6 @@
 # Noah Nvidia — estado y roadmap operativo
 
-> Fuente de verdad operativa para continuar sin drift. Actualizado: 2026-09-06.
+> Fuente de verdad operativa para continuar sin drift. Actualizado: 2026-09-07.
 
 ## Baseline congelado
 
@@ -320,12 +320,12 @@ Estado: **cerrado para la ruta conectada Nebius/NVIDIA Nemotron; sin afirmación
 
 ### Gate 8 — Cutover público y hardening
 
-Estado: **baseline de hardening desplegada y verificada en Render; cutover pendiente**.
+Estado: **baseline y smoke de navegador verificados; cutover pendiente**.
 
 - El baseline local agrega CORS por origen exacto sin wildcard ni credenciales,
   headers defensivos/no-store en el API, CSP restrictiva en el frontend, límite
   global de request body y claves de idempotencia acotadas.
-- La verificación local quedó en 57 pruebas Python, typecheck, lint, build,
+- La verificación local quedó en 62 pruebas Python, typecheck, lint, build,
   compilación Python y `git diff --check`, sin claves ni datos privados.
 - Deploy API: `dep-daf0ncv40ujc7392grl0`; deploy web:
   `dep-daf0o0id0e5s73aahf5g`; ambos Live desde `660b93b`.
@@ -342,6 +342,12 @@ Estado: **baseline de hardening desplegada y verificada en Render; cutover pendi
   bootstrap sintético, Neon, OpenAPI y `npm audit` sin vulnerabilidades.
   Evidencia redactada:
   `evidence/release-check.md`.
+- Smoke de navegador limpio 2026-09-07: sesión Chrome nueva sobre la URL
+  pública; se verificaron copy en inglés, banner synthetic programado, warning
+  de skip, carga de Atlas ficticio, entrada al playground, guided tour y
+  recarga/cold start conservando el estado. No se ingresaron credenciales ni
+  se ejecutaron efectos externos. Evidencia:
+  `evidence/clean-browser-smoke-2026-09-07.md`.
 
 - Mantener la URL pública accesible y gratuita; el cambio del proveedor no
   cierra la demo.
@@ -349,18 +355,22 @@ Estado: **baseline de hardening desplegada y verificada en Render; cutover pendi
   Nebius/Nemotron con el modelo canónico dentro de la ventana.
 - Confirmar que NOAH_ALLOW_FREE_SYNTHETIC sea false y que Render no tenga una
   URL o clave operativa de OpenCode2API.
-- Repetir smoke con navegador limpio, cold start, CORS, límites, cuota agotada,
-  fallback, confirmación, skip y aislamiento.
+- La frontera del 2026-10-27, el presupuesto agotado y el bloqueo de
+  OpenCode2API están cubiertos por pruebas deterministas; el smoke live de la
+  cuota real queda deliberadamente sin consumir hasta la ventana.
+- Antes del freeze, repetir una pasada corta de CORS, límites, fallback,
+  confirmación, skip y aislamiento con el commit final.
 - Antes del freeze, decidir la duración de la ventana server-side para que el
   reviewer pueda probar gratis durante judging. Si el crédito no alcanza, el
   sandbox sintético debe seguir completo y rotulado, sin fingir inferencia real.
 
 ### Gate 9 — Paquete de entrega y freeze
 
-Estado: **pendiente**.
+Estado: **paquete en inglés redactado; video, envío y freeze pendientes**.
 
-- Preparar README, Devpost, instrucciones de evaluación y video público en
-  inglés; el video debe durar menos de tres minutos.
+- El README, la guía de reviewer y el guion de video están en
+  [`docs/submission/`](../submission/README.md); el video debe durar menos de
+  tres minutos.
 - Confirmar repositorio público, licencia open source, URL live y explicación
   visible de NVIDIA/Nemotron, Nebius Token Factory, límites y datos sintéticos.
 - Repetir pruebas locales, smoke live, escaneo de secretos, Graphify y deploy
@@ -413,7 +423,7 @@ Estado: **pendiente**.
   persiste el tenant público en Neon.
 - Efectos Gmail/Calendar, pagos y demás mutaciones externas permanecen
   desactivados.
-- Pruebas locales: 56 Python, Vitest, typecheck, lint, build y Promptfoo
+- Pruebas locales: 62 Python, Vitest, typecheck, lint, build y Promptfoo
   sintético (15/15) pasan; la evaluación conectada también dio 15/15.
 
 ### Producción — todavía no declarar
@@ -430,8 +440,9 @@ Estado: **pendiente**.
 ## Próximo paso exacto
 
 La demo es entregable con Neon Free server-only y el slice OAuth de lectura
-está verificado. Gate 6 quedó publicado y verificado en Render. El siguiente
-bloque operativo es Gate 8 (hardening y cutover del 2026-10-27) y luego Gate 9
-(paquete de entrega/freeze). El smoke de un tenant privado con bearer válido
-queda como verificación separada de Neon; no se habilitan planes pagos,
-Supabase, Vercel ni efectos externos.
+está verificado. Gate 8 tiene hardening, pruebas deterministas y smoke de
+navegador cerrados; queda el cutover futuro del 2026-10-27. Gate 9 tiene el
+paquete en inglés redactado; faltan video, envío, deploy manual final y freeze.
+El smoke de un tenant privado con bearer válido queda como verificación
+separada de Neon; no se habilitan planes pagos, Supabase, Vercel ni efectos
+externos.
