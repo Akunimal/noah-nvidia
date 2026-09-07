@@ -293,7 +293,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
             <label className="onboarding-field wide"><span>Optional inventory · one product per line</span><textarea value={inventoryText} onChange={(event) => updateInventory(event.target.value)} placeholder="Industrial filter&#10;Hydraulic pump" /></label>
           </div>
           <div className="onboarding-json-panel">
-            <div className="onboarding-json-heading"><span>JSON estructurado</span><small>onboarding.v1</small></div>
+            <div className="onboarding-json-heading"><span>Structured JSON</span><small>onboarding.v1</small></div>
             <pre>{JSON.stringify(draft, null, 2)}</pre>
           </div>
         </div>
@@ -313,7 +313,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
         <span className="label-kicker">STEP 4 · EXIT</span>
         <h2>{skipped ? 'Skip understood.' : 'Preview is ready.'}</h2>
         <p>{skipped ? 'Fictional Atlas Services data was loaded for exploration. It is not real data, and no external action was executed.' : 'Your configuration was saved in your test tenant. You can keep adding data from the workspace.'}</p>
-        <div className="onboarding-exit-note"><ShieldCheck size={15} /><span>{publicDemo ? 'Public demo: temporary synthetic playground decision; visitor data is not stored in Neon and no external effects are executed.' : 'Phase 4: decision persisted in Neon, tenant-safe, and auditable. The guided tour is planned for phase 6.'}</span></div>
+        <div className="onboarding-exit-note"><ShieldCheck size={15} /><span>{publicDemo ? 'Public demo: temporary synthetic playground decision; visitor data is not stored in Neon and no external effects are executed.' : 'Your onboarding decision is persisted in Neon, tenant-safe, and auditable. The guided tour will open next.'}</span></div>
         <button className="primary-button" type="button" onClick={() => onExit(decision, decision === 'completed' ? draft || undefined : undefined, mutationResult?.business)}>{skipped ? 'Explore playground' : 'Enter playground'} <Sparkles size={15} /></button>
       </div>
     );

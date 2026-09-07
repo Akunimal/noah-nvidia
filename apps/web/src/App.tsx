@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Activity,
@@ -58,8 +58,10 @@ import {
   type PublicAiStatus,
 } from './lib/api';
 import OnboardingWizard from './components/OnboardingWizard';
+import GuidedTour, { type TourSection } from './components/GuidedTour';
 import PublicAiPanel from './components/PublicAiPanel';
 import type { OnboardingDraft } from './lib/onboarding';
+import { canStartGuidedTour, hasSeenGuidedTour, markGuidedTourSeen } from './lib/tour';
 
 type Section = 'overview' | 'assistant' | 'approvals' | 'mail' | 'calendar' | 'finance' | 'knowledge' | 'settings';
 type WorkspaceMode = 'demo' | 'playground' | 'unknown';
@@ -160,9 +162,12 @@ function App() {
   const [publicAi, setPublicAi] = useState<PublicAiStatus | null>(null);
   const [reviewerConfigured, setReviewerConfigured] = useState(false);
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('unknown');
+  const [workspaceId, setWorkspaceId] = useState('');
   const [workspaceDataSource, setWorkspaceDataSource] = useState('empty');
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus>('not_started');
   const [onboardingVisible, setOnboardingVisible] = useState(false);
+  const [tourVisible, setTourVisible] = useState(false);
+  const [tourSeen, setTourSeen] = useState(false);
   const [businessName, setBusinessName] = useState('New business');
   const [businessTimezone, setBusinessTimezone] = useState('UTC');
   const [businessCurrency, setBusinessCurrency] = useState('USD');
@@ -188,10 +193,15 @@ function App() {
         setPublicDemo(Boolean(bootstrap.public_demo));
         setPublicAi(bootstrap.public_ai || null);
         const nextWorkspaceMode: WorkspaceMode = bootstrap.workspace?.mode === 'demo' ? 'demo' : 'playground';
+        const nextOnboardingStatus = bootstrap.onboarding?.status || 'not_started';
+        const nextTourSeen = hasSeenGuidedTour(bootstrap.tenant_id);
+        setWorkspaceId(bootstrap.tenant_id);
         setWorkspaceMode(nextWorkspaceMode);
         setWorkspaceDataSource(bootstrap.workspace?.data_source || 'empty');
-        setOnboardingStatus(bootstrap.onboarding?.status || 'not_started');
-        setOnboardingVisible(nextWorkspaceMode === 'playground' && bootstrap.onboarding?.status === 'not_started');
+        setOnboardingStatus(nextOnboardingStatus);
+        setTourSeen(nextTourSeen);
+        setTourVisible(canStartGuidedTour(nextWorkspaceMode, nextOnboardingStatus) && !nextTourSeen);
+        setOnboardingVisible(nextWorkspaceMode === 'playground' && nextOnboardingStatus === 'not_started');
         setMessages(nextWorkspaceMode === 'demo' ? initialMessages : []);
         setActivity(nextWorkspaceMode === 'demo' ? initialActivity : []);
         setBusinessName(bootstrap.business.name);
@@ -244,6 +254,7 @@ function App() {
   const runtimeOnline = apiOnline && (publicDemo ? publicRuntimeReady : providerConfigured);
   const demoMode = workspaceMode === 'demo';
   const fixtureMode = demoMode || workspaceDataSource === 'synthetic-fixture';
+  const guidedTourEligible = canStartGuidedTour(workspaceMode, onboardingStatus);
   const workspaceLabel = workspaceMode === 'demo'
     ? 'Demo · synthetic Atlas'
     : workspaceMode === 'playground'
@@ -404,9 +415,29 @@ function App() {
     return skipOnboardingApi(idempotencyKey);
   }
 
+  const navigateToTourSection = useCallback((nextSection: TourSection) => {
+    setSection(nextSection);
+    setMobileNav(false);
+  }, []);
+
+  function closeGuidedTour() {
+    if (workspaceId && markGuidedTourSeen(workspaceId, workspaceMode, onboardingStatus)) {
+      setTourSeen(true);
+    }
+    setTourVisible(false);
+  }
+
+  function openGuidedTour() {
+    if (guidedTourEligible) setTourVisible(true);
+  }
+
   function exitOnboarding(decision: 'completed' | 'skipped', draft?: OnboardingDraft, persistedBusiness?: OnboardingMutationResponse['business']) {
     setOnboardingVisible(false);
     setOnboardingStatus(decision);
+    if (workspaceId && !hasSeenGuidedTour(workspaceId)) {
+      setTourSeen(false);
+      setTourVisible(true);
+    }
     setWorkspaceDataSource(decision === 'skipped' ? 'synthetic-fixture' : 'onboarding');
     const business = persistedBusiness || (decision === 'completed' && draft ? {
       name: draft.business.name || 'New business',
@@ -499,8 +530,8 @@ function App() {
           {publicDemo && <PublicAiPanel status={publicAi} onConfigured={() => setReviewerConfigured(true)} onCleared={() => setReviewerConfigured(false)} />}
           {onboardingVisible && workspaceMode === 'playground' ? <OnboardingWizard businessName={businessName} publicDemo={publicDemo} publicAi={publicAi} onExtract={extractOnboarding} onComplete={completeOnboarding} onSkip={skipOnboarding} onExit={exitOnboarding} /> : <>
             {workspaceMode === 'demo' && <div className="workspace-banner demo"><ShieldCheck size={17} /><div><strong>Demo sandbox</strong><span>Atlas Services is synthetic fixture data for the video. No external effects are enabled.</span></div></div>}
-            {workspaceMode === 'playground' && <div className="workspace-banner playground"><Sparkles size={17} /><div><strong>{workspaceDataSource === 'synthetic-fixture' ? 'Playground · fictional data' : workspaceDataSource === 'onboarding' ? 'Configured playground' : 'Empty playground'}</strong><span>{workspaceDataSource === 'synthetic-fixture' ? 'Atlas Services is synthetic fixture data for exploration. It is not real data, and no external actions are executed.' : workspaceDataSource === 'onboarding' ? 'Your configuration is isolated in this tenant. External actions remain behind approval.' : 'This tenant starts without fictional data. Anything you add stays isolated from the demo.'}</span></div>{onboardingStatus === 'not_started' && <button className="text-button workspace-banner-action" type="button" onClick={() => setOnboardingVisible(true)}>Open onboarding</button>}</div>}
-            {section === 'overview' && (
+            {workspaceMode === 'playground' && <div className="workspace-banner playground"><Sparkles size={17} /><div><strong>{workspaceDataSource === 'synthetic-fixture' ? 'Playground · fictional data' : workspaceDataSource === 'onboarding' ? 'Configured playground' : 'Empty playground'}</strong><span>{workspaceDataSource === 'synthetic-fixture' ? 'Atlas Services is synthetic fixture data for exploration. It is not real data, and no external actions are executed.' : workspaceDataSource === 'onboarding' ? 'Your configuration is isolated in this tenant. External actions remain behind approval.' : 'This tenant starts without fictional data. Anything you add stays isolated from the demo.'}</span></div>{onboardingStatus === 'not_started' ? <button className="text-button workspace-banner-action" type="button" onClick={() => setOnboardingVisible(true)}>Open onboarding</button> : <button className="text-button workspace-banner-action" type="button" onClick={openGuidedTour}>{tourSeen ? 'Replay guided tour' : 'Start guided tour'}</button>}</div>}
+            {section === 'overview' && <div data-tour="tour-overview">
               <Overview
                 greeting={greeting}
                 businessName={businessName}
@@ -510,21 +541,22 @@ function App() {
                 onOpenAssistant={() => setSection('assistant')}
                 onOpenApprovals={() => setSection('approvals')}
               />
-            )}
-            {section === 'assistant' && (
+            </div>}
+            {section === 'assistant' && <div data-tour="tour-assistant">
               <Assistant messages={messages} input={input} isThinking={isThinking} setInput={setInput} onSubmit={submitMessage} businessName={businessName} runtimeModel={runtimeModel} timezone={businessTimezone} currency={businessCurrency} demoMode={fixtureMode} />
-            )}
-            {section === 'approvals' && (
+            </div>}
+            {section === 'approvals' && <div data-tour="tour-approvals">
               <Approvals approvals={approvals} onResolve={resolveApproval} businessName={businessName} />
-            )}
+            </div>}
             {section === 'mail' && <Mailroom onOpenAssistant={() => setSection('assistant')} items={mailItems} demoMode={fixtureMode} />}
             {section === 'calendar' && <Calendar businessName={businessName} items={calendarItems} demoMode={fixtureMode} onOpenAssistant={() => { setInput('Find a slot next week for a 90 minute field assessment'); setSection('assistant'); }} />}
             {section === 'finance' && <Finance ledgerItems={ledgerItems} quoteItems={quoteItems} receivableItems={receivableItems} currency={businessCurrency} demoMode={fixtureMode} onExport={exportLedger} />}
-            {section === 'knowledge' && <Knowledge businessName={businessName} items={documentItems} demoMode={fixtureMode} onAddDocument={(file) => { void addDocument(file); }} />}
-            {section === 'settings' && <Settings businessName={businessName} timezone={businessTimezone} currency={businessCurrency} runtimeModel={runtimeLabel} persistenceMode={persistenceMode} connections={connections} providerConfigured={!publicDemo && providerConfigured} externalEffectsEnabled={externalEffectsEnabled} />}
+            {section === 'knowledge' && <div data-tour="tour-knowledge"><Knowledge businessName={businessName} items={documentItems} demoMode={fixtureMode} onAddDocument={(file) => { void addDocument(file); }} /></div>}
+            {section === 'settings' && <div data-tour="tour-settings"><Settings businessName={businessName} timezone={businessTimezone} currency={businessCurrency} runtimeModel={runtimeLabel} persistenceMode={persistenceMode} connections={connections} providerConfigured={!publicDemo && providerConfigured} externalEffectsEnabled={externalEffectsEnabled} /></div>}
           </>}
         </div>
       </main>
+      {tourVisible && guidedTourEligible && <GuidedTour onNavigate={navigateToTourSection} onClose={closeGuidedTour} />}
     </div>
   );
 }

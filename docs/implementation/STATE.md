@@ -31,8 +31,9 @@
 ## Onboarding workstream
 
 El workstream activo es el onboarding simple descrito en
-[`onboarding-roadmap.md`](onboarding-roadmap.md). Las **fases 0 a 5 están
-cerradas (local y live según el gate)**: el contrato `onboarding.v1` quedó versionado, el
+[`onboarding-roadmap.md`](onboarding-roadmap.md). Las **fases 0 a 6 están
+cerradas según el gate (la fase 6 queda pendiente solo de publicar el frontend
+en Render)**: el contrato `onboarding.v1` quedó versionado, el
 runtime ya separa `tenant-demo` del playground vacío y el wizard extrae un
 borrador estricto por Nebius sin persistirlo. La fase 4 agrega confirmación y
 skip idempotentes, auditables y tenant-safe sobre el snapshot. El deploy manual
@@ -65,6 +66,10 @@ bearer playground válido.
   BYOK allowlisted; si no, conserva el texto y ofrece reintento, clave temporal
   o edición manual. Confirmar y skip persisten la decisión en Fase 4; el wizard
   no reaparece después de completar o saltear.
+- Tour: después de `completed` o `skipped`, el reviewer puede recorrer cinco
+  pasos con anchors declarativos, navegación por teclado, foco restaurado,
+  reduced motion y persistencia por tenant del marcador `v1`. No aparece
+  antes de una decisión explícita de onboarding.
 - Public AI: `NOAH_PUBLIC_AI_MODE=scheduled` abre automáticamente del
   `2026-10-27T17:00:00Z` al `2026-10-30T17:00:00Z`; el límite server-side base es
   20 llamadas y el límite BYOK base es 5. El estado seguro llega por
@@ -124,6 +129,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Onboarding extraction | OK local + API Render | `POST /api/v1/onboarding/extract`, pruebas de Nebius/errores/aislamiento y ventana/BYOK pública; `/openapi.json` se regenera; smoke privado pendiente de bearer no-demo; evidencia en `evidence/phase-3-nebius-extraction.md` |
 | Onboarding complete/skip | OK local + live público | `GET /api/v1/onboarding`, confirmación/skip idempotentes, auditoría, copia Atlas tenant-safe y pruebas nuevas; deploy API `dep-daecidid0e5s73803q60` / frontend `dep-daecj89t0dsc739miuug` live; smoke Neon privado pendiente de bearer válido |
 | Prueba lado a lado | OK local + live público | Dos tenants sintéticos en local y pestaña pública Render; skip, confirmación, nueva pestaña, aislamiento efímero y corrección de fixture; evidencia en `evidence/phase-5-side-by-side.md`; smoke Neon privado pendiente |
+| Tour guiado del reviewer | OK local; publicación pendiente | Cinco pasos verificados con skip, replay, recarga, Escape y navegación de teclado; anchors declarativos y textos en inglés; evidencia en `evidence/gate-6-tour.md` |
 | Smoke local | OK | Atlas Services, run succeeded, receipt generado |
 | Aislamiento demo/playground, aprobaciones e idempotencia | OK en tests locales | `services/api/test_main.py`; evidencia en `evidence/phase-1-playground.md` |
 | Router Nebius/OpenCode2API | Nebius live OK; OpenCode2API contrato local OK | OpenCode2API live sigue pendiente; evidencia en `evidence/gate-3-opencode2api.md` |
@@ -135,6 +141,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Public AI release guard | OK local + live público | API `dep-daevpi8n74is73fn868g` live desde `15dd751`; bootstrap declara `mode=scheduled`, `effective_mode=synthetic`, `credit_state=synthetic` y `remaining_calls=20`; panel público visible sin consumir crédito |
 | Reviewer UI language | OK local + live público | La superficie visible del reviewer, el wizard, el panel NVIDIA/BYOK y los mensajes públicos de la API están en inglés; la entrada libre conserva soporte multilingüe |
 | Evaluación Promptfoo | Gate 7 cerrado para Nebius conectado | Local y API conectada: 15/15, 0 errores; provenance `nebius` + `nvidia/nemotron-3-super-120b-a12b`, guardrail 400 esperado y efectos externos desactivados; evidencia redactada en `evidence/promptfoo-local.md` y `evidence/promptfoo-api.md`; no se afirma paridad de pesos con el alias OpenCode2API |
+| Graphify | Actualizado 2026-09-06 | `graphify-out/graph.json` regenerado con 1003 nodos, 1739 enlaces y 84 comunidades; integridad fallback: 0 endpoints faltantes y 0 self-loops; `graphify-out` permanece ignorado |
 | Cutover público 2026-10-27 | Programado | Mantener la URL abierta, confirmar Nebius/Nemotron efectivo, mantener OpenCode2API desactivado y repetir smoke limpio con fallback y cuotas |
 | Paquete de entrega y freeze | Pendiente | README/Devpost/video/instrucciones en inglés, licencia, evidencia redactada, Graphify actualizado y release reproducible |
 | Google OAuth | OK — lectura verificada | Consentimiento real, callback, token cifrado y sync de lectura verificados con `gesecseguridad@gmail.com`; efectos externos siguen apagados |
@@ -261,7 +268,7 @@ Estado: **cerrado — Neon Free live aprobado; Render legacy expira el 2026-10-0
 
 ### Gate 6 — Tour guiado del reviewer
 
-Estado: **pendiente**.
+Estado: **cerrado en local — publicación manual Render pendiente**.
 
 - Agregar anchors declarativos para el flujo principal sin acoplar el tour a
   posiciones frágiles del DOM.
@@ -270,6 +277,10 @@ Estado: **pendiente**.
   de una decisión explícita de onboarding.
 - Mantener toda la superficie visible en inglés y no cambiar la frontera de
   proveedores.
+- Verificación local: skip confirmado, fixture sintético cargado, cinco pasos
+  navegados, replay tras recarga y cierre con `Escape`; no se ejecutaron
+  efectos externos ni llamadas de modelo.
+- Evidencia: `docs/implementation/evidence/gate-6-tour.md`.
 
 ### Gate 7 — Evaluación Promptfoo y paridad honesta
 
@@ -393,10 +404,9 @@ Estado: **pendiente**.
 ## Próximo paso exacto
 
 La demo es entregable con Neon Free server-only y el slice OAuth de lectura
-está verificado. Las fases 0 a 5 del onboarding y Gate 7 quedaron cerrados
-con skip, confirmación, fallback manual, nueva pestaña, aislamiento de flujo
-y evaluación conectada Nebius 15/15. El siguiente bloque operativo es Gate
-6: implementar y verificar el tour guiado. En paralelo queda pendiente el
-smoke Neon de un tenant privado con bearer válido. Después siguen Gate 8
-(cutover del 2026-10-27) y Gate 9 (paquete de entrega/freeze), sin habilitar
-planes pagos, Supabase, Vercel ni efectos externos.
+está verificado. Gate 6 ya está implementado y probado localmente; el paso
+operativo inmediato es publicarlo manualmente en el Static Site de Render y
+repetir el smoke visual live. Después siguen Gate 8 (cutover del 2026-10-27)
+y Gate 9 (paquete de entrega/freeze). El smoke de un tenant privado con bearer
+válido queda como verificación separada de Neon; no se habilitan planes pagos,
+Supabase, Vercel ni efectos externos.
