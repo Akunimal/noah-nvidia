@@ -1,9 +1,8 @@
 # Onboarding simple de Noah Nvidia
 
 > Contrato y roadmap del workstream de onboarding. Las fases 0 a 6 están
-> cerradas en local, y la evaluación de la fase 7 está cerrada para
-> Nebius/Nemotron; la publicación Render de la fase 6 y las fases 8 a 9
-> quedan como trabajo de entrega. La demo pública
+> cerradas, y la evaluación de la fase 7 está cerrada para Nebius/Nemotron;
+> las fases 8 a 9 quedan como trabajo de entrega. La demo pública
 > live corre sobre Render y la política de apertura NVIDIA/Nemotron queda
 > gobernada por backend y fecha. El smoke privado de Neon queda separado. La
 > fuente operativa general sigue siendo `STATE.md`.
@@ -373,7 +372,7 @@ sintético NVIDIA-only.
 | 3 | Extracción Nebius | Prompt estructurado, parseo estricto, errores visibles, sin escritura automática | **Cerrada · Render publicado** |
 | 4 | Confirmación y skip | Aplicación idempotente, auditoría, fixture sintético y warning verificable | **Cerrada · Render publicado** |
 | 5 | Prueba de lado a lado | Navegador limpio: demo, onboarding, edición, confirmación, skip y aislamiento; evidencia guardada | **Cerrada · Render público verificado** |
-| 6 | Tour guiado | Anchors declarativos, teclado/reduced motion y persistencia posterior a onboarding | **Cerrada en local · deploy Render pendiente** |
+| 6 | Tour guiado | Anchors declarativos, teclado/reduced motion y persistencia posterior a onboarding | **Cerrada · local + Render live** |
 | 7 | Evaluación de proveedor | Harness local y conexión Promptfoo 15/15; modelo/proveedor documentados por separado; diferencia de pesos OpenCode2API explícita; evidencia redactada | **Cerrada para Nebius · sin paridad de pesos OpenCode2API** |
 | 8 | Cutover y hardening del reviewer | URL abierta, Nebius efectivo desde el 2026-10-27, OpenCode2API desactivado, cuotas/fallback/CORS/cold start verificados | Pendiente |
 | 9 | Entrega y freeze | README, Devpost, video público menor a 3 minutos, licencia, instrucciones de prueba, Graphify y release reproducible | Pendiente |
@@ -385,8 +384,8 @@ Render PostgreSQL legacy y no es la deadline del hackathon.
 
 ### Calendario operativo
 
-- **2026-09-06 a 2026-09-20:** Gate 7 cerrado con Promptfoo local/conectado;
-  publicar Gate 6 y preparar evidencia de entrega.
+- **2026-09-06 a 2026-09-20:** Gate 6 y Gate 7 cerrados con pruebas local/live;
+  preparar evidencia de entrega y hardening del reviewer.
 - **2026-09-21 a 2026-10-10:** tour guiado, hardening del reviewer y nueva
   prueba de navegador limpio; retirar referencias obsoletas al 5 de octubre.
 - **2026-10-11 a 2026-10-20:** README/Devpost en inglés, video, instrucciones

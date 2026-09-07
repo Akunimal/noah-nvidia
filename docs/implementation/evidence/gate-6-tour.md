@@ -2,7 +2,8 @@
 
 Fecha de verificación local: 2026-09-06 21:28 ART  
 Repositorio: `Akunimal/noah-nvidia`  
-Deploy objetivo: Static Site Render `noah-nvidia-web` (publicación manual)
+Deploy verificado: Static Site Render `noah-nvidia-web`,
+`dep-daf0deeq1p3s73b4qv20`, estado `Deploy succeeded`
 
 ## Alcance
 
@@ -26,6 +27,10 @@ La entrada libre del onboarding conserva soporte multilingüe.
 - Tras recargar la pestaña, el tour no reapareció automáticamente y el replay
   siguió disponible.
 - Se reabrió el tour y se cerró con `Escape`.
+- En la URL pública `https://noah-nvidia-web.onrender.com/`, tras recargar el
+  bundle de `7bceac6`, se repitió el skip y se recorrieron los cinco pasos;
+  Settings mostró el límite `postgres-jsonb` y el cierre dejó
+  `Replay guided tour`.
 - La implementación incluye navegación `ArrowLeft`/`ArrowRight`, trampa de
   foco con `Tab`, restauración del foco previo, `prefers-reduced-motion` y
   reubicación ante scroll/resize.
@@ -72,6 +77,6 @@ instaló nada ni se consumió una API para este cierre.
 
 ## Estado de salida
 
-Gate 6 queda cerrado en local. Falta publicar este frontend mediante el flujo
-manual de Render y repetir el recorrido visual sobre la URL pública; luego el
-roadmap continúa con Gate 8 (cutover del 2026-10-27) y Gate 9 (entrega/freeze).
+Gate 6 queda cerrado con verificación local y live en Render. El roadmap
+continúa con Gate 8 (hardening/cutover del 2026-10-27) y Gate 9
+(entrega/freeze).

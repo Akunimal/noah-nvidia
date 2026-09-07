@@ -8,7 +8,8 @@
 - Rama: `main`
 - Código funcional live verificado: API `15dd751`; deploy manual final del API
   `dep-daevpi8n74is73fn868g` con el modo público restaurado a `scheduled`;
-  frontend live verificado en el servicio Render `noah-nvidia-web`.
+  frontend `7bceac6` live en Render mediante deploy
+  `dep-daf0deeq1p3s73b4qv20`.
 - Despliegue: manual; Auto-Deploy está en `Off` en API y frontend; Vercel queda
   fuera del flujo.
 - Backend live: `https://noah-nvidia-api.onrender.com` (Render Web Service, plan Free).
@@ -129,7 +130,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Onboarding extraction | OK local + API Render | `POST /api/v1/onboarding/extract`, pruebas de Nebius/errores/aislamiento y ventana/BYOK pública; `/openapi.json` se regenera; smoke privado pendiente de bearer no-demo; evidencia en `evidence/phase-3-nebius-extraction.md` |
 | Onboarding complete/skip | OK local + live público | `GET /api/v1/onboarding`, confirmación/skip idempotentes, auditoría, copia Atlas tenant-safe y pruebas nuevas; deploy API `dep-daecidid0e5s73803q60` / frontend `dep-daecj89t0dsc739miuug` live; smoke Neon privado pendiente de bearer válido |
 | Prueba lado a lado | OK local + live público | Dos tenants sintéticos en local y pestaña pública Render; skip, confirmación, nueva pestaña, aislamiento efímero y corrección de fixture; evidencia en `evidence/phase-5-side-by-side.md`; smoke Neon privado pendiente |
-| Tour guiado del reviewer | OK local; publicación pendiente | Cinco pasos verificados con skip, replay, recarga, Escape y navegación de teclado; anchors declarativos y textos en inglés; evidencia en `evidence/gate-6-tour.md` |
+| Tour guiado del reviewer | OK local + live público | Cinco pasos verificados con skip, replay, recarga, Escape y navegación de teclado; anchors declarativos y textos en inglés; deploy `dep-daf0deeq1p3s73b4qv20`; evidencia en `evidence/gate-6-tour.md` |
 | Smoke local | OK | Atlas Services, run succeeded, receipt generado |
 | Aislamiento demo/playground, aprobaciones e idempotencia | OK en tests locales | `services/api/test_main.py`; evidencia en `evidence/phase-1-playground.md` |
 | Router Nebius/OpenCode2API | Nebius live OK; OpenCode2API contrato local OK | OpenCode2API live sigue pendiente; evidencia en `evidence/gate-3-opencode2api.md` |
@@ -268,7 +269,7 @@ Estado: **cerrado — Neon Free live aprobado; Render legacy expira el 2026-10-0
 
 ### Gate 6 — Tour guiado del reviewer
 
-Estado: **cerrado en local — publicación manual Render pendiente**.
+Estado: **cerrado — local + Render live verificado**.
 
 - Agregar anchors declarativos para el flujo principal sin acoplar el tour a
   posiciones frágiles del DOM.
@@ -280,6 +281,10 @@ Estado: **cerrado en local — publicación manual Render pendiente**.
 - Verificación local: skip confirmado, fixture sintético cargado, cinco pasos
   navegados, replay tras recarga y cierre con `Escape`; no se ejecutaron
   efectos externos ni llamadas de modelo.
+- Verificación live: `https://noah-nvidia-web.onrender.com/` cargó el bundle
+  de `7bceac6`; se recorrieron los cinco pasos, se verificó `Finish tour` y
+  quedó disponible `Replay guided tour`.
+- Deploy manual: Render `dep-daf0deeq1p3s73b4qv20`, estado `Deploy succeeded`.
 - Evidencia: `docs/implementation/evidence/gate-6-tour.md`.
 
 ### Gate 7 — Evaluación Promptfoo y paridad honesta
@@ -404,9 +409,8 @@ Estado: **pendiente**.
 ## Próximo paso exacto
 
 La demo es entregable con Neon Free server-only y el slice OAuth de lectura
-está verificado. Gate 6 ya está implementado y probado localmente; el paso
-operativo inmediato es publicarlo manualmente en el Static Site de Render y
-repetir el smoke visual live. Después siguen Gate 8 (cutover del 2026-10-27)
-y Gate 9 (paquete de entrega/freeze). El smoke de un tenant privado con bearer
-válido queda como verificación separada de Neon; no se habilitan planes pagos,
+está verificado. Gate 6 quedó publicado y verificado en Render. El siguiente
+bloque operativo es Gate 8 (hardening y cutover del 2026-10-27) y luego Gate 9
+(paquete de entrega/freeze). El smoke de un tenant privado con bearer válido
+queda como verificación separada de Neon; no se habilitan planes pagos,
 Supabase, Vercel ni efectos externos.
