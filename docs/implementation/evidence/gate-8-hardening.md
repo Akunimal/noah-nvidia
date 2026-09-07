@@ -36,10 +36,22 @@ git diff --check                               -> passed
 The warning is the existing Starlette/AnyIO deprecation warning from the test
 client; it does not fail the suite.
 
-## Pending release verification
+## Render verification
 
-- Push and manually deploy the API and web changes on Render.
-- Verify live headers, preflight from the exact frontend origin, CSP, cold
-  start, public synthetic fallback, and the private-auth Neon smoke separately.
+- API deploy `dep-daf0ncv40ujc7392grl0` and web deploy
+  `dep-daf0o0id0e5s73aahf5g` are Live from commit `660b93b`.
+- Live HTTP checks returned API health 200, all defensive headers including
+  HSTS, an allowed preflight only for `https://noah-nvidia-web.onrender.com`,
+  and a rejected external-origin preflight (400).
+- The public web returned 200 with the CSP marker. The public bootstrap declared
+  `public_demo=true`, `public_ai.mode=scheduled`,
+  `public_ai.effective_mode=synthetic`, `external_effects=false`, and
+  `persistence=postgres-jsonb`.
+- Render build logs reported 0 npm vulnerabilities for the web bundle.
+
+## Remaining release verification
+
+- Repeat cold-start and full clean-browser smoke, plus the private-auth Neon
+  smoke separately, before the final freeze.
 - Keep the 2026-10-27 Nebius cutover and OpenCode2API deactivation as a later
   operator action; this baseline does not consume provider credit.
