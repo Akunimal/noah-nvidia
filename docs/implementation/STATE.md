@@ -337,6 +337,11 @@ Estado: **baseline de hardening desplegada y verificada en Render; cutover pendi
   valida localmente el repo, frontend, API, OpenAPI, smoke y secretos sin
   credenciales de proveedor. Con `--live` agrega solo GET/OPTIONS contra Render;
   no envía prompts ni mutaciones.
+- Ensayo de entrega 2026-09-07: `27 passed, 0 failed, 1 skipped`, incluyendo
+  Promptfoo local 15/15 y verificación live de health, headers, CORS, CSP,
+  bootstrap sintético, Neon y OpenAPI. El único skip fue `npm audit`, que no se
+  solicitó en esta corrida. Evidencia redactada:
+  `evidence/release-check.md`.
 
 - Mantener la URL pública accesible y gratuita; el cambio del proveedor no
   cierra la demo.
