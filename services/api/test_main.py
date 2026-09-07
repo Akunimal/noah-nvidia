@@ -568,6 +568,17 @@ def test_calendar_slots_use_business_timezone() -> None:
     assert "-04:00" in response.json()["slots"][0]["starts_at"]
 
 
+def test_runtime_date_defaults_do_not_drift_openapi() -> None:
+    response = client.get("/api/v1/calendar/find-slots", headers=AUTH)
+    assert response.status_code == 200
+    date_schema = next(
+        parameter["schema"]
+        for parameter in app.openapi()["paths"]["/api/v1/calendar/find-slots"]["get"]["parameters"]
+        if parameter["name"] == "date"
+    )
+    assert "default" not in date_schema
+
+
 def test_model_budget_blocks_new_call_without_non_nvidia_fallback(monkeypatch) -> None:
     from main import router
     from providers import ProviderResult

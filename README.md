@@ -176,6 +176,10 @@ cd services\api
 .venv\Scripts\python.exe -m py_compile main.py providers.py providers_nim.py policies\guardrails.py workflows\nvidia_workflow.py storage.py secrets_store.py connectors\gmail.py connectors\calendar.py
 # Optional offline Promptfoo contract evaluation (Node 22.22+)
 npm run eval:promptfoo:local
+
+# Reproducible release gate; add --live for safe Render GET/OPTIONS checks
+python scripts/release_check.py --local-only
+python scripts/release_check.py --live --promptfoo --write-evidence
 ```
 
 The tests cover tenant isolation, approval hash and replay behavior, run
@@ -187,6 +191,12 @@ The Promptfoo local suite uses only synthetic descriptions and a deterministic
 provider. It validates the canonical onboarding prompt and `onboarding.v1`
 schema without spending Nebius credit. Connected model evaluation is opt-in,
 budgeted, and must keep provider/model provenance separate.
+
+The release check clears provider, database, and external-effect credentials
+for local child processes. Its live mode sends only GET and OPTIONS requests to
+the public Render surfaces, validates health, security headers, exact CORS, CSP,
+public synthetic/NVIDIA routing markers, Neon persistence mode, and safe
+bootstrap output. It never sends a model prompt or records response bodies.
 
 ## Hackathon status and honest limits
 

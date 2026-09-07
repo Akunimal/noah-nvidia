@@ -279,6 +279,12 @@ def today() -> str:
     return datetime.now(timezone.utc).date().isoformat()
 
 
+def omit_runtime_default(schema: dict[str, Any]) -> None:
+    """Keep date default factories out of the generated OpenAPI contract."""
+
+    schema.pop("default", None)
+
+
 def default_onboarding_state() -> dict[str, Any]:
     return {
         "status": "not_started",
@@ -1670,7 +1676,7 @@ class LedgerCreate(BaseModel):
     category: str = Field(min_length=1, max_length=120)
     amount_minor: int = Field(ge=0, le=1_000_000_000)
     currency: str = Field(default="USD", min_length=3, max_length=3)
-    occurred_on: str = Field(default_factory=today)
+    occurred_on: str = Field(default_factory=today, json_schema_extra=omit_runtime_default)
     source_document_id: str | None = None
     status: Literal["proposed", "confirmed"] = "proposed"
 
@@ -1682,7 +1688,7 @@ class LedgerCreate(BaseModel):
 
 class PaymentCreate(BaseModel):
     amount_minor: int = Field(gt=0, le=1_000_000_000)
-    paid_on: str = Field(default_factory=today)
+    paid_on: str = Field(default_factory=today, json_schema_extra=omit_runtime_default)
     note: str = Field(default="", max_length=500)
 
 
@@ -2911,13 +2917,14 @@ async def list_calendar(tenant_id: str = Depends(tenant_from_auth)) -> list[dict
 
 @app.get("/api/v1/calendar/find-slots")
 async def find_calendar_slots(
-    date_value: str = Query(default=today(), alias="date"),
+    date_value: str | None = Query(default=None, alias="date"),
     duration_minutes: int = Query(default=60, ge=15, le=24 * 60),
     tenant_id: str = Depends(tenant_from_auth),
 ) -> dict[str, Any]:
     store = ensure_tenant(tenant_id)
+    requested_date = date_value or today()
     try:
-        day = datetime.fromisoformat(date_value).date()
+        day = datetime.fromisoformat(requested_date).date()
     except ValueError as exc:
         raise HTTPException(status_code=422, detail={"code": "DATE_INVALID"}) from exc
     busy: list[tuple[datetime, datetime]] = []

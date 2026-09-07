@@ -22,6 +22,30 @@
 - Do not place provider keys, OAuth tokens, database URLs, or reviewer BYOK
   values in the frontend bundle, Graphify output, logs, or evidence.
 
+## Reproducible release check
+
+Run the local gate before every commit or deploy:
+
+```powershell
+python scripts/release_check.py --local-only
+```
+
+For a release rehearsal, include the offline Promptfoo contract suite and the
+safe live Render checks:
+
+```powershell
+python scripts/release_check.py --live --promptfoo --require-clean --write-evidence
+```
+
+The local gate clears provider, database, and external-effect credentials in
+its child processes. Live mode performs only `GET` and `OPTIONS` requests; it
+does not send prompts, bearer tokens, provider keys, or mutation requests.
+The redacted result is written to
+`docs/implementation/evidence/release-check.md` only when
+`--write-evidence` is supplied. `--expected-public-mode synthetic` is useful
+before the scheduled window; use `nebius` only after the operator has
+deliberately opened the NVIDIA/Nemotron window.
+
 ## Provider and credit safety
 
 - Keep Nebius as the preferred provider and record the account, credit amount,

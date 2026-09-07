@@ -1610,8 +1610,9 @@ paths:
         in: query
         required: false
         schema:
-          type: string
-          default: '2026-09-06'
+          anyOf:
+          - type: string
+          - type: 'null'
           title: Date
       - name: duration_minutes
         in: query
@@ -2307,6 +2308,7 @@ components:
       properties:
         amount_minor:
           type: integer
+          maximum: 1000000000.0
           exclusiveMinimum: 0.0
           title: Amount Minor
         paid_on:

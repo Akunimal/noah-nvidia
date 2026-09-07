@@ -333,6 +333,10 @@ Estado: **baseline de hardening desplegada y verificada en Render; cutover pendi
   rechazo de origen externo, CSP, bootstrap público sintético, efectos externos
   apagados y persistencia `postgres-jsonb`.
 - Evidencia: `evidence/gate-8-hardening.md`.
+- El gate reproducible quedó automatizado en `scripts/release_check.py` y
+  valida localmente el repo, frontend, API, OpenAPI, smoke y secretos sin
+  credenciales de proveedor. Con `--live` agrega solo GET/OPTIONS contra Render;
+  no envía prompts ni mutaciones.
 
 - Mantener la URL pública accesible y gratuita; el cambio del proveedor no
   cierra la demo.
