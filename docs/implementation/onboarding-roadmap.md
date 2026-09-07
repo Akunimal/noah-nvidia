@@ -374,7 +374,7 @@ sintético NVIDIA-only.
 | 5 | Prueba de lado a lado | Navegador limpio: demo, onboarding, edición, confirmación, skip y aislamiento; evidencia guardada | **Cerrada · Render público verificado** |
 | 6 | Tour guiado | Anchors declarativos, teclado/reduced motion y persistencia posterior a onboarding | **Cerrada · local + Render live** |
 | 7 | Evaluación de proveedor | Harness local y conexión Promptfoo 15/15; modelo/proveedor documentados por separado; diferencia de pesos OpenCode2API explícita; evidencia redactada | **Cerrada para Nebius · sin paridad de pesos OpenCode2API** |
-| 8 | Cutover y hardening del reviewer | URL abierta, Nebius efectivo desde el 2026-10-27, OpenCode2API desactivado, cuotas/fallback/CORS/cold start verificados | Pendiente |
+| 8 | Cutover y hardening del reviewer | URL abierta, Nebius efectivo desde el 2026-10-27, OpenCode2API desactivado, cuotas/fallback/CORS/cold start verificados | **En progreso · baseline local** |
 | 9 | Entrega y freeze | README, Devpost, video público menor a 3 minutos, licencia, instrucciones de prueba, Graphify y release reproducible | Pendiente |
 
 El orden deja el tour para el final y permite testear el flujo completo antes

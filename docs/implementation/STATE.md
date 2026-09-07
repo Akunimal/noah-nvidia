@@ -320,7 +320,14 @@ Estado: **cerrado para la ruta conectada Nebius/NVIDIA Nemotron; sin afirmación
 
 ### Gate 8 — Cutover público y hardening
 
-Estado: **programado para 2026-10-27**.
+Estado: **baseline de hardening cerrada en local; deploy manual pendiente**.
+
+- El baseline local agrega CORS por origen exacto sin wildcard ni credenciales,
+  headers defensivos/no-store en el API, CSP restrictiva en el frontend, límite
+  global de request body y claves de idempotencia acotadas.
+- La verificación local quedó en 57 pruebas Python, typecheck, lint, build,
+  compilación Python y `git diff --check`, sin claves ni datos privados.
+- Evidencia: `evidence/gate-8-hardening.md`.
 
 - Mantener la URL pública accesible y gratuita; el cambio del proveedor no
   cierra la demo.

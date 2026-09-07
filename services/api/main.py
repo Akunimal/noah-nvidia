@@ -24,13 +24,14 @@ from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlsplit
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse, Response
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field, field_validator
 from starlette.concurrency import run_in_threadpool
@@ -99,6 +100,10 @@ ROOT = Path(__file__).resolve().parents[2]
 FIXTURE_PATH = ROOT / "fixtures" / "atlas.json"
 MAX_DOCUMENT_BYTES = 5 * 1024 * 1024
 MAX_DOCUMENT_PAGES = 10
+DEFAULT_MAX_REQUEST_BYTES = 8 * 1024 * 1024
+MAX_CONFIGURED_REQUEST_BYTES = 16 * 1024 * 1024
+MAX_IDEMPOTENCY_KEY_LENGTH = 200
+IDEMPOTENCY_KEY_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,199}")
 RUN_LEASE_SECONDS = 45
 PUBLIC_AI_MODES = {"synthetic", "scheduled", "nebius"}
 PUBLIC_AI_OPEN_AT_DEFAULT = "2026-10-27T17:00:00Z"
@@ -113,6 +118,62 @@ PUBLIC_MODEL_BUDGETS: dict[str, dict[str, Any]] = {
 }
 PUBLIC_MODEL_BUDGET_SIGNATURES: dict[str, int | None] = {"nebius": None, "byok": None}
 
+DEFAULT_CORS_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+
+def configured_cors_origins() -> list[str]:
+    """Return exact browser origins, never a wildcard or a path-bearing URL."""
+
+    raw_value = os.getenv("NOAH_CORS_ORIGINS")
+    candidates = raw_value.split(",") if raw_value is not None else DEFAULT_CORS_ORIGINS
+    origins: list[str] = []
+    for raw_origin in candidates:
+        origin = raw_origin.strip().rstrip("/")
+        if not origin or origin == "*" or "*" in origin:
+            continue
+        parsed = urlsplit(origin)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.netloc
+            or parsed.path
+            or parsed.query
+            or parsed.fragment
+            or parsed.username
+            or parsed.password
+        ):
+            continue
+        origins.append(origin)
+    # Invalid CORS configuration fails closed to local development origins.
+    # A production deployment must explicitly provide its frontend origin.
+    return origins or list(DEFAULT_CORS_ORIGINS)
+
+
+def configured_max_request_bytes() -> int:
+    """Resolve a bounded request cap; invalid values never disable the cap."""
+
+    try:
+        requested = int(os.getenv("NOAH_MAX_REQUEST_BYTES", str(DEFAULT_MAX_REQUEST_BYTES)))
+    except (TypeError, ValueError):
+        requested = DEFAULT_MAX_REQUEST_BYTES
+    if requested <= 0:
+        return DEFAULT_MAX_REQUEST_BYTES
+    return min(requested, MAX_CONFIGURED_REQUEST_BYTES)
+
+
+def request_limit_response(limit: int) -> JSONResponse:
+    return JSONResponse(
+        status_code=413,
+        content={"detail": {"code": "REQUEST_BODY_TOO_LARGE", "max_bytes": limit}},
+    )
+
+
+def invalid_content_length_response() -> JSONResponse:
+    return JSONResponse(
+        status_code=400,
+        content={"detail": {"code": "REQUEST_CONTENT_LENGTH_INVALID"}},
+    )
+
+
 app = FastAPI(
     title="Noah Nvidia API",
     version="0.2.0",
@@ -121,14 +182,8 @@ app = FastAPI(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        origin.strip()
-        for origin in os.getenv(
-            "NOAH_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
-        ).split(",")
-        if origin.strip()
-    ],
-    allow_credentials=True,
+    allow_origins=configured_cors_origins(),
+    allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=[
         "Authorization",
@@ -173,6 +228,47 @@ async def persist_tenant_state(request, call_next):
                         await run_in_threadpool(persistence.save_tenant, tenant_id, snapshot)
         finally:
             REQUEST_TENANTS.reset(request_token)
+
+
+@app.middleware("http")
+async def security_headers_and_request_limits(request: Request, call_next):
+    """Apply response hardening and reject oversized/chunked request bodies."""
+
+    limit = configured_max_request_bytes()
+    raw_content_length = request.headers.get("content-length")
+    if raw_content_length is not None:
+        try:
+            content_length = int(raw_content_length)
+        except (TypeError, ValueError):
+            return invalid_content_length_response()
+        if content_length < 0:
+            return invalid_content_length_response()
+        if content_length > limit:
+            return request_limit_response(limit)
+    elif request.method in {"POST", "PUT", "PATCH"}:
+        # Render normally receives Content-Length, but cap chunked requests too.
+        # FastAPI can still parse the body because Request.body() reuses _body.
+        chunks: list[bytes] = []
+        received = 0
+        async for chunk in request.stream():
+            received += len(chunk)
+            if received > limit:
+                return request_limit_response(limit)
+            chunks.append(chunk)
+        request._body = b"".join(chunks)
+
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
+    response.headers.setdefault("X-Robots-Tag", "noindex, nofollow, noarchive")
+    response.headers.setdefault("Cache-Control", "no-store")
+    response.headers.setdefault("Pragma", "no-cache")
+    if request.url.scheme == "https":
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return response
 
 
 def now() -> str:
@@ -1331,7 +1427,22 @@ def record_audit(
     )
 
 
+def normalize_optional_idempotency_key(key: str | None) -> str | None:
+    """Bound optional replay keys before they can become tenant-state keys."""
+
+    normalized = (key or "").strip()
+    if not normalized:
+        return None
+    if len(normalized) > MAX_IDEMPOTENCY_KEY_LENGTH or not IDEMPOTENCY_KEY_PATTERN.fullmatch(normalized):
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "IDEMPOTENCY_KEY_INVALID"},
+        )
+    return normalized
+
+
 def idempotent_response(store: dict[str, Any], key: str | None, payload: Any) -> dict[str, Any] | None:
+    key = normalize_optional_idempotency_key(key)
     if not key:
         return None
     fingerprint = hashlib.sha256(
@@ -1347,6 +1458,7 @@ def idempotent_response(store: dict[str, Any], key: str | None, payload: Any) ->
 
 
 def save_idempotent(store: dict[str, Any], key: str | None, response: dict[str, Any]) -> None:
+    key = normalize_optional_idempotency_key(key)
     if key and key in store["idempotency"]:
         store["idempotency"][key]["response"] = deepcopy(response)
 
@@ -1569,7 +1681,7 @@ class LedgerCreate(BaseModel):
 
 
 class PaymentCreate(BaseModel):
-    amount_minor: int = Field(gt=0)
+    amount_minor: int = Field(gt=0, le=1_000_000_000)
     paid_on: str = Field(default_factory=today)
     note: str = Field(default="", max_length=500)
 
@@ -1599,12 +1711,18 @@ def public_onboarding_state(store: dict[str, Any]) -> dict[str, Any]:
 
 def require_onboarding_idempotency_key(key: str | None) -> str:
     normalized = (key or "").strip()
-    if not normalized or len(normalized) > 200:
+    if not normalized:
         raise HTTPException(
             status_code=400,
             detail={"code": "ONBOARDING_IDEMPOTENCY_KEY_REQUIRED"},
         )
-    return normalized
+    try:
+        return normalize_optional_idempotency_key(normalized) or ""
+    except HTTPException as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "ONBOARDING_IDEMPOTENCY_KEY_INVALID"},
+        ) from exc
 
 
 def discard_pending_idempotency(store: dict[str, Any], key: str) -> None:

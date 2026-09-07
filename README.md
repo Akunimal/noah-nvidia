@@ -127,6 +127,12 @@ never stores or logs the key. Each browser gets an opaque ephemeral playground
 id; Google OAuth, external effects, and visitor writes to Neon remain off.
 Keep `NOAH_PUBLIC_DEMO=false` for a private deployment.
 
+The deployed API is hardened with exact-origin CORS (no wildcard), no-store
+responses, defensive security headers, a bounded request body, and bounded
+idempotency keys. The frontend ships a restrictive CSP that permits only its
+own bundle, the declared Render API, loopback development API, and the two
+Google Fonts origins used by the visual system.
+
 Uploaded documents stay server-side; the browser receives metadata only. Text
 files can be indexed when NVIDIA embeddings are configured, while image pages
 remain in human review until the Nemotron Parse endpoint is configured. Quote

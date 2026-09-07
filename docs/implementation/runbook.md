@@ -9,6 +9,19 @@
 4. If the API is waking from free-tier sleep, wait or retry. Do not generate
    artificial traffic to keep it alive.
 
+## Hardening baseline
+
+- Keep `NOAH_CORS_ORIGINS` as a comma-separated list of exact browser origins;
+  never use `*`, credentials, paths, query strings, or embedded user info.
+- Keep the default `NOAH_MAX_REQUEST_BYTES=8388608` unless a reviewed Render
+  setting is needed. Values above 16 MiB are capped and invalid/zero values
+  fall back to the default; document uploads still cap raw content at 5 MiB.
+- Verify the API responses include `X-Content-Type-Options`, `X-Frame-Options`,
+  `Referrer-Policy`, `Permissions-Policy`, `Cache-Control: no-store`, and
+  `X-Robots-Tag`. HTTPS responses must also include HSTS.
+- Do not place provider keys, OAuth tokens, database URLs, or reviewer BYOK
+  values in the frontend bundle, Graphify output, logs, or evidence.
+
 ## Provider and credit safety
 
 - Keep Nebius as the preferred provider and record the account, credit amount,

@@ -8,6 +8,74 @@ client = TestClient(app)
 AUTH = {"Authorization": "Bearer demo-owner"}
 
 
+def test_api_security_headers_and_exact_cors_policy(monkeypatch) -> None:
+    from main import configured_cors_origins
+
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert response.headers["permissions-policy"] == "camera=(), microphone=(), geolocation=()"
+    assert response.headers["x-permitted-cross-domain-policies"] == "none"
+    assert response.headers["x-robots-tag"] == "noindex, nofollow, noarchive"
+    assert response.headers["cache-control"] == "no-store"
+    assert "strict-transport-security" not in response.headers
+
+    secure_response = TestClient(app, base_url="https://testserver").get("/health")
+    assert secure_response.headers["strict-transport-security"] == "max-age=31536000; includeSubDomains"
+
+    preflight = client.options(
+        "/health",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert preflight.status_code == 200
+    assert preflight.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert "access-control-allow-credentials" not in preflight.headers
+
+    blocked = client.options(
+        "/health",
+        headers={
+            "Origin": "https://not-noah.example",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert blocked.status_code == 400
+    assert "access-control-allow-origin" not in blocked.headers
+
+    monkeypatch.setenv(
+        "NOAH_CORS_ORIGINS",
+        "*, https://noah-nvidia-web.onrender.com/app, https://noah-nvidia-web.onrender.com/",
+    )
+    assert configured_cors_origins() == ["https://noah-nvidia-web.onrender.com"]
+
+
+def test_request_body_limit_rejects_oversized_declared_length() -> None:
+    from main import configured_max_request_bytes
+
+    response = client.request(
+        "POST",
+        "/health",
+        headers={"Content-Length": str(configured_max_request_bytes() + 1)},
+        content=b"",
+    )
+    assert response.status_code == 413
+    assert response.json()["detail"]["code"] == "REQUEST_BODY_TOO_LARGE"
+
+
+def test_idempotency_key_rejects_control_characters() -> None:
+    response = client.post(
+        "/api/v1/conversations/demo/messages",
+        headers={**AUTH, "Idempotency-Key": "bad key"},
+        json={"message": "Summarize the current workspace"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "IDEMPOTENCY_KEY_INVALID"
+
+
 def test_health_and_bootstrap_are_available() -> None:
     assert client.get("/health").status_code == 200
     response = client.get("/api/v1/bootstrap", headers=AUTH)

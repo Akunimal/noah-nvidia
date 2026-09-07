@@ -58,6 +58,14 @@ send, freebusy, create, update, and delete boundaries.
 artifact. Document uploads are bounded at 5 MB and ten PDF pages; image uploads
 stay in review until the configured NVIDIA Nemotron Parse adapter extracts text.
 
+The API rejects wildcard or path-bearing CORS origins and accepts only the
+explicit browser origins in `NOAH_CORS_ORIGINS`. It also applies defensive
+security headers, disables credentialed cross-origin requests, caps request
+bodies at 8 MiB by default, and bounds idempotency keys before they enter a
+tenant snapshot. Set `NOAH_MAX_REQUEST_BYTES` only within the documented
+positive range up to 16 MiB; document uploads still enforce their own 5 MiB
+raw content limit.
+
 ## Checks
 
 ```powershell
