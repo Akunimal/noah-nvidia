@@ -6,11 +6,10 @@
 
 - Repositorio: `Akunimal/noah-nvidia`
 - Rama: `main`
-- Código funcional live verificado: baseline Render `660b93b`; deploy manual
-  del API `dep-daf0ncv40ujc7392grl0` y del frontend
-  `dep-daf0o0id0e5s73aahf5g`. Los commits más recientes de `main` quedan
-  pendientes de deploy manual y no se presentan como live hasta repetir el
-  gate.
+- Código funcional live verificado: `b086e38`; deploy manual del API
+  `dep-daf8ha2d0e5s73ba2skg` y del frontend `dep-daf8ipv40ujc73a53lrg`, ambos
+  `Deploy succeeded | Live`. Todo commit posterior requiere otro deploy
+  manual y el gate antes de presentarse como live.
 - Despliegue: manual; Auto-Deploy está en `Off` en API y frontend; Vercel queda
   fuera del flujo.
 - Backend live: `https://noah-nvidia-api.onrender.com` (Render Web Service, plan Free).
@@ -125,7 +124,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 
 | Área | Estado | Evidencia |
 |---|---|---|
-| API determinista | OK | 54 tests Python pasan con Python 3.12 y las versiones fijadas |
+| API determinista | OK | 62 tests Python pasan con Python 3.12 y las versiones fijadas |
 | Frontend | OK | typecheck, lint, Vitest y build pasan |
 | Onboarding shell | OK en local | 6 Vitest; `components/OnboardingWizard.tsx`; evidencia en `evidence/phase-2-wizard-shell.md` |
 | Onboarding extraction | OK local + API Render | `POST /api/v1/onboarding/extract`, pruebas de Nebius/errores/aislamiento y ventana/BYOK pública; `/openapi.json` se regenera; smoke privado pendiente de bearer no-demo; evidencia en `evidence/phase-3-nebius-extraction.md` |
@@ -143,7 +142,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Public AI release guard | OK local + live público | API `dep-daevpi8n74is73fn868g` live desde `15dd751`; bootstrap declara `mode=scheduled`, `effective_mode=synthetic`, `credit_state=synthetic` y `remaining_calls=20`; panel público visible sin consumir crédito |
 | Reviewer UI language | OK local + live público | La superficie visible del reviewer, el wizard, el panel NVIDIA/BYOK y los mensajes públicos de la API están en inglés; la entrada libre conserva soporte multilingüe |
 | Evaluación Promptfoo | Gate 7 cerrado para Nebius conectado | Local y API conectada: 15/15, 0 errores; provenance `nebius` + `nvidia/nemotron-3-super-120b-a12b`, guardrail 400 esperado y efectos externos desactivados; evidencia redactada en `evidence/promptfoo-local.md` y `evidence/promptfoo-api.md`; no se afirma paridad de pesos con el alias OpenCode2API |
-| Graphify | Actualizado 2026-09-06 | `graphify-out/graph.json` regenerado con 1003 nodos, 1739 enlaces y 84 comunidades; integridad fallback: 0 endpoints faltantes y 0 self-loops; `graphify-out` permanece ignorado |
+| Graphify | Actualizado 2026-09-07 | `graphify-out/graph.json` regenerado con 1140 nodos, 2002 enlaces y 103 comunidades; diagnóstico sin endpoints faltantes, enlaces colgantes, self-loops ni duplicados; solo queda el warning opcional de `tree_sitter_sql`; `graphify-out` permanece ignorado |
 | Cutover público 2026-10-27 | Programado | Mantener la URL abierta, confirmar Nebius/Nemotron efectivo, mantener OpenCode2API desactivado y repetir smoke limpio con fallback y cuotas |
 | Paquete de entrega y freeze | Pendiente | README/Devpost/video/instrucciones en inglés, licencia, evidencia redactada, Graphify actualizado y release reproducible |
 | Google OAuth | OK — lectura verificada | Consentimiento real, callback, token cifrado y sync de lectura verificados con `gesecseguridad@gmail.com`; efectos externos siguen apagados |
@@ -328,8 +327,8 @@ Estado: **baseline y smoke de navegador verificados; cutover pendiente**.
   global de request body y claves de idempotencia acotadas.
 - La verificación local quedó en 62 pruebas Python, typecheck, lint, build,
   compilación Python y `git diff --check`, sin claves ni datos privados.
-- Deploy API: `dep-daf0ncv40ujc7392grl0`; deploy web:
-  `dep-daf0o0id0e5s73aahf5g`; ambos Live desde `660b93b`.
+- Deploy API: `dep-daf8ha2d0e5s73ba2skg`; deploy web:
+  `dep-daf8ipv40ujc73a53lrg`; ambos Live desde `b086e38`.
 - La verificación HTTP live confirmó headers defensivos, CORS exacto con
   rechazo de origen externo, CSP, bootstrap público sintético, efectos externos
   apagados y persistencia `postgres-jsonb`.
@@ -343,6 +342,10 @@ Estado: **baseline y smoke de navegador verificados; cutover pendiente**.
   bootstrap sintético, Neon, OpenAPI y `npm audit` sin vulnerabilidades.
   Evidencia redactada:
   `evidence/release-check.md`.
+- Deploy manual final del baseline publicado: API y frontend desde `b086e38`,
+  ambos `Deploy succeeded | Live` en Render. El gate se repitió después del
+  despliegue y volvió a dar `28 passed, 0 failed, 0 skipped`; no hizo llamadas
+  de proveedor ni mutaciones live.
 - Smoke de navegador limpio 2026-09-07: sesión Chrome nueva sobre la URL
   pública; se verificaron copy en inglés, banner synthetic programado, warning
   de skip, carga de Atlas ficticio, entrada al playground, guided tour y
@@ -441,9 +444,10 @@ Estado: **paquete en inglés redactado; video, envío y freeze pendientes**.
 ## Próximo paso exacto
 
 La demo es entregable con Neon Free server-only y el slice OAuth de lectura
-está verificado. Gate 8 tiene hardening, pruebas deterministas y smoke de
-navegador cerrados; queda el cutover futuro del 2026-10-27. Gate 9 tiene el
-paquete en inglés redactado; faltan video, envío, deploy manual final y freeze.
+está verificado. Gate 8 tiene hardening, pruebas deterministas, smoke de
+navegador y deploy manual final cerrados; queda el cutover futuro del
+2026-10-27. Gate 9 tiene el paquete en inglés redactado; faltan video, envío
+y freeze.
 El smoke de un tenant privado con bearer válido queda como verificación
 separada de Neon; no se habilitan planes pagos, Supabase, Vercel ni efectos
 externos.
