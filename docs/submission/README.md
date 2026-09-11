@@ -1,6 +1,6 @@
 # Noah Nvidia — hackathon delivery pack
 
-Status: working delivery materials, updated 2026-09-07. This folder is safe to
+Status: working delivery materials, updated 2026-09-11. This folder is safe to
 publish with the repository: it contains no API keys, OAuth tokens, database
 URLs, private prompts, connected model responses, or real customer data.
 
@@ -38,9 +38,11 @@ provenance envelope; it is not a third provider.
 2. Link the live Render frontend and API health surface.
 3. Record the English demo using the script in
    [`demo-script.md`](demo-script.md), keeping it under three minutes.
-4. Give reviewers the reproducible steps in
+4. Follow the shot list and release safeguards in
+   [`video-plan.md`](video-plan.md).
+5. Give reviewers the reproducible steps in
    [`reviewer-guide.md`](reviewer-guide.md).
-5. Fill the operator-only fields in
+6. Fill the operator-only fields in
    [`../implementation/evidence/gate-9-submission.md`](../implementation/evidence/gate-9-submission.md)
    only after the final manual deploy and rehearsal.
 

@@ -1,6 +1,6 @@
 # Noah Nvidia — estado y roadmap operativo
 
-> Fuente de verdad operativa para continuar sin drift. Actualizado: 2026-09-07.
+> Fuente de verdad operativa para continuar sin drift. Actualizado: 2026-09-11.
 
 ## Baseline congelado
 
@@ -142,7 +142,7 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Public AI release guard | OK local + live público | API `dep-daevpi8n74is73fn868g` live desde `15dd751`; bootstrap declara `mode=scheduled`, `effective_mode=synthetic`, `credit_state=synthetic` y `remaining_calls=20`; panel público visible sin consumir crédito |
 | Reviewer UI language | OK local + live público | La superficie visible del reviewer, el wizard, el panel NVIDIA/BYOK y los mensajes públicos de la API están en inglés; la entrada libre conserva soporte multilingüe |
 | Evaluación Promptfoo | Gate 7 cerrado para Nebius conectado | Local y API conectada: 15/15, 0 errores; provenance `nebius` + `nvidia/nemotron-3-super-120b-a12b`, guardrail 400 esperado y efectos externos desactivados; evidencia redactada en `evidence/promptfoo-local.md` y `evidence/promptfoo-api.md`; no se afirma paridad de pesos con el alias OpenCode2API |
-| Graphify | Actualizado 2026-09-07 | `graphify-out/graph.json` regenerado con 1140 nodos, 2002 enlaces y 103 comunidades; diagnóstico sin endpoints faltantes, enlaces colgantes, self-loops ni duplicados; solo queda el warning opcional de `tree_sitter_sql`; `graphify-out` permanece ignorado |
+| Graphify | Actualizado 2026-09-11 | `graphify-out/graph.json` regenerado con 1147 nodos, 2036 enlaces y 109 comunidades; sin endpoints faltantes, enlaces colgantes ni duplicados; el único self-loop extraído es la recursión intencional de `remap_fixture_tenant_ids` en `services/api/main.py:L986`; solo queda además el warning opcional de `tree_sitter_sql`; `graphify-out` permanece ignorado |
 | Cutover público 2026-10-27 | Programado | Mantener la URL abierta, confirmar Nebius/Nemotron efectivo, mantener OpenCode2API desactivado y repetir smoke limpio con fallback y cuotas |
 | Paquete de entrega y freeze | Pendiente | README/Devpost/video/instrucciones en inglés, licencia, evidencia redactada, Graphify actualizado y release reproducible |
 | Google OAuth | OK — lectura verificada | Consentimiento real, callback, token cifrado y sync de lectura verificados con `gesecseguridad@gmail.com`; efectos externos siguen apagados |
@@ -370,9 +370,9 @@ Estado: **baseline y smoke de navegador verificados; cutover pendiente**.
 
 ### Gate 9 — Paquete de entrega y freeze
 
-Estado: **paquete en inglés redactado; video, envío y freeze pendientes**.
+Estado: **paquete y plan de video en inglés redactados; grabación, envío y freeze pendientes**.
 
-- El README, la guía de reviewer y el guion de video están en
+- El README, la guía de reviewer, el guion y el plan de video están en
   [`docs/submission/`](../submission/README.md); el video debe durar menos de
   tres minutos.
 - Confirmar repositorio público, licencia open source, URL live y explicación

@@ -13,8 +13,8 @@ the boundary.
 
 The English hackathon delivery materials are collected in the
 [submission pack](docs/submission/README.md). It contains the reviewer guide,
-short demo script, honest provider/cost limits, and the final operator-only
-checklist without any secret values.
+short demo script, video production plan, honest provider/cost limits, and the
+final operator-only checklist without any secret values.
 
 ## Implemented vertical slice
 

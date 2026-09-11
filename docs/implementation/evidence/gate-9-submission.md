@@ -14,6 +14,8 @@ prompts, connected response dumps, or customer data.
 - [x] Reviewer guide covers a clean-browser synthetic path and the honest
       connected/BYOK alternatives.
 - [x] Demo script is English and designed for less than three minutes.
+- [x] Video plan maps the script to the judging criteria, capture safeguards,
+      provider disclosures, and final Devpost fields.
 - [x] Cutover policy is documented: 2026-10-27 17:00 UTC through the official
       deadline window; quota exhaustion returns to synthetic mode.
 - [x] OpenCode2API is described as synthetic-only and disabled by the Render
