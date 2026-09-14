@@ -526,7 +526,7 @@ function App() {
           </div>
         </header>
 
-        <div className="page-content">
+        <div className={'page-content' + (onboardingVisible && workspaceMode === 'playground' ? ' onboarding-page-content' : '')}>
           {publicDemo && <PublicAiPanel status={publicAi} onConfigured={() => setReviewerConfigured(true)} onCleared={() => setReviewerConfigured(false)} />}
           {onboardingVisible && workspaceMode === 'playground' ? <OnboardingWizard businessName={businessName} publicDemo={publicDemo} publicAi={publicAi} reviewerConfigured={reviewerConfigured} onExtract={extractOnboarding} onComplete={completeOnboarding} onSkip={skipOnboarding} onExit={exitOnboarding} /> : <>
             {workspaceMode === 'demo' && <div className="workspace-banner demo"><ShieldCheck size={17} /><div><strong>Demo sandbox</strong><span>Atlas Services is synthetic fixture data for the video. No external effects are enabled.</span></div></div>}
