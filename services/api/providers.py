@@ -245,8 +245,12 @@ class ReviewerProvider(Provider):
                 {"role": "user", "content": prompt},
             ],
             "temperature": 0.1,
-            "max_tokens": 900,
+            "max_tokens": 1600 if self.name == "nebius" else 900,
         }
+        if self.name == "nebius":
+            # Keep reviewer BYOK aligned with the primary Nebius contract so
+            # onboarding receives JSON instead of provider-dependent prose.
+            payload["response_format"] = {"type": "json_object"}
         try:
             async with httpx.AsyncClient(timeout=45) as client:
                 response = await client.post(

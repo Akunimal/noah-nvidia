@@ -1324,6 +1324,10 @@ def _public_provider_error_code(result: ProviderResult, source: str) -> str:
         return "PUBLIC_NVIDIA_BYOK_NON_NVIDIA_MODEL"
     if _is_public_quota_error(result.error):
         return "PUBLIC_NVIDIA_BYOK_QUOTA"
+    if source == "byok" and result.error and result.error.startswith("HTTP_"):
+        # HTTP status is safe diagnostic metadata; the key and provider body
+        # are intentionally never returned to the browser.
+        return "PUBLIC_NVIDIA_BYOK_" + result.error
     return "PUBLIC_NVIDIA_BYOK_PROVIDER_ERROR"
 
 

@@ -239,3 +239,5 @@ def test_reviewer_nebius_transport_preserves_provider_result_without_key_in_resu
     assert result.error is None
     assert ReviewerGatewayHandler.request_headers["authorization"] == "Bearer " + reviewer_key
     assert ReviewerGatewayHandler.request_payload["model"] == "nvidia/nemotron-test"
+    assert ReviewerGatewayHandler.request_payload["response_format"] == {"type": "json_object"}
+    assert ReviewerGatewayHandler.request_payload["max_tokens"] == 1600

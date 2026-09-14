@@ -26,6 +26,7 @@ interface OnboardingWizardProps {
   businessName: string;
   publicDemo?: boolean;
   publicAi?: PublicAiStatus | null;
+  reviewerConfigured?: boolean;
   onExit: (decision: OnboardingDecision, draft?: OnboardingDraft, business?: OnboardingMutationResponse['business']) => void;
   onExtract: (text: string) => Promise<OnboardingExtractionResponse>;
   onComplete: (draft: OnboardingDraft, idempotencyKey: string) => Promise<OnboardingMutationResponse>;
@@ -56,6 +57,8 @@ function readableExtractionError(value: unknown): string {
   if (message.includes('PUBLIC_NVIDIA_NOT_CONFIGURED')) return 'The public instance has no server-side Nebius key available. You can use a temporary key or complete the JSON manually.';
   if (message.includes('PUBLIC_NVIDIA_CREDIT_LIMIT_NOT_CONFIGURED')) return 'The public instance has no credit limit configured. You can use a temporary key or complete the JSON manually.';
   if (message.includes('PUBLIC_NVIDIA_CREDIT_EXHAUSTED')) return 'The public instance\'s promotional credit is exhausted. You can use a temporary key or complete the JSON manually.';
+  if (message.includes('PUBLIC_NVIDIA_BYOK_HTTP_401') || message.includes('PUBLIC_NVIDIA_BYOK_HTTP_403')) return 'The temporary key was rejected by the selected provider. Check that the key belongs to this route and retry.';
+  if (message.includes('PUBLIC_NVIDIA_BYOK_HTTP_400') || message.includes('PUBLIC_NVIDIA_BYOK_HTTP_404') || message.includes('PUBLIC_NVIDIA_BYOK_HTTP_422')) return 'The selected provider rejected the Nemotron model or request format. Check the route and model, then retry.';
   if (message.includes('PUBLIC_NVIDIA_BYOK')) return 'The temporary key could not generate the draft. Check the route and Nemotron model, or complete the JSON manually.';
   if (message.includes('PUBLIC_DEMO_MODEL_INPUT_DISABLED')) return 'The public demo does not send visitor text to a model. You can complete the JSON manually; authenticated onboarding uses Nebius/NVIDIA.';
   if (message.includes('NEBIUS_NOT_CONFIGURED')) return 'Nebius is not configured for this environment. You can complete the JSON manually or retry when the key is available.';
@@ -84,7 +87,7 @@ function makeIdempotencyKey(prefix: string): string {
   return `${prefix}-${random}`;
 }
 
-export default function OnboardingWizard({ businessName, onExit, onExtract, onComplete, onSkip, publicDemo = false, publicAi = null }: OnboardingWizardProps) {
+export default function OnboardingWizard({ businessName, onExit, onExtract, onComplete, onSkip, publicDemo = false, publicAi = null, reviewerConfigured = false }: OnboardingWizardProps) {
   const [step, setStep] = useState<OnboardingStep>('welcome');
   const [narrative, setNarrative] = useState('');
   const [inventoryText, setInventoryText] = useState('');
@@ -237,7 +240,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
         <div className="onboarding-benefits">
           <div><span><ClipboardList size={15} /></span><div><strong>Natural language</strong><small>Write it as you would explain it to a person.</small></div></div>
           <div><span><Database size={15} /></span><div><strong>Reviewable JSON</strong><small>Name, activity, and optional inventory.</small></div></div>
-          <div><span><ShieldCheck size={15} /></span><div><strong>Human control</strong><small>Nebius only builds a draft; it does not save changes.</small></div></div>
+          <div><span><ShieldCheck size={15} /></span><div><strong>Human control</strong><small>{reviewerConfigured ? 'The selected NVIDIA route only builds a draft; it does not save changes.' : 'Nebius only builds a draft; it does not save changes.'}</small></div></div>
         </div>
         <div className="onboarding-actions">
           <button className="primary-button" type="button" onClick={beginDescription}>Start setup <Sparkles size={15} /></button>
@@ -259,7 +262,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
         <div className="onboarding-example"><Sparkles size={14} /><span>Helpful example: “We are…, we specialize in…, we work with…”</span><button className="text-button" type="button" onClick={() => setNarrative('We are North Workshop and maintain industrial equipment. We serve local factories and keep filters and pumps in stock.')}>Use example</button></div>
         {error && <p className="onboarding-error" role="alert">{error}</p>}
         {extractionError && <div className="onboarding-error-panel" role="alert"><p className="onboarding-error">{extractionError}</p><div className="onboarding-error-actions"><button className="outline-button" type="button" onClick={retryExtraction}>Retry extraction</button><button className="text-button" type="button" onClick={startManualReview}>Complete manually</button></div></div>}
-        <div className="onboarding-local-note"><ShieldCheck size={14} /><span>{publicDemo ? publicAi?.enabled ? 'Public demo: your text is sent to Nebius/NVIDIA to build a draft; no change is written until you confirm.' : 'Public demo: your text is not sent to a model while the NVIDIA route is closed or out of credit. You can use a temporary key or complete the draft manually.' : 'Your text is sent only to Nebius/NVIDIA. OpenCode2API is excluded from private onboarding, and no changes are written yet.'}</span></div>
+        <div className="onboarding-local-note"><ShieldCheck size={14} /><span>{publicDemo ? reviewerConfigured ? 'Reviewer BYOK: your text is sent only to the selected NVIDIA route to build a draft; no change is written until you confirm.' : publicAi?.enabled ? 'Public demo: your text is sent to Nebius/NVIDIA to build a draft; no change is written until you confirm.' : 'Public demo: your text is not sent to a model while the NVIDIA route is closed or out of credit. You can use a temporary key or complete the draft manually.' : 'Your text is sent only to Nebius/NVIDIA. OpenCode2API is excluded from private onboarding, and no changes are written yet.'}</span></div>
         <div className="onboarding-actions"><button className="outline-button" type="button" onClick={() => setStep('welcome')}><ArrowLeft size={15} /> Back</button><button className="primary-button" type="submit" disabled={narrative.trim().length < 12}>Build draft <Sparkles size={15} /></button></div>
       </form>
     );
