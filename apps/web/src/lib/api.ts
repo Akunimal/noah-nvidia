@@ -98,8 +98,21 @@ export interface PublicAiStatus {
   model?: string | null;
   opens_at?: string | null;
   deadline_at?: string | null;
-  credit_state: 'synthetic' | 'available' | 'unavailable' | 'exhausted' | 'closed';
+  credit_state: 'synthetic' | 'available' | 'unavailable' | 'exhausted' | 'provider_exhausted' | 'closed';
+  availability_state?: 'synthetic' | 'available' | 'internal_limit' | 'provider_exhausted' | 'temporary_unavailable' | 'closed';
   remaining_calls?: number;
+  remaining_daily_calls?: number;
+  usage?: {
+    consumed?: number;
+    reserved?: number;
+    limit?: number;
+    remaining_calls?: number;
+    daily_consumed?: number;
+    daily_reserved?: number;
+    daily_limit?: number;
+    remaining_daily_calls?: number;
+    provider_exhausted?: boolean;
+  };
   reviewer_byok_allowed: boolean;
   server_configured?: boolean;
   reason_code?: string;

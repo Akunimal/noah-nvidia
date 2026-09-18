@@ -60,18 +60,22 @@ deliberately opened the NVIDIA/Nemotron window.
 ## Public demo window
 
 - Keep `NOAH_PUBLIC_AI_MODE=scheduled` in Render. The checked-in release window
-  opens at `2026-10-27T17:00:00Z` and closes at `2026-10-30T17:00:00Z`, roughly
-  72 hours before the official deadline in the configured UTC schedule.
-- Set `NOAH_PUBLIC_MODEL_USAGE_LIMIT` conservatively (the release baseline is
-  20 calls). The server-funded counter is process-local so public visitors are
-  bounded without writing ephemeral traffic to Neon.
+  opens at `2026-10-27T17:00:00Z` and closes at `2026-12-16T00:00:00Z`, four
+  hours after the official judging period ends.
+- Set `NOAH_PUBLIC_MODEL_USAGE_LIMIT` and
+  `NOAH_PUBLIC_MODEL_DAILY_LIMIT` conservatively (the release baseline is 20
+  total and 5 per UTC day). Neon stores the consumed counters and active
+  reservations transactionally, so API restarts cannot restore calls. If Neon
+  is unavailable, the funded route fails closed.
 - If Nebius is missing, the promotion is exhausted, or the provider returns a
   quota response, leave the instance in synthetic fallback and verify that the
-  UI says so. Do not replace it with OpenCode2API or another model family.
-- The reviewer BYOK fallback is optional and capped separately by
-  `NOAH_PUBLIC_BYOK_USAGE_LIMIT` (baseline 5). It accepts only NVIDIA NIM or
-  Nebius and Nemotron model IDs. The browser sends only the key/provider/model;
-  the backend chooses the fixed destination and never persists or logs the key.
+  UI distinguishes provider exhaustion from the internal safety limit. Do not
+  replace it with OpenCode2API or another model family.
+- The reviewer BYOK fallback is available independently and capped per key by
+  `NOAH_PUBLIC_BYOK_USAGE_LIMIT` and `NOAH_PUBLIC_BYOK_DAILY_LIMIT` (baseline 5
+  total and 2 per UTC day). The browser sends only the key/provider/model; the
+  backend stores only a keyed fingerprint, chooses the fixed destination, and
+  never persists or logs the key.
 - To test the live route without spending credit, use a local mocked provider
   test. Do not move the public open time forward in Render unless the operator
   explicitly intends to consume promotional credit.

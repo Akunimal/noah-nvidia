@@ -243,9 +243,13 @@ function App() {
       ? 'Reviewer BYOK · NVIDIA/Nemotron'
       : publicAi?.enabled
         ? `${publicAi.model || runtimeModel} · Nebius`
-        : publicAi?.credit_state === 'exhausted'
-          ? 'Credit exhausted · synthetic fallback'
-          : 'Scheduled synthetic sandbox'
+        : publicAi?.availability_state === 'provider_exhausted' || publicAi?.credit_state === 'provider_exhausted'
+          ? 'Provider credit exhausted · synthetic fallback'
+          : publicAi?.availability_state === 'internal_limit' || publicAi?.credit_state === 'exhausted'
+            ? 'Safety limit reached · synthetic fallback'
+            : publicAi?.availability_state === 'temporary_unavailable' || publicAi?.credit_state === 'unavailable'
+              ? 'NVIDIA route unavailable · synthetic fallback'
+              : 'Scheduled synthetic sandbox'
     : primaryProviderConfigured
       ? `${runtimeModel} · Nebius`
       : freeProviderConfigured

@@ -16,9 +16,10 @@ from __future__ import annotations
 import json
 import os
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from threading import Lock
 from typing import Any
+from uuid import uuid4
 
 try:
     import psycopg
@@ -49,6 +50,48 @@ SCHEMA_STATEMENTS = (
     """
     CREATE INDEX IF NOT EXISTS noah_oauth_state_expires_at_idx
         ON noah_oauth_state (expires_at)
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS noah_public_usage_total (
+        source text NOT NULL,
+        bucket_key text NOT NULL,
+        consumed bigint NOT NULL DEFAULT 0,
+        provider_exhausted boolean NOT NULL DEFAULT false,
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (source, bucket_key),
+        CONSTRAINT noah_public_usage_total_nonnegative
+            CHECK (consumed >= 0)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS noah_public_usage_daily (
+        source text NOT NULL,
+        bucket_key text NOT NULL,
+        usage_date date NOT NULL,
+        consumed bigint NOT NULL DEFAULT 0,
+        updated_at timestamptz NOT NULL DEFAULT now(),
+        PRIMARY KEY (source, bucket_key, usage_date),
+        CONSTRAINT noah_public_usage_daily_nonnegative
+            CHECK (consumed >= 0)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS noah_public_usage_reservations (
+        reservation_id text PRIMARY KEY,
+        source text NOT NULL,
+        bucket_key text NOT NULL,
+        usage_date date NOT NULL,
+        status text NOT NULL DEFAULT 'reserved',
+        created_at timestamptz NOT NULL DEFAULT now(),
+        settled_at timestamptz,
+        consumed boolean NOT NULL DEFAULT false,
+        CONSTRAINT noah_public_usage_reservation_status
+            CHECK (status IN ('reserved', 'consumed', 'released', 'expired'))
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS noah_public_usage_reservations_active_idx
+        ON noah_public_usage_reservations (source, bucket_key, created_at)
     """,
 )
 
@@ -246,6 +289,308 @@ class PostgresTenantRepository:
         if expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
         return {"tenant_id": row[0], "code_verifier": row[1], "expires_at": expires_at}
+
+    @staticmethod
+    def _validate_public_usage_key(source: str, bucket_key: str) -> None:
+        if source not in {"nebius", "byok"}:
+            raise RuntimeError("PUBLIC_USAGE_SOURCE_UNSUPPORTED")
+        if not bucket_key or len(bucket_key) > 128 or any(ord(character) < 32 for character in bucket_key):
+            raise RuntimeError("PUBLIC_USAGE_BUCKET_INVALID")
+
+    @staticmethod
+    def _usage_date(current: datetime | None = None) -> date:
+        value = current or datetime.now(timezone.utc)
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc).date()
+
+    @staticmethod
+    def _usage_snapshot(
+        total_consumed: int,
+        total_reserved: int,
+        daily_consumed: int,
+        daily_reserved: int,
+        total_limit: int,
+        daily_limit: int,
+        provider_exhausted: bool,
+    ) -> dict[str, Any]:
+        return {
+            "consumed": total_consumed,
+            "reserved": total_reserved,
+            "limit": total_limit,
+            "remaining_calls": max(0, total_limit - total_consumed - total_reserved),
+            "daily_consumed": daily_consumed,
+            "daily_reserved": daily_reserved,
+            "daily_limit": daily_limit,
+            "remaining_daily_calls": max(0, daily_limit - daily_consumed - daily_reserved),
+            "provider_exhausted": provider_exhausted,
+        }
+
+    def public_usage_snapshot(
+        self,
+        source: str,
+        bucket_key: str,
+        total_limit: int,
+        daily_limit: int,
+        *,
+        current: datetime | None = None,
+        reservation_ttl_seconds: int = 900,
+    ) -> dict[str, Any]:
+        """Read durable public usage without exposing the bucket key."""
+
+        if not self.configured:
+            raise RuntimeError("PUBLIC_USAGE_STORE_NOT_CONFIGURED")
+        self._validate_public_usage_key(source, bucket_key)
+        usage_date = self._usage_date(current)
+        cutoff = (current or datetime.now(timezone.utc)) - timedelta(seconds=reservation_ttl_seconds)
+        self.ensure_schema()
+        try:
+            with self._connect() as connection:
+                connection.execute(
+                    """
+                    INSERT INTO noah_public_usage_total (source, bucket_key)
+                    VALUES (%s, %s)
+                    ON CONFLICT (source, bucket_key) DO NOTHING
+                    """,
+                    (source, bucket_key),
+                )
+                connection.execute(
+                    """
+                    INSERT INTO noah_public_usage_daily (source, bucket_key, usage_date)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (source, bucket_key, usage_date) DO NOTHING
+                    """,
+                    (source, bucket_key, usage_date),
+                )
+                total = connection.execute(
+                    """
+                    SELECT consumed, provider_exhausted
+                    FROM noah_public_usage_total
+                    WHERE source = %s AND bucket_key = %s
+                    """,
+                    (source, bucket_key),
+                ).fetchone()
+                daily = connection.execute(
+                    """
+                    SELECT consumed
+                    FROM noah_public_usage_daily
+                    WHERE source = %s AND bucket_key = %s AND usage_date = %s
+                    """,
+                    (source, bucket_key, usage_date),
+                ).fetchone()
+                pending_total = connection.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM noah_public_usage_reservations
+                    WHERE source = %s AND bucket_key = %s
+                      AND status = 'reserved' AND created_at >= %s
+                    """,
+                    (source, bucket_key, cutoff),
+                ).fetchone()
+                pending_daily = connection.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM noah_public_usage_reservations
+                    WHERE source = %s AND bucket_key = %s AND usage_date = %s
+                      AND status = 'reserved' AND created_at >= %s
+                    """,
+                    (source, bucket_key, usage_date, cutoff),
+                ).fetchone()
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            raise RuntimeError("PUBLIC_USAGE_STORE_READ_FAILED") from exc
+        if not total or not daily:
+            raise RuntimeError("PUBLIC_USAGE_STORE_INVALID")
+        return self._usage_snapshot(
+            int(total[0]),
+            int(pending_total[0] if pending_total else 0),
+            int(daily[0]),
+            int(pending_daily[0] if pending_daily else 0),
+            total_limit,
+            daily_limit,
+            bool(total[1]),
+        )
+
+    def reserve_public_usage(
+        self,
+        source: str,
+        bucket_key: str,
+        total_limit: int,
+        daily_limit: int,
+        *,
+        current: datetime | None = None,
+        reservation_ttl_seconds: int = 900,
+    ) -> tuple[dict[str, str] | None, str | None, dict[str, Any]]:
+        """Reserve one public model call atomically across processes."""
+
+        if not self.configured:
+            raise RuntimeError("PUBLIC_USAGE_STORE_NOT_CONFIGURED")
+        self._validate_public_usage_key(source, bucket_key)
+        usage_date = self._usage_date(current)
+        now = current or datetime.now(timezone.utc)
+        cutoff = now - timedelta(seconds=reservation_ttl_seconds)
+        empty = self._usage_snapshot(0, 0, 0, 0, total_limit, daily_limit, False)
+        if total_limit <= 0 or daily_limit <= 0:
+            return None, "PUBLIC_NVIDIA_INTERNAL_LIMIT", empty
+        self.ensure_schema()
+        try:
+            with self._connect() as connection:
+                connection.execute(
+                    """
+                    INSERT INTO noah_public_usage_total (source, bucket_key)
+                    VALUES (%s, %s)
+                    ON CONFLICT (source, bucket_key) DO NOTHING
+                    """,
+                    (source, bucket_key),
+                )
+                connection.execute(
+                    """
+                    INSERT INTO noah_public_usage_daily (source, bucket_key, usage_date)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (source, bucket_key, usage_date) DO NOTHING
+                    """,
+                    (source, bucket_key, usage_date),
+                )
+                total = connection.execute(
+                    """
+                    SELECT consumed, provider_exhausted
+                    FROM noah_public_usage_total
+                    WHERE source = %s AND bucket_key = %s
+                    FOR UPDATE
+                    """,
+                    (source, bucket_key),
+                ).fetchone()
+                daily = connection.execute(
+                    """
+                    SELECT consumed
+                    FROM noah_public_usage_daily
+                    WHERE source = %s AND bucket_key = %s AND usage_date = %s
+                    FOR UPDATE
+                    """,
+                    (source, bucket_key, usage_date),
+                ).fetchone()
+                pending_total = connection.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM noah_public_usage_reservations
+                    WHERE source = %s AND bucket_key = %s
+                      AND status = 'reserved' AND created_at >= %s
+                    """,
+                    (source, bucket_key, cutoff),
+                ).fetchone()
+                pending_daily = connection.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM noah_public_usage_reservations
+                    WHERE source = %s AND bucket_key = %s AND usage_date = %s
+                      AND status = 'reserved' AND created_at >= %s
+                    """,
+                    (source, bucket_key, usage_date, cutoff),
+                ).fetchone()
+                total_consumed = int(total[0] if total else 0)
+                daily_consumed = int(daily[0] if daily else 0)
+                active_total = int(pending_total[0] if pending_total else 0)
+                active_daily = int(pending_daily[0] if pending_daily else 0)
+                provider_exhausted = bool(total[1]) if total else False
+                usage = self._usage_snapshot(
+                    total_consumed,
+                    active_total,
+                    daily_consumed,
+                    active_daily,
+                    total_limit,
+                    daily_limit,
+                    provider_exhausted,
+                )
+                if provider_exhausted:
+                    return None, "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED", usage
+                if total_consumed + active_total >= total_limit or daily_consumed + active_daily >= daily_limit:
+                    return None, "PUBLIC_NVIDIA_INTERNAL_LIMIT", usage
+                reservation_id = "public-usage-" + uuid4().hex
+                connection.execute(
+                    """
+                    INSERT INTO noah_public_usage_reservations
+                        (reservation_id, source, bucket_key, usage_date, status, created_at)
+                    VALUES (%s, %s, %s, %s, 'reserved', %s)
+                    """,
+                    (reservation_id, source, bucket_key, usage_date, now),
+                )
+                usage = self._usage_snapshot(
+                    total_consumed,
+                    active_total + 1,
+                    daily_consumed,
+                    active_daily + 1,
+                    total_limit,
+                    daily_limit,
+                    provider_exhausted,
+                )
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            raise RuntimeError("PUBLIC_USAGE_STORE_RESERVE_FAILED") from exc
+        return {"id": reservation_id, "source": source, "bucket_key": bucket_key, "usage_date": usage_date.isoformat()}, None, usage
+
+    def settle_public_usage(self, reservation_id: str, consumed: bool, *, provider_exhausted: bool = False) -> None:
+        """Settle a durable reservation exactly once."""
+
+        if not self.configured:
+            return
+        self.ensure_schema()
+        try:
+            with self._connect() as connection:
+                row = connection.execute(
+                    """
+                    SELECT source, bucket_key, usage_date
+                    FROM noah_public_usage_reservations
+                    WHERE reservation_id = %s AND status = 'reserved'
+                    FOR UPDATE
+                    """,
+                    (reservation_id,),
+                ).fetchone()
+                if not row:
+                    return
+                source, bucket_key, usage_date = row
+                status = "consumed" if consumed else "released"
+                connection.execute(
+                    """
+                    UPDATE noah_public_usage_reservations
+                    SET status = %s, consumed = %s, settled_at = now()
+                    WHERE reservation_id = %s
+                    """,
+                    (status, consumed, reservation_id),
+                )
+                if consumed:
+                    connection.execute(
+                        """
+                        UPDATE noah_public_usage_total
+                        SET consumed = consumed + 1,
+                            provider_exhausted = provider_exhausted OR %s,
+                            updated_at = now()
+                        WHERE source = %s AND bucket_key = %s
+                        """,
+                        (provider_exhausted, source, bucket_key),
+                    )
+                    connection.execute(
+                        """
+                        UPDATE noah_public_usage_daily
+                        SET consumed = consumed + 1, updated_at = now()
+                        WHERE source = %s AND bucket_key = %s AND usage_date = %s
+                        """,
+                        (source, bucket_key, usage_date),
+                    )
+                elif provider_exhausted:
+                    connection.execute(
+                        """
+                        UPDATE noah_public_usage_total
+                        SET provider_exhausted = true, updated_at = now()
+                        WHERE source = %s AND bucket_key = %s
+                        """,
+                        (source, bucket_key),
+                    )
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            raise RuntimeError("PUBLIC_USAGE_STORE_SETTLE_FAILED") from exc
 
 
 def persistence_manifest(repository: PostgresTenantRepository | None = None) -> dict[str, Any]:

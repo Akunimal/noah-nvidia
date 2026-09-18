@@ -19,12 +19,14 @@ URLs, private prompts, connected model responses, or real customer data.
 - Official deadline recorded by the project: **2026-10-30 10:00 PDT / 14:00
   ART**
 
-The planned public AI window is **2026-10-27 17:00 UTC through 2026-10-30
-17:00 UTC**. Before the window, the public URL remains a bounded synthetic
+The planned public AI window is **2026-10-27 17:00 UTC through 2026-12-16
+00:00 UTC**. Before the window, the public URL remains a bounded synthetic
 sandbox. During the window, it may use a server-funded Nebius/NVIDIA Nemotron
-route only when the private key and the process-local credit limit are
+route only when the private key and the durable Neon usage limits are
 available. If the credit is missing, exhausted, or returns a quota error, the
-same URL stays usable with a clearly labeled deterministic sandbox.
+same URL stays usable with a clearly labeled deterministic sandbox. Reviewers
+can use the separate BYOK path with their own NVIDIA Nemotron key, subject to
+per-key limits, without exposing or storing the key.
 
 OpenCode2API is present only as an operator-supplied, synthetic NVIDIA
 Nemotron transport for local evaluation. It is not an NVIDIA product, does not

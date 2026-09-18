@@ -56,7 +56,9 @@ function readableExtractionError(value: unknown): string {
   if (message.includes('PUBLIC_NVIDIA_WINDOW_CLOSED')) return 'The public NVIDIA/Nemotron window has closed. You can use a temporary key or complete the JSON manually.';
   if (message.includes('PUBLIC_NVIDIA_NOT_CONFIGURED')) return 'The public instance has no server-side Nebius key available. You can use a temporary key or complete the JSON manually.';
   if (message.includes('PUBLIC_NVIDIA_CREDIT_LIMIT_NOT_CONFIGURED')) return 'The public instance has no credit limit configured. You can use a temporary key or complete the JSON manually.';
-  if (message.includes('PUBLIC_NVIDIA_CREDIT_EXHAUSTED')) return 'The public instance\'s promotional credit is exhausted. You can use a temporary key or complete the JSON manually.';
+  if (message.includes('PUBLIC_NVIDIA_PROVIDER_EXHAUSTED')) return 'The provider reported exhausted promotional credit. You can use a temporary key or complete the JSON manually.';
+  if (message.includes('PUBLIC_NVIDIA_INTERNAL_LIMIT')) return 'The public safety limit was reached. You can use a temporary key or complete the JSON manually.';
+  if (message.includes('PUBLIC_NVIDIA_USAGE_STORE_UNAVAILABLE')) return 'The public usage store is temporarily unavailable. You can use the synthetic sandbox or retry later.';
   if (message.includes('PUBLIC_NVIDIA_BYOK_HTTP_401') || message.includes('PUBLIC_NVIDIA_BYOK_HTTP_403')) return 'The temporary key was rejected by the selected provider. Check that the key belongs to this route and retry.';
   if (message.includes('PUBLIC_NVIDIA_BYOK_HTTP_400') || message.includes('PUBLIC_NVIDIA_BYOK_HTTP_404') || message.includes('PUBLIC_NVIDIA_BYOK_HTTP_422')) return 'The selected provider rejected the Nemotron model or request format. Check the route and model, then retry.';
   if (message.includes('PUBLIC_NVIDIA_BYOK')) return 'The temporary key could not generate the draft. Check the route and Nemotron model, or complete the JSON manually.';

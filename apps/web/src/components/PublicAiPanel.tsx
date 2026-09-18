@@ -48,15 +48,23 @@ export default function PublicAiPanel({ status, onConfigured, onCleared }: Publi
   const statusSnapshot = status;
 
   const configured = reviewerProviderConfigured();
-  const statusTitle = status.credit_state === 'available'
+  const availability = status.availability_state || (
+    status.credit_state === 'provider_exhausted' ? 'provider_exhausted'
+      : status.credit_state === 'exhausted' ? 'internal_limit'
+        : status.credit_state === 'unavailable' ? 'temporary_unavailable'
+          : status.credit_state
+  );
+  const statusTitle = availability === 'available'
     ? 'NVIDIA/Nemotron public active'
-    : status.credit_state === 'exhausted'
-      ? 'Promotional credit exhausted'
-      : status.credit_state === 'closed'
+    : availability === 'provider_exhausted'
+      ? 'Provider credit exhausted'
+      : availability === 'internal_limit'
+        ? 'Public safety limit reached'
+        : availability === 'closed'
         ? 'Public window closed'
-        : status.credit_state === 'synthetic'
-          ? 'Scheduled synthetic demo'
-          : 'NVIDIA/Nemotron unavailable';
+          : availability === 'synthetic'
+            ? 'Scheduled synthetic demo'
+            : 'NVIDIA/Nemotron temporarily unavailable';
 
   function changeProvider(nextProvider: ReviewerProviderName) {
     setProvider(nextProvider);
@@ -101,8 +109,9 @@ export default function PublicAiPanel({ status, onConfigured, onCleared }: Publi
           <h2 id="public-ai-title">{statusTitle}</h2>
           <p>{status.message}</p>
           {status.mode === 'scheduled' && status.credit_state === 'synthetic' && <small>Opens: {formatDate(status.opens_at)}</small>}
-          {status.credit_state === 'available' && <small>{status.remaining_calls ?? 0} server-side calls remain for this instance.</small>}
-          {status.credit_state === 'exhausted' && <small>The limit is enforced in memory so the demo remains free.</small>}
+          {availability === 'available' && <small>{status.remaining_calls ?? 0} total calls remain · {status.remaining_daily_calls ?? 0} remain today.</small>}
+          {availability === 'internal_limit' && <small>The total or daily safety limit was reached; the synthetic path remains free.</small>}
+          {availability === 'provider_exhausted' && <small>The provider reported exhausted credit; use the temporary key option to test Nemotron.</small>}
         </div>
         <div className="public-ai-actions">
           {configured ? (

@@ -1,6 +1,6 @@
 # Noah Nvidia — estado y roadmap operativo
 
-> Fuente de verdad operativa para continuar sin drift. Actualizado: 2026-09-11.
+> Fuente de verdad operativa para continuar sin drift. Actualizado: 2026-09-18.
 
 ## Baseline congelado
 
@@ -72,10 +72,11 @@ bearer playground válido.
   reduced motion y persistencia por tenant del marcador `v1`. No aparece
   antes de una decisión explícita de onboarding.
 - Public AI: `NOAH_PUBLIC_AI_MODE=scheduled` abre automáticamente del
-  `2026-10-27T17:00:00Z` al `2026-10-30T17:00:00Z`; el límite server-side base es
-  20 llamadas y el límite BYOK base es 5. El estado seguro llega por
-  `bootstrap.public_ai`; las claves nunca llegan a bootstrap, logs, Graphify,
-  Neon ni el bundle.
+  `2026-10-27T17:00:00Z` al `2026-12-16T00:00:00Z`; el límite server-side base es
+  20 llamadas totales y 5 por día, y el límite BYOK base es 5 totales y 2 por
+  día. Las reservas y consumos públicos se guardan en Neon de forma
+  transaccional; el estado seguro llega por `bootstrap.public_ai`; las claves
+  nunca llegan a bootstrap, logs, Graphify, Neon ni el bundle.
 - Contrato JSON: `contracts/onboarding.v1.schema.json`.
 - Evidencia: `evidence/phase-0-onboarding.md`,
   `evidence/phase-1-playground.md`, `evidence/phase-2-wizard-shell.md` y
@@ -109,10 +110,12 @@ En cualquier otro caso
 
 La ruta pública no usa esta prioridad antes de su ventana: permanece en
 `deterministic-demo`. Durante la ventana, llama directamente a Nebius con un
-presupuesto global de instancia. Si el crédito falta, se agota o devuelve una
-respuesta de cuota, el resultado público queda marcado como fallback honesto;
-no se abre OpenCode2API. BYOK se separa del crédito promocional y se limita con
-`NOAH_PUBLIC_BYOK_USAGE_LIMIT`.
+presupuesto total/diario persistido en Neon. Si Neon falla, la ruta financiada
+se cierra temporalmente. Si el crédito falta, se agota o devuelve una respuesta
+de cuota, el resultado público queda marcado como fallback honesto; no se abre
+OpenCode2API. BYOK se separa del crédito promocional y se limita por huella
+HMAC de clave con `NOAH_PUBLIC_BYOK_USAGE_LIMIT` y
+`NOAH_PUBLIC_BYOK_DAILY_LIMIT`, sin guardar la clave.
 
 OpenCode2API solo entra si tiene `NOAH_OPENCODE2API_BASE_URL`, el tenant es el
 demo autorizado, `NOAH_ALLOW_FREE_SYNTHETIC=true` y el modelo configurado
@@ -139,14 +142,14 @@ recibir datos privados. No existe fallback a un modelo ajeno a NVIDIA.
 | Build Render del API | OK tras fijar Python 3.12.10 | El primer deploy de `8af42c3` falló por Python 3.14; evidencia en `evidence/render-build-incident-2026-09-05.md` |
 | Política de deploy | OK | Auto-Deploy desactivado en ambos servicios; los próximos releases se disparan manualmente |
 | OpenCode2API free | Contrato local OK; Nemotron-only enforced; live pendiente | Prueba HTTP efímera en `127.0.0.1`; nunca se usó una URL/clave real |
-| Public AI release guard | OK local + live público | API `dep-daevpi8n74is73fn868g` live desde `15dd751`; bootstrap declara `mode=scheduled`, `effective_mode=synthetic`, `credit_state=synthetic` y `remaining_calls=20`; panel público visible sin consumir crédito |
+| Public AI release guard | OK local; deploy pendiente de este cambio | Presupuesto total/diario transaccional en Neon, fail-closed ante Neon, estados separados para límite interno, cuota del proveedor e indisponibilidad temporal; el smoke real de cuota queda reservado para la apertura |
 | Reviewer UI language | OK local + live público | La superficie visible del reviewer, el wizard, el panel NVIDIA/BYOK y los mensajes públicos de la API están en inglés; la entrada libre conserva soporte multilingüe |
 | Evaluación Promptfoo | Gate 7 cerrado para Nebius conectado | Local y API conectada: 15/15, 0 errores; provenance `nebius` + `nvidia/nemotron-3-super-120b-a12b`, guardrail 400 esperado y efectos externos desactivados; evidencia redactada en `evidence/promptfoo-local.md` y `evidence/promptfoo-api.md`; no se afirma paridad de pesos con el alias OpenCode2API |
 | Graphify | Actualizado 2026-09-11 | `graphify-out/graph.json` regenerado con 1147 nodos, 2036 enlaces y 109 comunidades; sin endpoints faltantes, enlaces colgantes ni duplicados; el único self-loop extraído es la recursión intencional de `remap_fixture_tenant_ids` en `services/api/main.py:L986`; solo queda además el warning opcional de `tree_sitter_sql`; `graphify-out` permanece ignorado |
-| Cutover público 2026-10-27 | Programado | Mantener la URL abierta, confirmar Nebius/Nemotron efectivo, mantener OpenCode2API desactivado y repetir smoke limpio con fallback y cuotas |
+| Cutover público 2026-10-27 | Programado | Mantener la URL abierta hasta 2026-12-16, confirmar Nebius/Nemotron efectivo, mantener OpenCode2API desactivado y repetir smoke limpio con fallback, límites y cuotas |
 | Paquete de entrega y freeze | Pendiente | README/Devpost/video/instrucciones en inglés, licencia, evidencia redactada, Graphify actualizado y release reproducible |
 | Google OAuth | OK — lectura verificada | Consentimiento real, callback, token cifrado y sync de lectura verificados con `gesecseguridad@gmail.com`; efectos externos siguen apagados |
-| PostgreSQL durable | OK live en Neon Free; Render legacy expira 2026-10-05 | `NOAH_DATABASE_URL` privado, `postgres-jsonb Configured`, esquema Neon con 2 tablas y `tenant-demo` persistido tras reinicio; evidencia en `evidence/gate-5-postgresql.md` |
+| PostgreSQL durable | OK live en Neon Free; Render legacy expira 2026-10-05 | `NOAH_DATABASE_URL` privado, `postgres-jsonb Configured`, esquema Neon con estado tenant, OAuth y presupuesto público durable; `tenant-demo` persistido tras reinicio; evidencia en `evidence/gate-5-postgresql.md` |
 | Vercel | Fuera de alcance | No importar ni desplegar proyectos |
 
 ## Roadmap por gates
@@ -359,14 +362,15 @@ Estado: **baseline y smoke de navegador verificados; cutover pendiente**.
   Nebius/Nemotron con el modelo canónico dentro de la ventana.
 - Confirmar que NOAH_ALLOW_FREE_SYNTHETIC sea false y que Render no tenga una
   URL o clave operativa de OpenCode2API.
-- La frontera del 2026-10-27, el presupuesto agotado y el bloqueo de
-  OpenCode2API están cubiertos por pruebas deterministas; el smoke live de la
-  cuota real queda deliberadamente sin consumir hasta la ventana.
+- La frontera del 2026-10-27, los límites total/diario, el agotamiento del
+  proveedor y el bloqueo de OpenCode2API están cubiertos por pruebas
+  deterministas; el smoke live de la cuota real queda deliberadamente sin
+  consumir hasta la ventana.
 - Antes del freeze, repetir una pasada corta de CORS, límites, fallback,
   confirmación, skip y aislamiento con el commit final.
-- Antes del freeze, decidir la duración de la ventana server-side para que el
-  reviewer pueda probar gratis durante judging. Si el crédito no alcanza, el
-  sandbox sintético debe seguir completo y rotulado, sin fingir inferencia real.
+- La ventana server-side ya queda extendida hasta el 2026-12-16 para cubrir
+  judging. Si el crédito no alcanza, el sandbox sintético y BYOK deben seguir
+  completos y rotulados, sin fingir inferencia real.
 
 ### Gate 9 — Paquete de entrega y freeze
 

@@ -10,9 +10,11 @@ server-side schedule opens. The release baseline is:
 
 - `NOAH_PUBLIC_AI_MODE=scheduled`
 - `NOAH_PUBLIC_AI_OPEN_AT=2026-10-27T17:00:00Z`
-- `NOAH_PUBLIC_AI_DEADLINE_AT=2026-10-30T17:00:00Z`
+- `NOAH_PUBLIC_AI_DEADLINE_AT=2026-12-16T00:00:00Z`
 - `NOAH_PUBLIC_MODEL_USAGE_LIMIT=20`
+- `NOAH_PUBLIC_MODEL_DAILY_LIMIT=5`
 - `NOAH_PUBLIC_BYOK_USAGE_LIMIT=5`
+- `NOAH_PUBLIC_BYOK_DAILY_LIMIT=2`
 
 The official deadline is outside this repository's runtime logic; the UTC
 window is an operator-controlled safety window. Render remains manual deploy
@@ -24,16 +26,16 @@ only, and the open time is not advanced during routine testing.
    deterministic result or an honest manual-path error. They do not call
    Nebius, NVIDIA NIM, or OpenCode2API.
 2. Inside the window, server-funded public calls go directly to the configured
-   Nebius endpoint and require a NVIDIA Nemotron model. A process-local global
-   budget is shared across browser workspaces and does not write visitor state
-   to Neon.
-3. A quota, billing, 402, or 429 response marks the server-funded budget
-   exhausted. The UI states that the promotional credit is unavailable and
-   continues with the synthetic proposal loop.
+   Nebius endpoint and require a NVIDIA Nemotron model. Durable Neon counters
+   and reservations enforce total and daily limits across browser workspaces;
+   visitor tenant state is still not written to Neon.
+3. A quota, billing, 402, or 429 response marks the provider route exhausted.
+   Reaching the configured safety cap is reported separately. Both states
+   continue with the synthetic proposal loop.
 4. A reviewer may provide a NVIDIA NIM or Nebius key for the current browser
    session. The API chooses the fixed destination, validates Nemotron, applies
-   a separate BYOK cap, and never persists or logs the key. No base URL is
-   accepted from the browser.
+   per-key total and daily caps using only a keyed fingerprint, and never
+   persists or logs the key. No base URL is accepted from the browser.
 5. External Gmail/Calendar effects remain disabled and all proposal actions
    remain behind approval.
 

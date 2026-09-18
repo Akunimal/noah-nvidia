@@ -12,6 +12,7 @@ import base64
 import binascii
 import csv
 import hashlib
+import hmac
 import io
 import json
 import os
@@ -107,16 +108,13 @@ IDEMPOTENCY_KEY_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,199}")
 RUN_LEASE_SECONDS = 45
 PUBLIC_AI_MODES = {"synthetic", "scheduled", "nebius"}
 PUBLIC_AI_OPEN_AT_DEFAULT = "2026-10-27T17:00:00Z"
-PUBLIC_AI_DEADLINE_AT_DEFAULT = "2026-10-30T17:00:00Z"
+PUBLIC_AI_DEADLINE_AT_DEFAULT = "2026-12-16T00:00:00Z"
 PUBLIC_REVIEWER_KEY_HEADER = "X-Noah-Reviewer-Api-Key"
 PUBLIC_REVIEWER_PROVIDER_HEADER = "X-Noah-Reviewer-Provider"
 PUBLIC_REVIEWER_MODEL_HEADER = "X-Noah-Reviewer-Model"
+PUBLIC_USAGE_RESERVATION_TTL_SECONDS = 900
 PUBLIC_MODEL_BUDGET_LOCK = threading.Lock()
-PUBLIC_MODEL_BUDGETS: dict[str, dict[str, Any]] = {
-    "nebius": {"limit": 0, "reserved": 0, "consumed": 0, "exhausted": False},
-    "byok": {"limit": 5, "reserved": 0, "consumed": 0, "exhausted": False},
-}
-PUBLIC_MODEL_BUDGET_SIGNATURES: dict[str, int | None] = {"nebius": None, "byok": None}
+PUBLIC_MODEL_BUDGETS: dict[tuple[str, str], dict[str, Any]] = {}
 
 DEFAULT_CORS_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
@@ -1118,78 +1116,163 @@ def _nonnegative_env_int(name: str, default: int) -> int:
 
 def _public_budget_limit(source: str) -> int:
     if source == "byok":
-        # A reviewer-supplied key is still bounded so an unattended public
-        # page cannot turn the API into an unlimited relay.
         return _nonnegative_env_int("NOAH_PUBLIC_BYOK_USAGE_LIMIT", 5)
     return _nonnegative_env_int("NOAH_PUBLIC_MODEL_USAGE_LIMIT", 0)
 
 
-def _sync_public_budget_locked(source: str) -> dict[str, Any]:
-    budget = PUBLIC_MODEL_BUDGETS[source]
-    limit = _public_budget_limit(source)
-    if PUBLIC_MODEL_BUDGET_SIGNATURES[source] != limit:
-        budget.update({"limit": limit, "reserved": 0, "consumed": 0, "exhausted": False})
-        PUBLIC_MODEL_BUDGET_SIGNATURES[source] = limit
-    return budget
+def _public_daily_budget_limit(source: str) -> int:
+    if source == "byok":
+        return _nonnegative_env_int("NOAH_PUBLIC_BYOK_DAILY_LIMIT", 2)
+    return _nonnegative_env_int("NOAH_PUBLIC_MODEL_DAILY_LIMIT", 5)
 
 
-def _public_budget_snapshot(source: str) -> dict[str, Any]:
+def _reviewer_usage_bucket(reviewer: ReviewerProvider) -> str:
+    """Return a stable bucket without retaining the reviewer key."""
+
+    salt = (
+        os.getenv("NOAH_PUBLIC_BYOK_KEY_SALT")
+        or os.getenv("NOAH_JWT_SECRET")
+        or os.getenv("NOAH_CONNECTION_ENCRYPTION_KEY")
+        or "noah-public-byok"
+    ).encode("utf-8")
+    return hmac.new(salt, reviewer.api_key.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def _in_memory_usage_snapshot(source: str, bucket_key: str, current: datetime | None = None) -> dict[str, Any]:
+    current = current or datetime.now(timezone.utc)
+    usage_date = current.astimezone(timezone.utc).date().isoformat()
+    key = (source, bucket_key)
     with PUBLIC_MODEL_BUDGET_LOCK:
-        return deepcopy(_sync_public_budget_locked(source))
+        budget = PUBLIC_MODEL_BUDGETS.setdefault(
+            key,
+            {"consumed": 0, "daily": {}, "reservations": {}, "provider_exhausted": False},
+        )
+        active = [
+            item
+            for item in budget["reservations"].values()
+            if item["status"] == "reserved"
+            and item["usage_date"] == usage_date
+            and (current - item["created_at"]).total_seconds() < PUBLIC_USAGE_RESERVATION_TTL_SECONDS
+        ]
+        daily_consumed = int(budget["daily"].get(usage_date, 0))
+        total_limit = _public_budget_limit(source)
+        daily_limit = _public_daily_budget_limit(source)
+        return {
+            "consumed": int(budget["consumed"]),
+            "reserved": len(active),
+            "limit": total_limit,
+            "remaining_calls": max(0, total_limit - int(budget["consumed"]) - len(active)),
+            "daily_consumed": daily_consumed,
+            "daily_reserved": len(active),
+            "daily_limit": daily_limit,
+            "remaining_daily_calls": max(0, daily_limit - daily_consumed - len(active)),
+            "provider_exhausted": bool(budget["provider_exhausted"]),
+        }
 
 
-def reserve_public_model_usage(source: str) -> tuple[dict[str, str] | None, str | None]:
-    """Reserve one in-memory public call without writing a public tenant.
+def _public_usage_snapshot(source: str, bucket_key: str = "server") -> dict[str, Any]:
+    if persistence.configured:
+        try:
+            return persistence.public_usage_snapshot(
+                source,
+                bucket_key,
+                _public_budget_limit(source),
+                _public_daily_budget_limit(source),
+                reservation_ttl_seconds=PUBLIC_USAGE_RESERVATION_TTL_SECONDS,
+            )
+        except RuntimeError:
+            return {"store_error": "PUBLIC_NVIDIA_USAGE_STORE_UNAVAILABLE"}
+    return _in_memory_usage_snapshot(source, bucket_key)
 
-    The public Render demo is intentionally ephemeral. A process-local budget
-    keeps the free instance bounded without mixing visitor traffic into Neon.
-    The server-funded Nebius budget and reviewer BYOK budget are separate.
+
+def reserve_public_model_usage(source: str, bucket_key: str = "server") -> tuple[dict[str, str] | None, str | None]:
+    """Reserve one public call, using durable Neon usage when configured.
+
+    Render is configured with Neon, so a restart cannot restore the budget.
+    The in-memory branch exists only for local tests and no-database development.
     """
 
     if source not in {"nebius", "byok"}:
         raise ValueError("PUBLIC_USAGE_SOURCE_UNSUPPORTED")
+    if persistence.configured:
+        try:
+            reservation, error, _usage = persistence.reserve_public_usage(
+                source,
+                bucket_key,
+                _public_budget_limit(source),
+                _public_daily_budget_limit(source),
+                reservation_ttl_seconds=PUBLIC_USAGE_RESERVATION_TTL_SECONDS,
+            )
+            return reservation, error
+        except RuntimeError:
+            return None, "PUBLIC_NVIDIA_USAGE_STORE_UNAVAILABLE"
+    current = datetime.now(timezone.utc)
     with PUBLIC_MODEL_BUDGET_LOCK:
-        budget = _sync_public_budget_locked(source)
-        limit = int(budget["limit"])
-        if limit <= 0:
-            return None, "PUBLIC_NVIDIA_CREDIT_LIMIT_NOT_CONFIGURED" if source == "nebius" else "PUBLIC_NVIDIA_BYOK_LIMIT_NOT_CONFIGURED"
-        if budget["exhausted"] or budget["consumed"] + budget["reserved"] >= limit:
-            if source == "nebius":
-                budget["exhausted"] = True
-                return None, "PUBLIC_NVIDIA_CREDIT_EXHAUSTED"
-            return None, "PUBLIC_NVIDIA_BYOK_LIMIT_REACHED"
+        budget = PUBLIC_MODEL_BUDGETS.setdefault(
+            (source, bucket_key),
+            {"consumed": 0, "daily": {}, "reservations": {}, "provider_exhausted": False},
+        )
+        usage_date = current.date().isoformat()
+        active = [
+            item
+            for item in budget["reservations"].values()
+            if item["status"] == "reserved"
+            and item["usage_date"] == usage_date
+            and (current - item["created_at"]).total_seconds() < PUBLIC_USAGE_RESERVATION_TTL_SECONDS
+        ]
+        total_limit = _public_budget_limit(source)
+        daily_limit = _public_daily_budget_limit(source)
+        if total_limit <= 0 or daily_limit <= 0:
+            return None, "PUBLIC_NVIDIA_INTERNAL_LIMIT"
+        if budget["provider_exhausted"]:
+            return None, "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED"
+        if int(budget["consumed"]) + len(active) >= total_limit or int(budget["daily"].get(usage_date, 0)) + len(active) >= daily_limit:
+            return None, "PUBLIC_NVIDIA_INTERNAL_LIMIT"
         reservation_id = new_id("public-usage")
-        budget["reserved"] += 1
-        return {"id": reservation_id, "source": source}, None
+        budget["reservations"][reservation_id] = {"status": "reserved", "usage_date": usage_date, "created_at": current}
+        return {"id": reservation_id, "source": source, "bucket_key": bucket_key}, None
 
 
 def settle_public_model_usage(
     reservation: dict[str, str] | None,
     consumed: bool,
     *,
-    exhausted: bool = False,
-) -> None:
+    provider_exhausted: bool = False,
+) -> bool:
     if not reservation:
-        return
+        return True
     source = reservation.get("source")
-    if source not in PUBLIC_MODEL_BUDGETS:
-        return
+    bucket_key = reservation.get("bucket_key", "server")
+    if source not in {"nebius", "byok"}:
+        return False
+    if persistence.configured:
+        try:
+            persistence.settle_public_usage(reservation["id"], consumed, provider_exhausted=provider_exhausted)
+        except RuntimeError:
+            return False
+        return True
     with PUBLIC_MODEL_BUDGET_LOCK:
-        budget = _sync_public_budget_locked(source)
-        budget["reserved"] = max(0, int(budget["reserved"]) - 1)
+        budget = PUBLIC_MODEL_BUDGETS.get((source, bucket_key))
+        if not budget:
+            return False
+        pending = budget["reservations"].get(reservation["id"])
+        if not pending or pending["status"] != "reserved":
+            return False
+        pending["status"] = "consumed" if consumed else "released"
         if consumed:
             budget["consumed"] += 1
-        if exhausted:
-            budget["exhausted"] = True
+            usage_date = pending["usage_date"]
+            budget["daily"][usage_date] = int(budget["daily"].get(usage_date, 0)) + 1
+        if provider_exhausted:
+            budget["provider_exhausted"] = True
+    return True
 
 
 def reset_public_model_budgets() -> None:
-    """Reset process-local public budgets for deterministic tests and restarts."""
+    """Reset process-local budgets for deterministic tests."""
 
     with PUBLIC_MODEL_BUDGET_LOCK:
-        for source, budget in PUBLIC_MODEL_BUDGETS.items():
-            budget.update({"limit": _public_budget_limit(source), "reserved": 0, "consumed": 0, "exhausted": False})
-            PUBLIC_MODEL_BUDGET_SIGNATURES[source] = budget["limit"]
+        PUBLIC_MODEL_BUDGETS.clear()
 
 
 def _parse_public_timestamp(value: str | None) -> datetime | None:
@@ -1209,8 +1292,8 @@ def _public_timestamp_value(name: str, default: str) -> tuple[str, datetime | No
     return raw, _parse_public_timestamp(raw)
 
 
-def public_ai_status() -> dict[str, Any]:
-    """Return safe public routing state without exposing any credential."""
+def public_ai_status(reviewer_bucket: str | None = None, reviewer: ReviewerProvider | None = None) -> dict[str, Any]:
+    """Return safe routing state without exposing credentials or key hashes."""
 
     configured_mode = os.getenv("NOAH_PUBLIC_AI_MODE", "synthetic").strip().lower()
     mode = configured_mode if configured_mode in PUBLIC_AI_MODES else "synthetic"
@@ -1234,37 +1317,80 @@ def public_ai_status() -> dict[str, Any]:
             effective_mode = "nebius"
             reason_code = "PUBLIC_NVIDIA_WINDOW_OPEN"
 
+    source = "byok" if reviewer_bucket else "nebius"
+    bucket_key = reviewer_bucket or "server"
     server_model = router.nebius.model.strip()
     server_model_allowed = is_nvidia_nemotron_model(server_model)
     server_configured = router.nebius.configured() and server_model_allowed
-    budget = _public_budget_snapshot("nebius")
+    budget = _public_usage_snapshot(source, bucket_key)
     credit_state = "synthetic"
-    if mode == "scheduled" and effective_mode == "synthetic" and reason_code == "PUBLIC_NVIDIA_WINDOW_CLOSED":
+    availability_state = "synthetic"
+    if budget.get("store_error") and (source == "byok" or effective_mode == "nebius"):
+        credit_state = "unavailable"
+        availability_state = "temporary_unavailable"
+        reason_code = budget["store_error"]
+    elif source == "byok":
+        effective_mode = "nebius"
+        reason_code = "PUBLIC_NVIDIA_BYOK_ACTIVE"
+        if budget.get("provider_exhausted"):
+            credit_state = "provider_exhausted"
+            availability_state = "provider_exhausted"
+            reason_code = "PUBLIC_NVIDIA_BYOK_PROVIDER_EXHAUSTED"
+        elif int(budget.get("limit", 0)) <= 0 or int(budget.get("daily_limit", 0)) <= 0:
+            credit_state = "unavailable"
+            availability_state = "temporary_unavailable"
+            reason_code = "PUBLIC_NVIDIA_BYOK_LIMIT_NOT_CONFIGURED"
+        elif int(budget.get("remaining_calls", 0)) <= 0 or int(budget.get("remaining_daily_calls", 0)) <= 0:
+            credit_state = "exhausted"
+            availability_state = "internal_limit"
+            reason_code = "PUBLIC_NVIDIA_BYOK_INTERNAL_LIMIT"
+        else:
+            credit_state = "available"
+            availability_state = "available"
+    elif mode == "scheduled" and effective_mode == "synthetic" and reason_code == "PUBLIC_NVIDIA_WINDOW_CLOSED":
         credit_state = "closed"
+        availability_state = "closed"
     elif effective_mode == "nebius":
         if not server_model_allowed:
             credit_state = "unavailable"
+            availability_state = "temporary_unavailable"
             reason_code = "PUBLIC_NVIDIA_NON_NVIDIA_MODEL"
         elif not router.nebius.configured():
             credit_state = "unavailable"
+            availability_state = "temporary_unavailable"
             reason_code = "PUBLIC_NVIDIA_NOT_CONFIGURED"
-        elif int(budget["limit"]) <= 0:
+        elif int(budget.get("limit", 0)) <= 0 or int(budget.get("daily_limit", 0)) <= 0:
             credit_state = "unavailable"
+            availability_state = "temporary_unavailable"
             reason_code = "PUBLIC_NVIDIA_CREDIT_LIMIT_NOT_CONFIGURED"
-        elif budget["exhausted"] or int(budget["consumed"]) + int(budget["reserved"]) >= int(budget["limit"]):
+        elif budget.get("provider_exhausted"):
+            credit_state = "provider_exhausted"
+            availability_state = "provider_exhausted"
+            reason_code = "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED"
+        elif int(budget.get("remaining_calls", 0)) <= 0 or int(budget.get("remaining_daily_calls", 0)) <= 0:
             credit_state = "exhausted"
-            reason_code = "PUBLIC_NVIDIA_CREDIT_EXHAUSTED"
+            availability_state = "internal_limit"
+            reason_code = "PUBLIC_NVIDIA_INTERNAL_LIMIT"
         else:
             credit_state = "available"
+            availability_state = "available"
 
-    if mode == "synthetic":
+    if source == "byok" and availability_state == "available":
+        message = "Reviewer BYOK is active for this tab; the temporary key is bounded and external actions remain behind approval."
+    elif mode == "synthetic":
         message = "The public demo uses a synthetic sandbox with no model calls."
     elif reason_code == "PUBLIC_NVIDIA_NOT_OPEN":
         message = "The public demo is still in synthetic mode. NVIDIA/Nemotron mode will open on the scheduled date."
     elif reason_code == "PUBLIC_NVIDIA_WINDOW_CLOSED":
         message = "The public NVIDIA/Nemotron window has ended; the demo has returned to the synthetic sandbox."
-    elif reason_code == "PUBLIC_NVIDIA_CREDIT_EXHAUSTED":
-        message = "This instance's promotional credit is exhausted; the demo remains available in synthetic mode."
+    elif reason_code == "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED":
+        message = "The provider reported exhausted promotional credit; the demo remains available in synthetic mode."
+    elif reason_code == "PUBLIC_NVIDIA_INTERNAL_LIMIT":
+        message = "The public safety limit has been reached; the demo remains available in synthetic mode."
+    elif reason_code == "PUBLIC_NVIDIA_BYOK_INTERNAL_LIMIT":
+        message = "This temporary key reached its safety limit. Remove it or use another reviewer key."
+    elif reason_code in {"PUBLIC_NVIDIA_USAGE_STORE_UNAVAILABLE", "PUBLIC_NVIDIA_BYOK_PROVIDER_EXHAUSTED"}:
+        message = "The connected route is temporarily unavailable; the synthetic sandbox remains usable."
     elif credit_state == "unavailable":
         message = "NVIDIA/Nemotron mode is scheduled, but this instance has no available credit or configuration."
     elif effective_mode == "nebius":
@@ -1275,14 +1401,17 @@ def public_ai_status() -> dict[str, Any]:
     return {
         "mode": mode,
         "effective_mode": effective_mode,
-        "enabled": effective_mode == "nebius" and credit_state == "available",
-        "window_open": effective_mode == "nebius",
-        "provider": "nebius" if effective_mode == "nebius" else None,
-        "model": server_model if server_model_allowed else None,
+        "enabled": availability_state == "available",
+        "window_open": effective_mode == "nebius" and source == "nebius",
+        "provider": reviewer.name if reviewer is not None else ("nebius" if effective_mode == "nebius" else None),
+        "model": reviewer.model if reviewer is not None else (server_model if server_model_allowed else None),
         "opens_at": opens_at.isoformat() if opens_at else opens_at_value if opens_at_value else None,
         "deadline_at": deadline_at.isoformat() if deadline_at else deadline_value if deadline_value else None,
         "credit_state": credit_state,
-        "remaining_calls": max(0, int(budget["limit"]) - int(budget["consumed"]) - int(budget["reserved"])),
+        "availability_state": availability_state,
+        "remaining_calls": int(budget.get("remaining_calls", 0)),
+        "remaining_daily_calls": int(budget.get("remaining_daily_calls", 0)),
+        "usage": budget,
         "reviewer_byok_allowed": public_demo_enabled(),
         "server_configured": server_configured,
         "reason_code": reason_code,
@@ -1316,14 +1445,14 @@ def _is_public_quota_error(error: str | None) -> bool:
 def _public_provider_error_code(result: ProviderResult, source: str) -> str:
     if source == "nebius":
         if _is_public_quota_error(result.error):
-            return "PUBLIC_NVIDIA_CREDIT_EXHAUSTED"
+            return "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED"
         if result.error in {"NEBIUS_NOT_CONFIGURED", "NEBIUS_NON_NVIDIA_MODEL"}:
             return "PUBLIC_NVIDIA_NOT_CONFIGURED" if result.error == "NEBIUS_NOT_CONFIGURED" else "PUBLIC_NVIDIA_NON_NVIDIA_MODEL"
         return "PUBLIC_NVIDIA_PROVIDER_ERROR"
     if result.error == "REVIEWER_NON_NVIDIA_MODEL" or result.error == "REVIEWER_NON_NVIDIA_RESPONSE_MODEL":
         return "PUBLIC_NVIDIA_BYOK_NON_NVIDIA_MODEL"
     if _is_public_quota_error(result.error):
-        return "PUBLIC_NVIDIA_BYOK_QUOTA"
+        return "PUBLIC_NVIDIA_BYOK_PROVIDER_EXHAUSTED"
     if source == "byok" and result.error and result.error.startswith("HTTP_"):
         # HTTP status is safe diagnostic metadata; the key and provider body
         # are intentionally never returned to the browser.
@@ -1340,29 +1469,36 @@ async def complete_public_model(
     """Call only Nebius or a fixed-endpoint reviewer provider for public text."""
 
     source = "byok" if reviewer is not None else "nebius"
+    reviewer_bucket = _reviewer_usage_bucket(reviewer) if reviewer is not None else "server"
     if reviewer is None:
         status = public_ai_status()
         if status["effective_mode"] != "nebius":
             return ProviderResult("deterministic-demo", "no-model-call", None, status["reason_code"])
-        if status["credit_state"] != "available":
+        if status.get("availability_state") != "available":
             return ProviderResult("deterministic-demo", "no-model-call", None, status["reason_code"])
         provider: Any = router.nebius
     else:
         provider = reviewer
 
-    reservation, reservation_error = reserve_public_model_usage(source)
+    reservation, reservation_error = await run_in_threadpool(reserve_public_model_usage, source, reviewer_bucket)
     if reservation is None:
         return ProviderResult("deterministic-demo", "no-model-call", None, reservation_error or "PUBLIC_NVIDIA_PROVIDER_ERROR")
     try:
         result = await provider.complete(prompt, system)
     except Exception:
         result = ProviderResult(provider.name, provider.model, None, "PUBLIC_NVIDIA_PROVIDER_ERROR" if source == "nebius" else "PUBLIC_NVIDIA_BYOK_PROVIDER_ERROR")
+    error_code = _public_provider_error_code(result, source) if not result.text else None
+    settled = await run_in_threadpool(
+        settle_public_model_usage,
+        reservation,
+        True,
+        provider_exhausted=error_code in {"PUBLIC_NVIDIA_PROVIDER_EXHAUSTED", "PUBLIC_NVIDIA_BYOK_PROVIDER_EXHAUSTED"},
+    )
+    if not settled:
+        return ProviderResult("deterministic-demo", "no-model-call", None, "PUBLIC_NVIDIA_USAGE_STORE_UNAVAILABLE")
     if result.text:
-        settle_public_model_usage(reservation, True)
         return result
-    error_code = _public_provider_error_code(result, source)
-    settle_public_model_usage(reservation, False, exhausted=source == "nebius" and error_code == "PUBLIC_NVIDIA_CREDIT_EXHAUSTED")
-    return ProviderResult(result.provider, result.model, None, error_code)
+    return ProviderResult(result.provider, result.model, None, error_code or "PUBLIC_NVIDIA_PROVIDER_ERROR")
 
 
 def tenant_from_auth(
@@ -1856,8 +1992,11 @@ async def onboarding_extract(
                 "PUBLIC_NVIDIA_WINDOW_CLOSED",
                 "PUBLIC_NVIDIA_NOT_CONFIGURED",
                 "PUBLIC_NVIDIA_CREDIT_LIMIT_NOT_CONFIGURED",
-                "PUBLIC_NVIDIA_CREDIT_EXHAUSTED",
-                "PUBLIC_NVIDIA_BYOK_LIMIT_REACHED",
+                "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED",
+                "PUBLIC_NVIDIA_INTERNAL_LIMIT",
+                "PUBLIC_NVIDIA_USAGE_STORE_UNAVAILABLE",
+                "PUBLIC_NVIDIA_BYOK_INTERNAL_LIMIT",
+                "PUBLIC_NVIDIA_BYOK_PROVIDER_EXHAUSTED",
                 "PUBLIC_NVIDIA_BYOK_LIMIT_NOT_CONFIGURED",
             } else 502
             message = {
@@ -1866,8 +2005,11 @@ async def onboarding_extract(
                 "PUBLIC_NVIDIA_WINDOW_CLOSED": "The public NVIDIA/Nemotron window has ended. You can use a temporary key or complete the JSON manually.",
                 "PUBLIC_NVIDIA_NOT_CONFIGURED": "The public instance has no server-side Nebius key available. You can use a temporary key or complete the JSON manually.",
                 "PUBLIC_NVIDIA_CREDIT_LIMIT_NOT_CONFIGURED": "The public instance has no credit limit configured. You can use a temporary key or complete the JSON manually.",
-                "PUBLIC_NVIDIA_CREDIT_EXHAUSTED": "The public instance's promotional credit is exhausted. You can use a temporary key or complete the JSON manually.",
-                "PUBLIC_NVIDIA_BYOK_LIMIT_REACHED": "The reviewer's temporary-key quota has been reached. You can complete the JSON manually.",
+                "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED": "The provider reported exhausted promotional credit. You can use a temporary key or complete the JSON manually.",
+                "PUBLIC_NVIDIA_INTERNAL_LIMIT": "The public safety limit has been reached. You can use a temporary key or complete the JSON manually.",
+                "PUBLIC_NVIDIA_USAGE_STORE_UNAVAILABLE": "The public usage store is temporarily unavailable. You can use the synthetic sandbox or retry later.",
+                "PUBLIC_NVIDIA_BYOK_INTERNAL_LIMIT": "The temporary key reached its safety limit. You can use another key or complete the JSON manually.",
+                "PUBLIC_NVIDIA_BYOK_PROVIDER_EXHAUSTED": "The selected provider reported exhausted credit. You can use another key or complete the JSON manually.",
                 "PUBLIC_NVIDIA_BYOK_LIMIT_NOT_CONFIGURED": "The reviewer's temporary-key quota is not configured. You can complete the JSON manually.",
             }.get(code, "The NVIDIA route could not generate the draft. You can retry or complete the JSON manually.")
             raise HTTPException(
@@ -2192,7 +2334,10 @@ async def create_message(
     record_audit(store, "run.planned", "succeeded", "run", run_id, {"provider": provider_result.provider, "action_count": len(run["action_ids"])})
     response: dict[str, Any] = {"run": deepcopy(run), "assistant_message": assistant_text, "provider": provider_result.provider, "model": provider_result.model, "provider_error": provider_result.error}
     if public_demo:
-        response["public_ai"] = public_ai_status()
+        response["public_ai"] = public_ai_status(
+            _reviewer_usage_bucket(reviewer) if reviewer is not None else None,
+            reviewer,
+        )
     if action:
         response["action"] = {key: value for key, value in action.items() if key != "tenant_id"}
     save_idempotent(store, idempotency_key, response)

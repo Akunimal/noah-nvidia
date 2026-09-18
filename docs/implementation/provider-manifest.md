@@ -20,11 +20,15 @@ stop new model calls before they consume the reserved demo budget.
 The public Render demo is synthetic by default. `NOAH_PUBLIC_AI_MODE=scheduled`
 opens the server-funded Nebius/Nemotron route only inside the configured UTC
 window (`NOAH_PUBLIC_AI_OPEN_AT` to `NOAH_PUBLIC_AI_DEADLINE_AT`) and enforces
-`NOAH_PUBLIC_MODEL_USAGE_LIMIT` in process memory. If the promotion is absent,
-exhausted, or returns a quota error, the UI states that fact and stays usable
-with deterministic proposals. A reviewer may optionally provide an NVIDIA NIM
-or Nebius key for that browser session; the backend chooses the fixed endpoint,
-accepts only Nemotron models, caps BYOK calls, and never stores or logs the key.
+the total and daily limits from `NOAH_PUBLIC_MODEL_USAGE_LIMIT` and
+`NOAH_PUBLIC_MODEL_DAILY_LIMIT` with durable Neon reservations. API restarts
+cannot restore consumed calls. If the promotion is absent, exhausted, or
+returns a quota error, the UI distinguishes temporary unavailability, the
+internal safety limit, and provider exhaustion before staying usable with
+deterministic proposals. A reviewer may optionally provide an NVIDIA NIM or
+Nebius key for that browser session; the backend chooses the fixed endpoint,
+accepts only Nemotron models, applies per-key total and daily caps, and never
+stores or logs the key.
 
 OpenCode2API is a gateway, not an NVIDIA product. It is included only as
 transport to an operator-supplied free NVIDIA Nemotron pool. The configured

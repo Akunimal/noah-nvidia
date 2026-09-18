@@ -247,7 +247,8 @@ def test_public_cutover_boundaries_and_credit_budget_are_deterministic(monkeypat
     exhausted = public_ai_status()
     assert exhausted["effective_mode"] == "nebius"
     assert exhausted["credit_state"] == "exhausted"
-    assert exhausted["reason_code"] == "PUBLIC_NVIDIA_CREDIT_EXHAUSTED"
+    assert exhausted["reason_code"] == "PUBLIC_NVIDIA_INTERNAL_LIMIT"
+    assert exhausted["availability_state"] == "internal_limit"
     assert exhausted["remaining_calls"] == 0
     settle_public_model_usage(reservation, consumed=True)
 
@@ -298,7 +299,7 @@ def test_public_scheduled_nvidia_mode_uses_one_global_budget(monkeypatch) -> Non
         assert first.json()["public_ai"]["credit_state"] == "exhausted"
         assert second.status_code == 200
         assert second.json()["provider"] == "deterministic-demo"
-        assert second.json()["provider_error"] == "PUBLIC_NVIDIA_CREDIT_EXHAUSTED"
+        assert second.json()["provider_error"] == "PUBLIC_NVIDIA_INTERNAL_LIMIT"
         assert len(calls) == 1
     finally:
         TENANTS.pop("tenant-public-scheduled-one", None)
@@ -336,9 +337,9 @@ def test_public_quota_failure_stops_server_funded_calls(monkeypatch) -> None:
             json={"message": "Review the next workspace"},
         )
         assert first.status_code == 200
-        assert first.json()["provider_error"] == "PUBLIC_NVIDIA_CREDIT_EXHAUSTED"
+        assert first.json()["provider_error"] == "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED"
         assert second.status_code == 200
-        assert second.json()["provider_error"] == "PUBLIC_NVIDIA_CREDIT_EXHAUSTED"
+        assert second.json()["provider_error"] == "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED"
         assert len(calls) == 1
     finally:
         TENANTS.pop("tenant-public-quota-one", None)
@@ -382,7 +383,8 @@ def test_public_reviewer_byok_is_ephemeral_and_accepts_nvidia_nim(monkeypatch) -
         assert response.status_code == 200
         body = response.json()
         assert body["provider"] == "nvidia-nim"
-        assert body["public_ai"]["credit_state"] == "synthetic"
+        assert body["public_ai"]["credit_state"] == "available"
+        assert body["public_ai"]["availability_state"] == "available"
         assert reviewer_key not in response.text
         assert reviewer_key not in repr(TENANTS[tenant_id])
 
@@ -416,6 +418,60 @@ def test_public_reviewer_byok_is_ephemeral_and_accepts_nvidia_nim(monkeypatch) -
         assert invalid_model.json()["detail"]["code"] == "PUBLIC_NVIDIA_BYOK_NON_NVIDIA_MODEL"
     finally:
         TENANTS.pop(tenant_id, None)
+
+
+def test_public_budget_is_atomic_and_scoped_per_reviewer_key(monkeypatch) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+    from main import reset_public_model_budgets, reserve_public_model_usage, settle_public_model_usage
+
+    monkeypatch.setenv("NOAH_PUBLIC_MODEL_USAGE_LIMIT", "1")
+    monkeypatch.setenv("NOAH_PUBLIC_MODEL_DAILY_LIMIT", "1")
+    monkeypatch.setenv("NOAH_PUBLIC_BYOK_USAGE_LIMIT", "1")
+    monkeypatch.setenv("NOAH_PUBLIC_BYOK_DAILY_LIMIT", "1")
+    reset_public_model_budgets()
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        reservations = list(pool.map(lambda _: reserve_public_model_usage("nebius"), range(8)))
+    successful = [item for item, error in reservations if item is not None and error is None]
+    assert len(successful) == 1
+    assert sum(1 for _item, error in reservations if error == "PUBLIC_NVIDIA_INTERNAL_LIMIT") == 7
+
+    first_key, first_error = reserve_public_model_usage("byok", "key-a")
+    second_key, second_error = reserve_public_model_usage("byok", "key-b")
+    assert first_key is not None and first_error is None
+    assert second_key is not None and second_error is None
+    settle_public_model_usage(first_key, True)
+    settle_public_model_usage(second_key, True)
+    blocked, blocked_error = reserve_public_model_usage("byok", "key-a")
+    assert blocked is None
+    assert blocked_error == "PUBLIC_NVIDIA_INTERNAL_LIMIT"
+
+
+def test_public_usage_store_failure_fails_closed(monkeypatch) -> None:
+    import main
+
+    class BrokenUsageStore:
+        configured = True
+
+        def public_usage_snapshot(self, *args, **kwargs):
+            raise RuntimeError("database offline")
+
+        def reserve_public_usage(self, *args, **kwargs):
+            raise RuntimeError("database offline")
+
+    monkeypatch.setattr(main, "persistence", BrokenUsageStore())
+    monkeypatch.setenv("NOAH_PUBLIC_AI_MODE", "nebius")
+    monkeypatch.setattr(main.router.nebius, "api_key", "configured-for-test")
+    monkeypatch.setenv("NOAH_PUBLIC_MODEL_USAGE_LIMIT", "3")
+    monkeypatch.setenv("NOAH_PUBLIC_MODEL_DAILY_LIMIT", "2")
+
+    status = main.public_ai_status()
+    assert status["enabled"] is False
+    assert status["availability_state"] == "temporary_unavailable"
+    assert status["reason_code"] == "PUBLIC_NVIDIA_USAGE_STORE_UNAVAILABLE"
+    reservation, error = main.reserve_public_model_usage("nebius")
+    assert reservation is None
+    assert error == "PUBLIC_NVIDIA_USAGE_STORE_UNAVAILABLE"
 
 
 def test_jwt_subject_becomes_tenant(monkeypatch) -> None:

@@ -26,13 +26,17 @@ to Neon.
 
 ## Natural-language onboarding path
 
-When the public NVIDIA/Nemotron window is active and has credit, choose
+The public NVIDIA/Nemotron window is scheduled from October 27 through
+December 16 UTC so the app remains available through judging. When it is
+active and has credit, choose
 **Start setup**, enter a short description, and choose **Build draft**. The
 review screen should show editable business fields, optional inventory,
 `onboarding.v1` JSON, missing fields, and a provenance line containing the
 provider and model. Choose **Confirm setup** only after reviewing the fields.
 
-If the public route is closed or out of credit, the UI must say so. Use
+If the public route is closed, reaches its internal safety limit, reports
+provider exhaustion, or is temporarily unavailable, the UI must say which
+condition occurred. Use
 **Complete manually** to exercise the same review and confirmation flow, or
 use the in-memory **Use temporary key** reviewer option with an allowlisted
 NVIDIA NIM or Nebius Nemotron endpoint. The key is never persisted by Noah;
