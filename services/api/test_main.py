@@ -306,6 +306,18 @@ def test_public_scheduled_nvidia_mode_uses_one_global_budget(monkeypatch) -> Non
         TENANTS.pop("tenant-public-scheduled-two", None)
 
 
+def test_video_recording_mode_is_exposed_without_credentials(monkeypatch) -> None:
+    from main import public_ai_status
+
+    monkeypatch.setenv("NOAH_VIDEO_RECORDING_MODE", "true")
+    status = public_ai_status()
+    assert status["video_recording_mode"] is True
+    assert "api_key" not in status
+
+    monkeypatch.setenv("NOAH_VIDEO_RECORDING_MODE", "false")
+    assert public_ai_status()["video_recording_mode"] is False
+
+
 def test_public_quota_failure_stops_server_funded_calls(monkeypatch) -> None:
     from main import TENANTS, reset_public_model_budgets
     from providers import ProviderResult

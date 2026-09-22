@@ -237,9 +237,10 @@ function App() {
 
   const pendingCount = approvals.length;
   const providerConfigured = primaryProviderConfigured || freeProviderConfigured;
-  const publicRuntimeReady = Boolean(publicAi?.enabled || reviewerConfigured);
+  const videoRecordingMode = Boolean(publicAi?.video_recording_mode);
+  const publicRuntimeReady = Boolean(publicAi?.enabled || (!videoRecordingMode && reviewerConfigured));
   const runtimeLabel = publicDemo
-    ? reviewerConfigured
+    ? !videoRecordingMode && reviewerConfigured
       ? 'Reviewer BYOK · NVIDIA/Nemotron'
       : publicAi?.enabled
         ? `${publicAi.model || runtimeModel} · Nebius`
@@ -531,7 +532,7 @@ function App() {
         </header>
 
         <div className={'page-content' + (onboardingVisible && workspaceMode === 'playground' ? ' onboarding-page-content' : '')}>
-          {publicDemo && <PublicAiPanel status={publicAi} onConfigured={() => setReviewerConfigured(true)} onCleared={() => setReviewerConfigured(false)} />}
+          {publicDemo && !publicAi?.video_recording_mode && <PublicAiPanel status={publicAi} onConfigured={() => setReviewerConfigured(true)} onCleared={() => setReviewerConfigured(false)} />}
           {onboardingVisible && workspaceMode === 'playground' ? <OnboardingWizard businessName={businessName} publicDemo={publicDemo} publicAi={publicAi} reviewerConfigured={reviewerConfigured} onExtract={extractOnboarding} onComplete={completeOnboarding} onSkip={skipOnboarding} onExit={exitOnboarding} /> : <>
             {workspaceMode === 'demo' && <div className="workspace-banner demo"><ShieldCheck size={17} /><div><strong>Demo sandbox</strong><span>Atlas Services is synthetic fixture data for the video. No external effects are enabled.</span></div></div>}
             {workspaceMode === 'playground' && <div className="workspace-banner playground"><Sparkles size={17} /><div><strong>{workspaceDataSource === 'synthetic-fixture' ? 'Playground · fictional data' : workspaceDataSource === 'onboarding' ? 'Configured playground' : 'Empty playground'}</strong><span>{workspaceDataSource === 'synthetic-fixture' ? 'Atlas Services is synthetic fixture data for exploration. It is not real data, and no external actions are executed.' : workspaceDataSource === 'onboarding' ? 'Your configuration is isolated in this tenant. External actions remain behind approval.' : 'This tenant starts without fictional data. Anything you add stays isolated from the demo.'}</span></div>{onboardingStatus === 'not_started' ? <button className="text-button workspace-banner-action" type="button" onClick={() => setOnboardingVisible(true)}>Open onboarding</button> : <button className="text-button workspace-banner-action" type="button" onClick={openGuidedTour}>{tourSeen ? 'Replay guided tour' : 'Start guided tour'}</button>}</div>}

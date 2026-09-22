@@ -114,6 +114,7 @@ export interface PublicAiStatus {
     provider_exhausted?: boolean;
   };
   reviewer_byok_allowed: boolean;
+  video_recording_mode?: boolean;
   server_configured?: boolean;
   reason_code?: string;
   message?: string;

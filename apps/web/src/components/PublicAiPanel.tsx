@@ -9,6 +9,7 @@ import {
   type PublicAiStatus,
   type ReviewerProviderName,
 } from '../lib/api';
+import { getPublicAiPresentation } from '../lib/publicAiPresentation';
 
 interface PublicAiPanelProps {
   status: PublicAiStatus | null;
@@ -52,19 +53,13 @@ export default function PublicAiPanel({ status, onConfigured, onCleared }: Publi
     status.credit_state === 'provider_exhausted' ? 'provider_exhausted'
       : status.credit_state === 'exhausted' ? 'internal_limit'
         : status.credit_state === 'unavailable' ? 'temporary_unavailable'
-          : status.credit_state
+        : status.credit_state
   );
-  const statusTitle = availability === 'available'
-    ? 'NVIDIA/Nemotron public active'
-    : availability === 'provider_exhausted'
-      ? 'Provider credit exhausted'
-      : availability === 'internal_limit'
-        ? 'Public safety limit reached'
-        : availability === 'closed'
-        ? 'Public window closed'
-          : availability === 'synthetic'
-            ? 'Scheduled synthetic demo'
-            : 'NVIDIA/Nemotron temporarily unavailable';
+  const presentation = getPublicAiPresentation(
+    availability,
+    status.message ?? 'Public runtime status is not available.',
+    configured ? reviewerProviderName() || provider : null,
+  );
 
   function changeProvider(nextProvider: ReviewerProviderName) {
     setProvider(nextProvider);
@@ -101,17 +96,17 @@ export default function PublicAiPanel({ status, onConfigured, onCleared }: Publi
   }
 
   return (
-    <section className={'public-ai-panel ' + status.credit_state} aria-labelledby="public-ai-title">
+    <section className={'public-ai-panel ' + (configured ? 'byok' : status.credit_state)} aria-labelledby="public-ai-title">
       <div className="public-ai-panel-main">
         <div className="public-ai-icon"><Sparkles size={18} /></div>
         <div className="public-ai-copy">
-          <div className="public-ai-kicker"><span className="live-dot" /> PUBLIC RUNTIME</div>
-          <h2 id="public-ai-title">{statusTitle}</h2>
-          <p>{status.message}</p>
-          {status.mode === 'scheduled' && status.credit_state === 'synthetic' && <small>Opens: {formatDate(status.opens_at)}</small>}
-          {availability === 'available' && <small>{status.remaining_calls ?? 0} total calls remain · {status.remaining_daily_calls ?? 0} remain today.</small>}
-          {availability === 'internal_limit' && <small>The total or daily safety limit was reached; the synthetic path remains free.</small>}
-          {availability === 'provider_exhausted' && <small>The provider reported exhausted credit; use the temporary key option to test Nemotron.</small>}
+          <div className="public-ai-kicker"><span className="live-dot" /> {presentation.kicker}</div>
+          <h2 id="public-ai-title">{presentation.title}</h2>
+          <p>{presentation.message}</p>
+          {status.mode === 'scheduled' && status.credit_state === 'synthetic' && <small>{configured ? 'Shared public runtime opens:' : 'Opens:'} {formatDate(status.opens_at)}</small>}
+          {!configured && availability === 'available' && <small>{status.remaining_calls ?? 0} total calls remain · {status.remaining_daily_calls ?? 0} remain today.</small>}
+          {!configured && availability === 'internal_limit' && <small>The total or daily safety limit was reached; the synthetic path remains free.</small>}
+          {!configured && availability === 'provider_exhausted' && <small>The provider reported exhausted credit; use the temporary key option to test Nemotron.</small>}
         </div>
         <div className="public-ai-actions">
           {configured ? (
@@ -121,7 +116,7 @@ export default function PublicAiPanel({ status, onConfigured, onCleared }: Publi
           )}
         </div>
       </div>
-      {saved && <div className="public-ai-byok-note"><ShieldCheck size={14} /><span>BYOK active: {providerLabel(reviewerProviderName() || provider)}. The key lives only in this tab's memory and is sent only to the model endpoint.</span></div>}
+      {saved && <div className="public-ai-byok-note"><ShieldCheck size={14} /><span>BYOK active: {providerLabel(reviewerProviderName() || provider)}. The key stays in this tab's memory, is attached only to BYOK requests, and is not persisted.</span></div>}
       {expanded && !configured && (
         <form className="public-ai-form" onSubmit={handleSubmit}>
           <div className="public-ai-form-heading"><div><strong>Reviewer fallback</strong><span>Use your own key if promotional credit is unavailable.</span></div><ShieldCheck size={16} /></div>

@@ -1295,6 +1295,7 @@ def _public_timestamp_value(name: str, default: str) -> tuple[str, datetime | No
 def public_ai_status(reviewer_bucket: str | None = None, reviewer: ReviewerProvider | None = None) -> dict[str, Any]:
     """Return safe routing state without exposing credentials or key hashes."""
 
+    video_recording_mode = os.getenv("NOAH_VIDEO_RECORDING_MODE", "false").strip().lower() == "true"
     configured_mode = os.getenv("NOAH_PUBLIC_AI_MODE", "synthetic").strip().lower()
     mode = configured_mode if configured_mode in PUBLIC_AI_MODES else "synthetic"
     opens_at_value, opens_at = _public_timestamp_value("NOAH_PUBLIC_AI_OPEN_AT", PUBLIC_AI_OPEN_AT_DEFAULT)
@@ -1413,6 +1414,7 @@ def public_ai_status(reviewer_bucket: str | None = None, reviewer: ReviewerProvi
         "remaining_daily_calls": int(budget.get("remaining_daily_calls", 0)),
         "usage": budget,
         "reviewer_byok_allowed": public_demo_enabled(),
+        "video_recording_mode": video_recording_mode,
         "server_configured": server_configured,
         "reason_code": reason_code,
         "message": message,

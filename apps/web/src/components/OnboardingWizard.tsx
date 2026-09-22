@@ -90,6 +90,7 @@ function makeIdempotencyKey(prefix: string): string {
 }
 
 export default function OnboardingWizard({ businessName, onExit, onExtract, onComplete, onSkip, publicDemo = false, publicAi = null, reviewerConfigured = false }: OnboardingWizardProps) {
+  const videoRecordingMode = Boolean(publicAi?.video_recording_mode);
   const [step, setStep] = useState<OnboardingStep>('welcome');
   const [narrative, setNarrative] = useState('');
   const [inventoryText, setInventoryText] = useState('');
@@ -276,7 +277,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
         <div className="onboarding-loading-icon"><Loader2 size={25} /></div>
         <span className="label-kicker">STEP 2 · PREPARATION</span>
         <h2>Building a reviewable draft.</h2>
-        <p>{publicDemo ? 'The NVIDIA route is converting your description into onboarding.v1 JSON. Extraction does not save business data, inventory, or the original text.' : 'Nebius is converting your description into onboarding.v1 JSON. Extraction does not save business data, inventory, or the original text.'}</p>
+        <p>{publicDemo && !videoRecordingMode ? 'The NVIDIA route is converting your description into onboarding.v1 JSON. Extraction does not save business data, inventory, or the original text.' : 'Nebius Token Factory is converting your description into onboarding.v1 JSON with NVIDIA Nemotron. Extraction does not save business data, inventory, or the original text.'}</p>
         <div className="onboarding-loading-track"><span /><span /><span /></div>
       </div>
     );
@@ -328,7 +329,7 @@ export default function OnboardingWizard({ businessName, onExit, onExtract, onCo
   const visibleStep = step === 'complete' || step === 'skipped' ? 'complete' : step;
 
   return (
-    <section className="onboarding-page" aria-labelledby="onboarding-title">
+    <section className={'onboarding-page' + (videoRecordingMode ? ' video-recording-mode' : '')} aria-labelledby="onboarding-title">
       <div className="onboarding-heading">
         <div><span className="eyebrow">Playground · first setup</span><h1 id="onboarding-title">Onboarding.</h1><p>A short tour to give Noah context without losing control of your data.</p></div>
         <div className="onboarding-meta"><span><span className="live-dot" /> Playground</span><small>{publicDemo ? 'Phase 4 · NVIDIA route' : 'Phase 4 · Neon + Nebius'}</small></div>
