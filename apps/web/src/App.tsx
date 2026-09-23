@@ -644,7 +644,7 @@ function Overview({ greeting, businessName, approvals, activity, demoMode, onOpe
   return (
     <>
       <PageHeading
-        eyebrow="Tuesday · September 8, 2026"
+        eyebrow={new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date())}
         title={greeting + ', Noe.'}
         detail={`Here is the work Noah prepared for ${businessName}.`}
         action={<button className="primary-button" onClick={onOpenAssistant}><Sparkles size={16} /> Ask Noah</button>}
