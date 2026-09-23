@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Activity,
@@ -26,11 +26,13 @@ import {
   Sparkles,
   UserRound,
   WalletCards,
+  WifiOff,
   X,
   Zap,
 } from 'lucide-react';
 import {
   advanceRun,
+  checkApiHealth,
   completeOnboarding as completeOnboardingApi,
   decideAction,
   extractOnboarding,
@@ -58,6 +60,7 @@ import {
   type OnboardingStatus,
   type PublicAiStatus,
 } from './lib/api';
+import { API_CONNECTION_EVENT, apiTransportFailureMessage, getApiTransportFailure } from './lib/apiConnection';
 import OnboardingWizard from './components/OnboardingWizard';
 import GuidedTour, { type TourSection } from './components/GuidedTour';
 import PublicAiPanel from './components/PublicAiPanel';
@@ -158,7 +161,10 @@ function App() {
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [input, setInput] = useState('');
   const [isThinking, setIsThinking] = useState(false);
-  const [apiOnline, setApiOnline] = useState(false);
+  const [apiConnection, setApiConnection] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
+  const [retryingApi, setRetryingApi] = useState(false);
+  const wasApiOffline = useRef(false);
   const [publicDemo, setPublicDemo] = useState(false);
   const [publicAi, setPublicAi] = useState<PublicAiStatus | null>(null);
   const [reviewerConfigured, setReviewerConfigured] = useState(false);
@@ -186,10 +192,35 @@ function App() {
   const [externalEffectsEnabled, setExternalEffectsEnabled] = useState(false);
 
   useEffect(() => {
+    const handleApiConnection = (event: unknown) => {
+      const online = Boolean((event as { detail?: { online?: boolean } }).detail?.online);
+      setApiConnection(online ? 'online' : 'offline');
+      if (!online) {
+        wasApiOffline.current = true;
+        return;
+      }
+      if (wasApiOffline.current) {
+        wasApiOffline.current = false;
+        void getPublicAiStatus().then(setPublicAi).catch(() => undefined);
+      }
+    };
+    const checkWhenVisible = () => {
+      if (document.visibilityState === 'visible') void checkApiHealth().catch(() => undefined);
+    };
+    window.addEventListener(API_CONNECTION_EVENT, handleApiConnection);
+    window.addEventListener('focus', checkWhenVisible);
+    document.addEventListener('visibilitychange', checkWhenVisible);
+    return () => {
+      window.removeEventListener(API_CONNECTION_EVENT, handleApiConnection);
+      window.removeEventListener('focus', checkWhenVisible);
+      document.removeEventListener('visibilitychange', checkWhenVisible);
+    };
+  }, []);
+
+  useEffect(() => {
     const loadWorkspace = async () => {
       try {
-        const health = await fetch((import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000') + '/health');
-        setApiOnline(health.ok);
+        await checkApiHealth();
         const [bootstrap, pending] = await Promise.all([getBootstrap(), getPendingActions()]);
         setPublicDemo(Boolean(bootstrap.public_demo));
         setPublicAi(bootstrap.public_ai || null);
@@ -215,6 +246,7 @@ function App() {
         setFreeProviderConfigured(Boolean(bootstrap.providers.free_sandbox?.configured));
         setExternalEffectsEnabled(Boolean(bootstrap.execution?.external_effects_enabled));
         setApprovals(pending.map((action) => ({ ...action, tone: action.tone || 'violet', amount: action.amount || undefined })));
+        setWorkspaceLoaded(true);
         const [mail, calendar, ledger, documents, quotes, receivables] = await Promise.allSettled([
           getMail(),
           getCalendar(),
@@ -229,8 +261,8 @@ function App() {
         if (documents.status === 'fulfilled') setDocumentItems(documents.value);
         if (quotes.status === 'fulfilled') setQuoteItems(quotes.value);
         if (receivables.status === 'fulfilled') setReceivableItems(receivables.value);
-      } catch {
-        setApiOnline(false);
+      } catch (reason: unknown) {
+        if (getApiTransportFailure(reason)) setApiConnection('offline');
       }
     };
     void loadWorkspace();
@@ -241,10 +273,31 @@ function App() {
   const videoRecordingMode = Boolean(publicAi?.video_recording_mode);
   const reviewerKeyExhausted = publicAi?.reason_code === 'PUBLIC_NVIDIA_BYOK_PROVIDER_EXHAUSTED';
   const publicRuntimeReady = Boolean(publicAi?.enabled || (!videoRecordingMode && reviewerConfigured && !reviewerKeyExhausted));
+  const apiOnline = apiConnection === 'online';
   function refreshPublicAiStatus() {
     void getPublicAiStatus()
       .then((status) => setPublicAi(status))
       .catch(() => undefined);
+  }
+  async function retryApiConnection() {
+    setRetryingApi(true);
+    try {
+      await checkApiHealth();
+      setApiConnection('online');
+      refreshPublicAiStatus();
+      if (!workspaceLoaded) window.location.reload();
+    } catch {
+      setApiConnection('offline');
+    } finally {
+      setRetryingApi(false);
+    }
+  }
+  async function extractOnboardingWithStatus(text: string) {
+    try {
+      return await extractOnboarding(text);
+    } finally {
+      refreshPublicAiStatus();
+    }
   }
   const runtimeLabel = publicDemo
     ? !videoRecordingMode && reviewerConfigured
@@ -254,7 +307,7 @@ function App() {
         : publicAi?.availability_state === 'provider_exhausted' || publicAi?.credit_state === 'provider_exhausted'
           ? 'Provider credit exhausted · synthetic fallback'
           : publicAi?.availability_state === 'internal_limit' || publicAi?.credit_state === 'exhausted'
-            ? 'Legacy app call cap · synthetic fallback'
+            ? 'Temporary safety limit reached · synthetic fallback'
             : publicAi?.availability_state === 'temporary_unavailable' || publicAi?.credit_state === 'unavailable'
               ? 'NVIDIA route unavailable · synthetic fallback'
               : 'Scheduled synthetic sandbox'
@@ -321,17 +374,21 @@ function App() {
           ...current,
         ]);
       }
-    } catch {
+    } catch (reason: unknown) {
+      refreshPublicAiStatus();
+      const transportFailure = getApiTransportFailure(reason);
       setMessages((current) => [
         ...current,
         {
           id: 'noah-' + Date.now(),
           role: 'noah',
-          text: publicDemo
-            ? 'The public demo is keeping the synthetic sandbox active: the NVIDIA/Nemotron call is not available right now. You can keep testing proposals without external effects or activate a temporary reviewer key.'
-            : 'I am running in local demo mode while the API wakes up. I can still map the request into a reviewable proposal; no email, calendar event, or financial record is changed automatically.',
+          text: transportFailure
+            ? apiTransportFailureMessage(transportFailure)
+            : publicDemo
+              ? 'The public demo is keeping the synthetic sandbox active: the NVIDIA/Nemotron call is not available right now. You can keep testing proposals without external effects or activate a temporary reviewer key.'
+              : 'I am running in local demo mode while the API wakes up. I can still map the request into a reviewable proposal; no email, calendar event, or financial record is changed automatically.',
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-           source: publicDemo ? 'Noah Nvidia · honest fallback' : 'Noah Nvidia · sandbox',
+          source: transportFailure ? 'Noah Nvidia · API connection issue' : publicDemo ? 'Noah Nvidia · honest fallback' : 'Noah Nvidia · sandbox',
         },
       ]);
     } finally {
@@ -510,8 +567,8 @@ function App() {
 
         <div className="sidebar-spacer" />
          <div className="nvidia-status">
-          <div className={'status-pulse ' + (runtimeOnline ? 'online' : '')} />
-          <div><strong>{runtimeOnline ? 'NVIDIA runtime online' : apiOnline ? 'NVIDIA API · sandbox' : 'NVIDIA demo runtime'}</strong><span>{runtimeOnline ? runtimeLabel : apiOnline ? publicDemo ? (publicAi?.message || 'Synthetic sandbox · no side effects') : 'No model key · no side effects' : 'Safe sandbox · no side effects'}</span></div>
+          <div className={'status-pulse ' + (runtimeOnline ? 'online' : apiConnection === 'offline' ? 'offline' : '')} />
+          <div><strong>{apiConnection === 'checking' ? 'Connecting to Noah API' : apiConnection === 'offline' ? 'Noah API unreachable' : runtimeOnline ? 'NVIDIA runtime online' : 'NVIDIA API · sandbox'}</strong><span>{apiConnection === 'checking' ? 'Checking service connectivity…' : apiConnection === 'offline' ? 'Workspace and model requests need the API connection.' : runtimeOnline ? runtimeLabel : publicDemo ? (publicAi?.message || 'Synthetic sandbox · no side effects') : 'No model key · no side effects'}</span></div>
           <MoreHorizontal size={16} />
         </div>
         <button className="nav-item settings-item" onClick={() => setSection('settings')}><Settings2 size={18} /><span>Settings</span></button>
@@ -531,7 +588,7 @@ function App() {
             <div className="breadcrumbs"><span>{businessName}</span><ChevronRight size={14} /><strong>{pageTitle}</strong></div>
           </div>
           <div className="topbar-actions">
-            <div className="live-chip"><span className="live-dot" /> {apiOnline ? workspaceLabel : 'Local sandbox'}</div>
+            <div className={'live-chip ' + (apiConnection === 'offline' ? 'offline' : apiConnection === 'checking' ? 'checking' : '')}><span className={'live-dot ' + (apiConnection === 'offline' ? 'offline' : '')} /> {apiOnline ? workspaceLabel : apiConnection === 'offline' ? 'API disconnected' : 'Connecting to API…'}</div>
             <button className="icon-button" aria-label="Search"><Search size={18} /></button>
             <button className="icon-button has-dot" aria-label="Notifications"><Inbox size={18} /></button>
             <div className="top-avatar">N</div>
@@ -539,8 +596,9 @@ function App() {
         </header>
 
         <div className={'page-content' + (onboardingVisible && workspaceMode === 'playground' ? ' onboarding-page-content' : '')}>
+          {apiConnection === 'offline' && <div className="workspace-banner api-connection-warning" role="alert" aria-live="assertive"><WifiOff size={17} /><div><strong>Noah API is unreachable</strong><span>The browser did not receive a response. An in-flight request may already have reached the provider; keep this screen open and check for a result before retrying.</span></div><button className="outline-button" type="button" onClick={() => { void retryApiConnection(); }} disabled={retryingApi}><RefreshCw size={14} /> {retryingApi ? 'Checking…' : 'Retry connection'}</button></div>}
           {publicDemo && !publicAi?.video_recording_mode && <PublicAiPanel status={publicAi} onConfigured={() => { setReviewerConfigured(true); refreshPublicAiStatus(); }} onCleared={() => { setReviewerConfigured(false); refreshPublicAiStatus(); }} />}
-          {onboardingVisible && workspaceMode === 'playground' ? <OnboardingWizard businessName={businessName} publicDemo={publicDemo} publicAi={publicAi} reviewerConfigured={reviewerConfigured} onExtract={extractOnboarding} onComplete={completeOnboarding} onSkip={skipOnboarding} onExit={exitOnboarding} /> : <>
+          {onboardingVisible && workspaceMode === 'playground' ? <OnboardingWizard businessName={businessName} publicDemo={publicDemo} publicAi={publicAi} reviewerConfigured={reviewerConfigured} onExtract={extractOnboardingWithStatus} onComplete={completeOnboarding} onSkip={skipOnboarding} onExit={exitOnboarding} /> : <>
             {workspaceMode === 'demo' && <div className="workspace-banner demo"><ShieldCheck size={17} /><div><strong>Demo sandbox</strong><span>Atlas Services is synthetic fixture data for the video. No external effects are enabled.</span></div></div>}
             {workspaceMode === 'playground' && <div className="workspace-banner playground"><Sparkles size={17} /><div><strong>{workspaceDataSource === 'synthetic-fixture' ? 'Playground · fictional data' : workspaceDataSource === 'onboarding' ? 'Configured playground' : 'Empty playground'}</strong><span>{workspaceDataSource === 'synthetic-fixture' ? 'Atlas Services is synthetic fixture data for exploration. It is not real data, and no external actions are executed.' : workspaceDataSource === 'onboarding' ? 'Your configuration is isolated in this tenant. External actions remain behind approval.' : 'This tenant starts without fictional data. Anything you add stays isolated from the demo.'}</span></div>{onboardingStatus === 'not_started' ? <button className="text-button workspace-banner-action" type="button" onClick={() => setOnboardingVisible(true)}>Open onboarding</button> : <button className="text-button workspace-banner-action" type="button" onClick={openGuidedTour}>{tourSeen ? 'Replay guided tour' : 'Start guided tour'}</button>}</div>}
             {section === 'overview' && <div data-tour="tour-overview">

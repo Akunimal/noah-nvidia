@@ -1,4 +1,5 @@
 import type { OnboardingDraft } from './onboarding';
+import { reportApiConnection } from './apiConnection';
 
 export interface ApiAction {
   id: string;
@@ -192,6 +193,9 @@ export interface OnboardingMutationResponse {
 }
 
 const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_REQUEST_TIMEOUT_MS = 20_000;
+const API_MODEL_REQUEST_TIMEOUT_MS = 120_000;
+const API_HEALTH_TIMEOUT_MS = 8_000;
 const configuredAuthToken = String(import.meta.env.VITE_NOAH_AUTH_TOKEN || '').trim();
 const publicWorkspaceId = (() => {
   try {
@@ -257,21 +261,59 @@ function reviewerHeaders(): Record<string, string> {
 
 async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
   const { includeReviewerCredentials, ...fetchInit } = init;
-  const response = await fetch(apiBase + path, {
-    ...fetchInit,
-    headers: { ...authHeaders, ...(includeReviewerCredentials ? reviewerHeaders() : {}), ...(init.headers || {}) },
-  });
-  if (!response.ok) {
-    let code = '';
-    try {
-      const body = await response.json() as { detail?: { code?: string } | string; error?: string };
-      code = typeof body.detail === 'string' ? body.detail : body.detail?.code || body.error || '';
-    } catch {
-      // Keep the status-only fallback when the server did not return JSON.
+  const controller = new globalThis.AbortController();
+  const modelRequest = path.includes('/onboarding/extract') || path.endsWith('/messages');
+  const timeout = globalThis.setTimeout(() => controller.abort(), modelRequest ? API_MODEL_REQUEST_TIMEOUT_MS : API_REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(apiBase + path, {
+      ...fetchInit,
+      signal: controller.signal,
+      headers: { ...authHeaders, ...(includeReviewerCredentials ? reviewerHeaders() : {}), ...(init.headers || {}) },
+    });
+    reportApiConnection(true);
+    if (!response.ok) {
+      let code = '';
+      try {
+        const body = await response.json() as { detail?: { code?: string } | string; error?: string };
+        code = typeof body.detail === 'string' ? body.detail : body.detail?.code || body.error || '';
+      } catch {
+        // Keep the status-only fallback when the server did not return JSON.
+      }
+      throw new Error(`API_${response.status}${code ? ':' + code : ''}`);
     }
-    throw new Error(`API_${response.status}${code ? ':' + code : ''}`);
+    return await response.json() as T;
+  } catch (error) {
+    if (error instanceof Error && (/^API_\d{3}(?::|$)/.test(error.message) || error.message === 'API_INVALID_RESPONSE') && !controller.signal.aborted) {
+      throw error;
+    }
+    if (controller.signal.aborted) {
+      reportApiConnection(false);
+      throw new Error('API_TIMEOUT');
+    }
+    if (error instanceof SyntaxError) {
+      reportApiConnection(true);
+      throw new Error('API_INVALID_RESPONSE');
+    }
+    reportApiConnection(false);
+    throw new Error('API_UNREACHABLE');
+  } finally {
+    globalThis.clearTimeout(timeout);
   }
-  return response.json() as Promise<T>;
+}
+
+export async function checkApiHealth(): Promise<void> {
+  const controller = new globalThis.AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), API_HEALTH_TIMEOUT_MS);
+  try {
+    const response = await fetch(apiBase + '/health', { signal: controller.signal, cache: 'no-store' });
+    if (!response.ok) throw new Error(`API_HEALTH_${response.status}`);
+    reportApiConnection(true);
+  } catch {
+    reportApiConnection(false);
+    throw new Error(controller.signal.aborted ? 'API_TIMEOUT' : 'API_UNREACHABLE');
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
 }
 
 export function getBootstrap(): Promise<BootstrapPayload> {
