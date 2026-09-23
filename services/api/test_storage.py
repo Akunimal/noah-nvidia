@@ -175,39 +175,40 @@ def test_postgres_repository_round_trips_tenant_and_single_use_oauth(monkeypatch
     assert repository.consume_oauth_state("oauth-state") is None
 
 
-def test_postgres_public_usage_survives_repository_restart_and_enforces_daily_limit(monkeypatch) -> None:
-    database = _FakeDatabase()
-    monkeypatch.setattr(storage, "psycopg", database)
-    repository = PostgresTenantRepository("postgresql://db.internal/noah")
-
-    reservation, error, usage = repository.reserve_public_usage("nebius", "server", 3, 1)
-    assert reservation is not None
-    assert error is None
-    assert usage["remaining_daily_calls"] == 0
-    blocked, blocked_error, _ = repository.reserve_public_usage("nebius", "server", 3, 1)
-    assert blocked is None
-    assert blocked_error == "PUBLIC_NVIDIA_INTERNAL_LIMIT"
-
-    repository.settle_public_usage(reservation["id"], True)
-    restarted = PostgresTenantRepository("postgresql://db.internal/noah")
-    snapshot = restarted.public_usage_snapshot("nebius", "server", 3, 1)
-    assert snapshot["consumed"] == 1
-    assert snapshot["remaining_calls"] == 2
-    assert snapshot["remaining_daily_calls"] == 0
-
-    next_reservation, next_error, _ = restarted.reserve_public_usage("nebius", "server", 3, 1)
-    assert next_reservation is None
-    assert next_error == "PUBLIC_NVIDIA_INTERNAL_LIMIT"
-
-
 def test_postgres_public_usage_persists_provider_exhaustion(monkeypatch) -> None:
     database = _FakeDatabase()
     monkeypatch.setattr(storage, "psycopg", database)
     repository = PostgresTenantRepository("postgresql://db.internal/noah")
-    reservation, error, _ = repository.reserve_public_usage("byok", "key-hash", 5, 5)
+    reservation, error, _ = repository.reserve_public_usage("byok", "key-hash")
     assert reservation is not None and error is None
     repository.settle_public_usage(reservation["id"], True, provider_exhausted=True)
-    blocked, blocked_error, usage = repository.reserve_public_usage("byok", "key-hash", 5, 5)
+    blocked, blocked_error, usage = repository.reserve_public_usage("byok", "key-hash")
     assert blocked is None
     assert blocked_error == "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED"
     assert usage["provider_exhausted"] is True
+
+
+def test_postgres_public_usage_allows_unbounded_nebius_until_provider_exhaustion(monkeypatch) -> None:
+    database = _FakeDatabase()
+    monkeypatch.setattr(storage, "psycopg", database)
+    repository = PostgresTenantRepository("postgresql://db.internal/noah")
+
+    first, first_error, first_usage = repository.reserve_public_usage("nebius", "server")
+    second, second_error, second_usage = repository.reserve_public_usage("nebius", "server")
+    assert first is not None and first_error is None
+    assert second is not None and second_error is None
+    assert first_usage["remaining_calls"] is None
+    assert second_usage["remaining_daily_calls"] is None
+
+    repository.settle_public_usage(first["id"], True)
+    repository.settle_public_usage(second["id"], True, provider_exhausted=True)
+    restarted = PostgresTenantRepository("postgresql://db.internal/noah")
+    snapshot = restarted.public_usage_snapshot("nebius", "server")
+    assert snapshot["consumed"] == 2
+    assert snapshot["limit"] is None
+    assert snapshot["remaining_calls"] is None
+    assert snapshot["provider_exhausted"] is True
+
+    blocked, blocked_error, _ = restarted.reserve_public_usage("nebius", "server")
+    assert blocked is None
+    assert blocked_error == "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED"

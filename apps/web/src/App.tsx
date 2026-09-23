@@ -41,6 +41,7 @@ import {
   getLedgerCsv,
   getMail,
   getPendingActions,
+  getPublicAiStatus,
   getQuotes,
   getReceivables,
   sendMessage,
@@ -238,16 +239,22 @@ function App() {
   const pendingCount = approvals.length;
   const providerConfigured = primaryProviderConfigured || freeProviderConfigured;
   const videoRecordingMode = Boolean(publicAi?.video_recording_mode);
-  const publicRuntimeReady = Boolean(publicAi?.enabled || (!videoRecordingMode && reviewerConfigured));
+  const reviewerKeyExhausted = publicAi?.reason_code === 'PUBLIC_NVIDIA_BYOK_PROVIDER_EXHAUSTED';
+  const publicRuntimeReady = Boolean(publicAi?.enabled || (!videoRecordingMode && reviewerConfigured && !reviewerKeyExhausted));
+  function refreshPublicAiStatus() {
+    void getPublicAiStatus()
+      .then((status) => setPublicAi(status))
+      .catch(() => undefined);
+  }
   const runtimeLabel = publicDemo
     ? !videoRecordingMode && reviewerConfigured
-      ? 'Reviewer BYOK · NVIDIA/Nemotron'
+      ? reviewerKeyExhausted ? 'Reviewer API key exhausted · replace it' : 'Reviewer BYOK · NVIDIA/Nemotron'
       : publicAi?.enabled
         ? `${publicAi.model || runtimeModel} · Nebius`
         : publicAi?.availability_state === 'provider_exhausted' || publicAi?.credit_state === 'provider_exhausted'
           ? 'Provider credit exhausted · synthetic fallback'
           : publicAi?.availability_state === 'internal_limit' || publicAi?.credit_state === 'exhausted'
-            ? 'Safety limit reached · synthetic fallback'
+            ? 'Legacy app call cap · synthetic fallback'
             : publicAi?.availability_state === 'temporary_unavailable' || publicAi?.credit_state === 'unavailable'
               ? 'NVIDIA route unavailable · synthetic fallback'
               : 'Scheduled synthetic sandbox'
@@ -532,7 +539,7 @@ function App() {
         </header>
 
         <div className={'page-content' + (onboardingVisible && workspaceMode === 'playground' ? ' onboarding-page-content' : '')}>
-          {publicDemo && !publicAi?.video_recording_mode && <PublicAiPanel status={publicAi} onConfigured={() => setReviewerConfigured(true)} onCleared={() => setReviewerConfigured(false)} />}
+          {publicDemo && !publicAi?.video_recording_mode && <PublicAiPanel status={publicAi} onConfigured={() => { setReviewerConfigured(true); refreshPublicAiStatus(); }} onCleared={() => { setReviewerConfigured(false); refreshPublicAiStatus(); }} />}
           {onboardingVisible && workspaceMode === 'playground' ? <OnboardingWizard businessName={businessName} publicDemo={publicDemo} publicAi={publicAi} reviewerConfigured={reviewerConfigured} onExtract={extractOnboarding} onComplete={completeOnboarding} onSkip={skipOnboarding} onExit={exitOnboarding} /> : <>
             {workspaceMode === 'demo' && <div className="workspace-banner demo"><ShieldCheck size={17} /><div><strong>Demo sandbox</strong><span>Atlas Services is synthetic fixture data for the video. No external effects are enabled.</span></div></div>}
             {workspaceMode === 'playground' && <div className="workspace-banner playground"><Sparkles size={17} /><div><strong>{workspaceDataSource === 'synthetic-fixture' ? 'Playground · fictional data' : workspaceDataSource === 'onboarding' ? 'Configured playground' : 'Empty playground'}</strong><span>{workspaceDataSource === 'synthetic-fixture' ? 'Atlas Services is synthetic fixture data for exploration. It is not real data, and no external actions are executed.' : workspaceDataSource === 'onboarding' ? 'Your configuration is isolated in this tenant. External actions remain behind approval.' : 'This tenant starts without fictional data. Anything you add stays isolated from the demo.'}</span></div>{onboardingStatus === 'not_started' ? <button className="text-button workspace-banner-action" type="button" onClick={() => setOnboardingVisible(true)}>Open onboarding</button> : <button className="text-button workspace-banner-action" type="button" onClick={openGuidedTour}>{tourSeen ? 'Replay guided tour' : 'Start guided tour'}</button>}</div>}

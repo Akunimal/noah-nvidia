@@ -71,12 +71,18 @@ bearer playground válido.
   pasos con anchors declarativos, navegación por teclado, foco restaurado,
   reduced motion y persistencia por tenant del marcador `v1`. No aparece
   antes de una decisión explícita de onboarding.
-- Public AI: `NOAH_PUBLIC_AI_MODE=scheduled` abre automáticamente del
-  `2026-10-27T17:00:00Z` al `2026-12-16T00:00:00Z`; el límite server-side base es
-  20 llamadas totales y 5 por día, y el límite BYOK base es 5 totales y 2 por
-  día. Las reservas y consumos públicos se guardan en Neon de forma
-  transaccional; el estado seguro llega por `bootstrap.public_ai`; las claves
-  nunca llegan a bootstrap, logs, Graphify, Neon ni el bundle.
+- Public AI: `NOAH_PUBLIC_AI_MODE=scheduled` abre automaticamente del
+  `2026-10-27T17:00:00Z` al `2026-12-16T00:00:00Z`. La ruta Nebius
+  financiada no tiene un limite de llamadas impuesto por la app: sigue hasta
+  que Nebius rechace por credito/cuota agotados. Ese estado y los contadores se
+  persisten en Neon para que un reinicio no reactive la ruta; al agotarse, la
+  UI ofrece BYOK y conserva el sandbox sintetico. BYOK no tiene un tope de
+  llamadas de Noah; aplican las cuotas y cargos del proveedor de cada clave.
+  Nebius debe rechazar al agotarse el credito
+  promocional o tener un control duro de gasto, porque Noah no distingue
+  credito promocional de uso pago. El estado seguro llega por
+  `bootstrap.public_ai`; las claves nunca llegan a bootstrap, logs,
+  Graphify, Neon ni el bundle.
 - Contrato JSON: `contracts/onboarding.v1.schema.json`.
 - Evidencia: `evidence/phase-0-onboarding.md`,
   `evidence/phase-1-playground.md`, `evidence/phase-2-wizard-shell.md` y
@@ -108,14 +114,15 @@ En cualquier otro caso
   -> deterministic-demo / NO_NVIDIA_PROVIDER_CONFIGURED
 ```
 
-La ruta pública no usa esta prioridad antes de su ventana: permanece en
-`deterministic-demo`. Durante la ventana, llama directamente a Nebius con un
-presupuesto total/diario persistido en Neon. Si Neon falla, la ruta financiada
-se cierra temporalmente. Si el crédito falta, se agota o devuelve una respuesta
-de cuota, el resultado público queda marcado como fallback honesto; no se abre
-OpenCode2API. BYOK se separa del crédito promocional y se limita por huella
-HMAC de clave con `NOAH_PUBLIC_BYOK_USAGE_LIMIT` y
-`NOAH_PUBLIC_BYOK_DAILY_LIMIT`, sin guardar la clave.
+La ruta publica no usa esta prioridad antes de su ventana: permanece en
+`deterministic-demo`. Durante la ventana, llama directamente a Nebius; Neon
+persiste reservas, contadores y el estado de agotamiento reportado por el
+proveedor, pero Noah no impone topes globales, diarios ni por clave. Si Neon
+falla, la ruta financiada se cierra temporalmente. Si Nebius reporta credito o
+cuota agotados, se ofrece BYOK y el sandbox sintetico sigue disponible. La
+clave BYOK solo vive en la pestaña; Neon conserva una huella HMAC para recordar
+el agotamiento informado por ese proveedor, nunca la clave. Los limites de
+cuota y facturacion del proveedor siguen aplicando.
 
 OpenCode2API solo entra si tiene `NOAH_OPENCODE2API_BASE_URL`, el tenant es el
 demo autorizado, `NOAH_ALLOW_FREE_SYNTHETIC=true` y el modelo configurado

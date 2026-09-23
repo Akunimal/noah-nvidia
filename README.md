@@ -122,17 +122,23 @@ browser. Nebius remains the inference provider; PostgreSQL only stores state.
 
 For a video or hackathon review, `NOAH_PUBLIC_DEMO=true` exposes only the
 synthetic playground tenant. `NOAH_PUBLIC_AI_MODE=scheduled` keeps that surface
-synthetic until `NOAH_PUBLIC_AI_OPEN_AT`, then permits only a bounded,
-server-side Nebius/NVIDIA Nemotron route until `NOAH_PUBLIC_AI_DEADLINE_AT`.
-The total and daily caps (`NOAH_PUBLIC_MODEL_USAGE_LIMIT` and
-`NOAH_PUBLIC_MODEL_DAILY_LIMIT`) are reserved and consumed transactionally in
-Neon, so API restarts cannot restore the budget. A provider quota error marks
-the funded route unavailable and returns to deterministic mode with an honest
-banner. The reviewer fallback accepts a key for NVIDIA NIM or Nebius in memory
-for one browser session, chooses a fixed backend destination, validates
-Nemotron, applies per-key total and daily caps, and never stores or logs the
-key. Each browser gets an opaque ephemeral playground id; Google OAuth,
-external effects, and visitor writes to Neon remain off.
+synthetic until `NOAH_PUBLIC_AI_OPEN_AT`, then permits the server-side
+Nebius/NVIDIA Nemotron route until `NOAH_PUBLIC_AI_DEADLINE_AT`, without an
+application-level total or daily call cap. Neon records usage and reservations
+transactionally and persists provider-reported credit exhaustion; API restarts
+cannot clear that state. If Nebius reports exhausted credit/quota, the funded
+route stops, the UI explains the reason and offers the reviewer BYOK route; the
+synthetic sandbox remains available. BYOK accepts a key for NVIDIA NIM or
+Nebius in memory for one browser session, chooses a fixed backend destination,
+validates Nemotron, imposes no Noah call-count cap, and never stores or logs
+the key. The provider's own quotas, account policy, and billing apply to a
+reviewer's key. Each browser gets an opaque ephemeral playground id; Google
+OAuth, external effects, and visitor writes to Neon remain off.
+
+Noah cannot distinguish promotional credit from paid Nebius usage. Before
+opening the funded route, ensure the Nebius account rejects requests when the
+promotional balance is exhausted (or otherwise enforce a provider-side hard
+spend guard); app-level request caps are intentionally disabled.
 Keep `NOAH_PUBLIC_DEMO=false` for a private deployment.
 
 The deployed API is hardened with exact-origin CORS (no wildcard), no-store

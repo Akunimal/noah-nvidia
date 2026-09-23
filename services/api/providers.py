@@ -115,6 +115,40 @@ class OpenCode2ApiProvider(Provider):
             return ProviderResult(self.name, self.model, None, type(exc).__name__ + ": " + str(exc)[:180])
 
 
+def _response_reports_credit_exhaustion(response: httpx.Response) -> bool:
+    """Recognize provider quota failures without treating every HTTP 429 as out of credit."""
+
+    if response.status_code == 402:
+        return True
+    if response.status_code not in {400, 403, 429}:
+        return False
+    try:
+        payload = response.json()
+    except ValueError:
+        return False
+    error = payload.get("error", payload) if isinstance(payload, dict) else {}
+    if isinstance(error, dict):
+        fields = (error.get("code"), error.get("type"), error.get("message"))
+    else:
+        fields = (error,)
+    text = " ".join(str(value) for value in fields if value is not None).casefold().replace("_", " ")
+    markers = (
+        "quota exceeded",
+        "quota exhausted",
+        "exceeded your current quota",
+        "insufficient quota",
+        "credit exhausted",
+        "credits exhausted",
+        "insufficient credit",
+        "insufficient credits",
+        "insufficient balance",
+        "out of credits",
+        "billing hard limit",
+        "payment required",
+    )
+    return any(marker in text for marker in markers)
+
+
 class NebiusProvider(Provider):
     name = "nebius"
     mode = "hackathon-demo"
@@ -163,6 +197,8 @@ class NebiusProvider(Provider):
                 return ProviderResult(self.name, self.model, str(text))
             except httpx.HTTPStatusError as exc:
                 status = exc.response.status_code
+                if _response_reports_credit_exhaustion(exc.response):
+                    return ProviderResult(self.name, self.model, None, "NEBIUS_CREDIT_EXHAUSTED")
                 if attempt == 0 and status in retryable_statuses:
                     await asyncio.sleep(0.25)
                     continue
@@ -270,6 +306,8 @@ class ReviewerProvider(Provider):
         except httpx.HTTPStatusError as exc:
             # Keep only the status code. The request key must never appear in
             # a provider error returned to the browser or persisted in a run.
+            if _response_reports_credit_exhaustion(exc.response):
+                return ProviderResult(self.name, self.model, None, "REVIEWER_CREDIT_EXHAUSTED")
             return ProviderResult(self.name, self.model, None, f"HTTP_{exc.response.status_code}")
         except httpx.HTTPError:
             return ProviderResult(self.name, self.model, None, "REVIEWER_TRANSPORT_ERROR")

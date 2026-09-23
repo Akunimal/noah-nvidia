@@ -50,11 +50,14 @@ deliberately opened the NVIDIA/Nemotron window.
 
 - Keep Nebius as the preferred provider and record the account, credit amount,
   expiry, current model ID, and smoke-test timestamp outside the repository.
-- Reserve at least 40% of available credit for the public demo and evaluation.
-- Disable automatic paid usage and keep `NOAH_ENABLE_EXTERNAL_EFFECTS=false`
-  until the test account and approval payloads are reviewed.
-- Stop model calls when the reserved budget is exhausted. A missing or unknown
-  rate blocks the call; it does not switch to a non-NVIDIA provider.
+- Configure Nebius so requests are rejected when promotional credit is
+  exhausted, or use a provider-side hard spend guard. Noah cannot distinguish
+  promotional from paid usage; funded calls have no application-level cap.
+- Keep `NOAH_ENABLE_EXTERNAL_EFFECTS=false` until the test account and
+  approval payloads are reviewed.
+- A provider-reported exhausted-credit/quota response disables the funded route
+  durably and prompts reviewers to use BYOK. A transient 429 does not by itself
+  mark credit exhausted or permanently disable the route.
 - OpenCode2API remains synthetic-only and must never receive customer data.
 
 ## Public demo window
@@ -62,20 +65,19 @@ deliberately opened the NVIDIA/Nemotron window.
 - Keep `NOAH_PUBLIC_AI_MODE=scheduled` in Render. The checked-in release window
   opens at `2026-10-27T17:00:00Z` and closes at `2026-12-16T00:00:00Z`, four
   hours after the official judging period ends.
-- Set `NOAH_PUBLIC_MODEL_USAGE_LIMIT` and
-  `NOAH_PUBLIC_MODEL_DAILY_LIMIT` conservatively (the release baseline is 20
-  total and 5 per UTC day). Neon stores the consumed counters and active
-  reservations transactionally, so API restarts cannot restore calls. If Neon
-  is unavailable, the funded route fails closed.
+- Do not set app-level total/daily caps for the server-funded Nebius route.
+  Neon stores usage counters, active reservations, and provider-exhaustion
+  state transactionally; restarts cannot clear exhaustion. If Neon is
+  unavailable, the funded route fails closed.
 - If Nebius is missing, the promotion is exhausted, or the provider returns a
   quota response, leave the instance in synthetic fallback and verify that the
-  UI distinguishes provider exhaustion from the internal safety limit. Do not
+  UI distinguishes provider exhaustion from a temporary provider outage. Do not
   replace it with OpenCode2API or another model family.
-- The reviewer BYOK fallback is available independently and capped per key by
-  `NOAH_PUBLIC_BYOK_USAGE_LIMIT` and `NOAH_PUBLIC_BYOK_DAILY_LIMIT` (baseline 5
-  total and 2 per UTC day). The browser sends only the key/provider/model; the
-  backend stores only a keyed fingerprint, chooses the fixed destination, and
-  never persists or logs the key.
+- The reviewer BYOK fallback is available independently with no Noah
+  call-count cap. The browser sends only the key/provider/model; the backend
+  stores only a keyed fingerprint to remember provider-reported exhaustion,
+  chooses the fixed destination, and never persists or logs the key. The
+  provider's own quotas and billing apply to reviewer-supplied keys.
 - To test the live route without spending credit, use a local mocked provider
   test. Do not move the public open time forward in Render unless the operator
   explicitly intends to consume promotional credit.

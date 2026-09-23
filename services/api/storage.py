@@ -310,19 +310,17 @@ class PostgresTenantRepository:
         total_reserved: int,
         daily_consumed: int,
         daily_reserved: int,
-        total_limit: int,
-        daily_limit: int,
         provider_exhausted: bool,
     ) -> dict[str, Any]:
         return {
             "consumed": total_consumed,
             "reserved": total_reserved,
-            "limit": total_limit,
-            "remaining_calls": max(0, total_limit - total_consumed - total_reserved),
+            "limit": None,
+            "remaining_calls": None,
             "daily_consumed": daily_consumed,
             "daily_reserved": daily_reserved,
-            "daily_limit": daily_limit,
-            "remaining_daily_calls": max(0, daily_limit - daily_consumed - daily_reserved),
+            "daily_limit": None,
+            "remaining_daily_calls": None,
             "provider_exhausted": provider_exhausted,
         }
 
@@ -330,8 +328,6 @@ class PostgresTenantRepository:
         self,
         source: str,
         bucket_key: str,
-        total_limit: int,
-        daily_limit: int,
         *,
         current: datetime | None = None,
         reservation_ttl_seconds: int = 900,
@@ -407,8 +403,6 @@ class PostgresTenantRepository:
             int(pending_total[0] if pending_total else 0),
             int(daily[0]),
             int(pending_daily[0] if pending_daily else 0),
-            total_limit,
-            daily_limit,
             bool(total[1]),
         )
 
@@ -416,8 +410,6 @@ class PostgresTenantRepository:
         self,
         source: str,
         bucket_key: str,
-        total_limit: int,
-        daily_limit: int,
         *,
         current: datetime | None = None,
         reservation_ttl_seconds: int = 900,
@@ -430,9 +422,7 @@ class PostgresTenantRepository:
         usage_date = self._usage_date(current)
         now = current or datetime.now(timezone.utc)
         cutoff = now - timedelta(seconds=reservation_ttl_seconds)
-        empty = self._usage_snapshot(0, 0, 0, 0, total_limit, daily_limit, False)
-        if total_limit <= 0 or daily_limit <= 0:
-            return None, "PUBLIC_NVIDIA_INTERNAL_LIMIT", empty
+        empty = self._usage_snapshot(0, 0, 0, 0, False)
         self.ensure_schema()
         try:
             with self._connect() as connection:
@@ -498,14 +488,10 @@ class PostgresTenantRepository:
                     active_total,
                     daily_consumed,
                     active_daily,
-                    total_limit,
-                    daily_limit,
                     provider_exhausted,
                 )
                 if provider_exhausted:
                     return None, "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED", usage
-                if total_consumed + active_total >= total_limit or daily_consumed + active_daily >= daily_limit:
-                    return None, "PUBLIC_NVIDIA_INTERNAL_LIMIT", usage
                 reservation_id = "public-usage-" + uuid4().hex
                 connection.execute(
                     """
@@ -520,8 +506,6 @@ class PostgresTenantRepository:
                     active_total + 1,
                     daily_consumed,
                     active_daily + 1,
-                    total_limit,
-                    daily_limit,
                     provider_exhausted,
                 )
         except RuntimeError:

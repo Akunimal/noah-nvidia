@@ -28,8 +28,8 @@ already happened.**
 ## Recommended final cut — 3:00 maximum
 
 Use one coherent connected take as the primary cut. The connected take should
-show one controlled Nebius/NVIDIA Nemotron extraction with a conservative
-usage limit and no external effects. If the connected route is unavailable,
+show one controlled Nebius/NVIDIA Nemotron extraction with provider-controlled
+credit availability and no external effects. If the connected route is unavailable,
 use the synthetic take below, label it on screen, and never imply that the
 synthetic response came from Nemotron.
 

@@ -212,7 +212,7 @@ def test_public_demo_is_bounded_synthetic_and_never_calls_a_model(monkeypatch) -
         TENANTS.pop(PUBLIC_DEMO_TENANT_ID, None)
 
 
-def test_public_cutover_boundaries_and_credit_budget_are_deterministic(monkeypatch) -> None:
+def test_public_cutover_boundaries_have_no_app_level_nebius_call_cap(monkeypatch) -> None:
     from main import public_ai_status, reset_public_model_budgets, reserve_public_model_usage, settle_public_model_usage
 
     monkeypatch.setenv("NOAH_PUBLIC_DEMO", "true")
@@ -222,6 +222,7 @@ def test_public_cutover_boundaries_and_credit_budget_are_deterministic(monkeypat
     monkeypatch.setenv("NOAH_PUBLIC_AI_OPEN_AT", "2026-10-27T17:00:00Z")
     monkeypatch.setenv("NOAH_PUBLIC_AI_DEADLINE_AT", "2026-10-30T17:00:00Z")
     monkeypatch.setenv("NOAH_PUBLIC_MODEL_USAGE_LIMIT", "1")
+    monkeypatch.setenv("NOAH_PUBLIC_MODEL_DAILY_LIMIT", "1")
     monkeypatch.setattr(router.nebius, "api_key", "cutover-test-key")
     monkeypatch.setattr(router.nebius, "model", "nvidia/nemotron-3-super-120b-a12b")
     reset_public_model_budgets()
@@ -244,13 +245,18 @@ def test_public_cutover_boundaries_and_credit_budget_are_deterministic(monkeypat
     reservation, error = reserve_public_model_usage("nebius")
     assert reservation is not None
     assert error is None
-    exhausted = public_ai_status()
-    assert exhausted["effective_mode"] == "nebius"
-    assert exhausted["credit_state"] == "exhausted"
-    assert exhausted["reason_code"] == "PUBLIC_NVIDIA_INTERNAL_LIMIT"
-    assert exhausted["availability_state"] == "internal_limit"
-    assert exhausted["remaining_calls"] == 0
+    second_reservation, second_error = reserve_public_model_usage("nebius")
+    assert second_reservation is not None
+    assert second_error is None
+    active = public_ai_status()
+    assert active["effective_mode"] == "nebius"
+    assert active["credit_state"] == "available"
+    assert active["availability_state"] == "available"
+    assert active["remaining_calls"] is None
+    assert active["remaining_daily_calls"] is None
     settle_public_model_usage(reservation, consumed=True)
+    settle_public_model_usage(second_reservation, consumed=True)
+    assert public_ai_status()["credit_state"] == "available"
 
     freeze_main_time(monkeypatch, "2026-10-30T17:00:00Z")
     after_deadline = public_ai_status()
@@ -260,7 +266,7 @@ def test_public_cutover_boundaries_and_credit_budget_are_deterministic(monkeypat
     assert after_deadline["enabled"] is False
 
 
-def test_public_scheduled_nvidia_mode_uses_one_global_budget(monkeypatch) -> None:
+def test_public_scheduled_nvidia_mode_is_not_stopped_by_app_call_caps(monkeypatch) -> None:
     from main import TENANTS, reset_public_model_budgets
     from providers import ProviderResult
 
@@ -271,6 +277,7 @@ def test_public_scheduled_nvidia_mode_uses_one_global_budget(monkeypatch) -> Non
     monkeypatch.setenv("NOAH_PUBLIC_AI_OPEN_AT", "2026-01-01T00:00:00Z")
     monkeypatch.setenv("NOAH_PUBLIC_AI_DEADLINE_AT", "2026-12-31T23:59:59Z")
     monkeypatch.setenv("NOAH_PUBLIC_MODEL_USAGE_LIMIT", "1")
+    monkeypatch.setenv("NOAH_PUBLIC_MODEL_DAILY_LIMIT", "1")
     reset_public_model_budgets()
     TENANTS.pop("tenant-public-scheduled-one", None)
     TENANTS.pop("tenant-public-scheduled-two", None)
@@ -296,11 +303,12 @@ def test_public_scheduled_nvidia_mode_uses_one_global_budget(monkeypatch) -> Non
         assert first.status_code == 200
         assert first.json()["provider"] == "nebius"
         assert first.json()["public_ai"]["effective_mode"] == "nebius"
-        assert first.json()["public_ai"]["credit_state"] == "exhausted"
+        assert first.json()["public_ai"]["credit_state"] == "available"
         assert second.status_code == 200
-        assert second.json()["provider"] == "deterministic-demo"
-        assert second.json()["provider_error"] == "PUBLIC_NVIDIA_INTERNAL_LIMIT"
-        assert len(calls) == 1
+        assert second.json()["provider"] == "nebius"
+        assert second.json()["provider_error"] is None
+        assert second.json()["public_ai"]["credit_state"] == "available"
+        assert len(calls) == 2
     finally:
         TENANTS.pop("tenant-public-scheduled-one", None)
         TENANTS.pop("tenant-public-scheduled-two", None)
@@ -320,7 +328,7 @@ def test_video_recording_mode_is_exposed_without_credentials(monkeypatch) -> Non
 
 def test_public_quota_failure_stops_server_funded_calls(monkeypatch) -> None:
     from main import TENANTS, reset_public_model_budgets
-    from providers import ProviderResult
+    from providers import ProviderResult, ReviewerProvider
 
     monkeypatch.setenv("NOAH_PUBLIC_DEMO", "true")
     monkeypatch.setenv("NOAH_REQUIRE_AUTH", "true")
@@ -335,8 +343,12 @@ def test_public_quota_failure_stops_server_funded_calls(monkeypatch) -> None:
         calls.append(prompt)
         return ProviderResult("nebius", "nvidia/nemotron-test", None, "HTTPStatusError: 402 Payment Required")
 
+    async def reviewer_complete(self: ReviewerProvider, prompt: str, system: str) -> ProviderResult:
+        return ProviderResult("nvidia-nim", self.model, "Reviewer-owned Nemotron response")
+
     monkeypatch.setattr(router.nebius, "api_key", "synthetic-key")
     monkeypatch.setattr(router.nebius, "complete", quota_complete)
+    monkeypatch.setattr(ReviewerProvider, "complete", reviewer_complete)
     try:
         first = client.post(
             "/api/v1/conversations/demo/messages",
@@ -352,6 +364,23 @@ def test_public_quota_failure_stops_server_funded_calls(monkeypatch) -> None:
         assert first.json()["provider_error"] == "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED"
         assert second.status_code == 200
         assert second.json()["provider_error"] == "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED"
+        assert len(calls) == 1
+
+        reviewer_key = "reviewer-key-after-public-credit-exhaustion"
+        byok = client.post(
+            "/api/v1/conversations/demo/messages",
+            headers={
+                "X-Noah-Public-Workspace": "quota-one",
+                "X-Noah-Reviewer-Api-Key": reviewer_key,
+                "X-Noah-Reviewer-Provider": "nvidia-nim",
+                "X-Noah-Reviewer-Model": "nvidia/nemotron-3-nano-30b-a3b-reasoning",
+            },
+            json={"message": "Continue with my own Nemotron key"},
+        )
+        assert byok.status_code == 200
+        assert byok.json()["provider"] == "nvidia-nim"
+        assert byok.json()["public_ai"]["credit_state"] == "available"
+        assert reviewer_key not in byok.text
         assert len(calls) == 1
     finally:
         TENANTS.pop("tenant-public-quota-one", None)
@@ -432,10 +461,11 @@ def test_public_reviewer_byok_is_ephemeral_and_accepts_nvidia_nim(monkeypatch) -
         TENANTS.pop(tenant_id, None)
 
 
-def test_public_budget_is_atomic_and_scoped_per_reviewer_key(monkeypatch) -> None:
+def test_public_usage_has_no_app_caps_and_provider_exhaustion_is_scoped_per_key(monkeypatch) -> None:
     from concurrent.futures import ThreadPoolExecutor
     from main import reset_public_model_budgets, reserve_public_model_usage, settle_public_model_usage
 
+    # Legacy environment values must not reintroduce app-level public call caps.
     monkeypatch.setenv("NOAH_PUBLIC_MODEL_USAGE_LIMIT", "1")
     monkeypatch.setenv("NOAH_PUBLIC_MODEL_DAILY_LIMIT", "1")
     monkeypatch.setenv("NOAH_PUBLIC_BYOK_USAGE_LIMIT", "1")
@@ -443,20 +473,75 @@ def test_public_budget_is_atomic_and_scoped_per_reviewer_key(monkeypatch) -> Non
     reset_public_model_budgets()
 
     with ThreadPoolExecutor(max_workers=8) as pool:
-        reservations = list(pool.map(lambda _: reserve_public_model_usage("nebius"), range(8)))
-    successful = [item for item, error in reservations if item is not None and error is None]
-    assert len(successful) == 1
-    assert sum(1 for _item, error in reservations if error == "PUBLIC_NVIDIA_INTERNAL_LIMIT") == 7
+        funded = list(pool.map(lambda _: reserve_public_model_usage("nebius"), range(8)))
+        reviewer = list(pool.map(lambda _: reserve_public_model_usage("byok", "key-a"), range(8)))
+    funded_successful = [item for item, error in funded if item is not None and error is None]
+    reviewer_successful = [item for item, error in reviewer if item is not None and error is None]
+    assert len(funded_successful) == 8
+    assert len(reviewer_successful) == 8
+    assert all(error is None for _item, error in [*funded, *reviewer])
+    for reservation in [*funded_successful, *reviewer_successful]:
+        settle_public_model_usage(reservation, True)
 
-    first_key, first_error = reserve_public_model_usage("byok", "key-a")
-    second_key, second_error = reserve_public_model_usage("byok", "key-b")
-    assert first_key is not None and first_error is None
-    assert second_key is not None and second_error is None
-    settle_public_model_usage(first_key, True)
-    settle_public_model_usage(second_key, True)
+    exhausted_key, exhausted_error = reserve_public_model_usage("byok", "key-a")
+    assert exhausted_key is not None and exhausted_error is None
+    settle_public_model_usage(exhausted_key, True, provider_exhausted=True)
     blocked, blocked_error = reserve_public_model_usage("byok", "key-a")
     assert blocked is None
-    assert blocked_error == "PUBLIC_NVIDIA_INTERNAL_LIMIT"
+    assert blocked_error == "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED"
+    other_key, other_error = reserve_public_model_usage("byok", "key-b")
+    assert other_key is not None and other_error is None
+
+
+def test_transient_nebius_rate_limit_does_not_mark_provider_credit_exhausted() -> None:
+    from main import _public_provider_error_code
+    from providers import ProviderResult
+
+    rate_limited = ProviderResult("nebius", "nvidia/nemotron-test", None, "NEBIUS_HTTP_429")
+    exhausted = ProviderResult("nebius", "nvidia/nemotron-test", None, "NEBIUS_CREDIT_EXHAUSTED")
+    assert _public_provider_error_code(rate_limited, "nebius") == "PUBLIC_NVIDIA_PROVIDER_ERROR"
+    assert _public_provider_error_code(exhausted, "nebius") == "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED"
+
+
+def test_public_ai_status_keeps_server_and_reviewer_exhaustion_separate(monkeypatch) -> None:
+    from main import TENANTS, reset_public_model_budgets, reserve_public_model_usage, settle_public_model_usage
+
+    monkeypatch.setenv("NOAH_PUBLIC_DEMO", "true")
+    monkeypatch.setenv("NOAH_REQUIRE_AUTH", "true")
+    monkeypatch.setenv("NOAH_DEMO_AUTH", "false")
+    monkeypatch.setenv("NOAH_PUBLIC_AI_MODE", "nebius")
+    monkeypatch.setattr(router.nebius, "api_key", "configured-for-test")
+    tenant_id = "tenant-public-status-scope"
+    TENANTS.pop(tenant_id, None)
+    reset_public_model_budgets()
+    try:
+        reservation, error = reserve_public_model_usage("nebius", "server")
+        assert reservation is not None and error is None
+        assert settle_public_model_usage(reservation, True, provider_exhausted=True)
+
+        workspace = {"X-Noah-Public-Workspace": "status-scope"}
+        server_status = client.get("/api/v1/public-ai/status", headers=workspace)
+        assert server_status.status_code == 200
+        assert server_status.json()["reason_code"] == "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED"
+
+        reviewer_key = "reviewer-status-key-must-not-leak"
+        reviewer_status = client.get(
+            "/api/v1/public-ai/status",
+            headers={
+                **workspace,
+                "X-Noah-Reviewer-Api-Key": reviewer_key,
+                "X-Noah-Reviewer-Provider": "nvidia-nim",
+                "X-Noah-Reviewer-Model": "nvidia/nemotron-3-nano-30b-a3b-reasoning",
+            },
+        )
+        assert reviewer_status.status_code == 200
+        assert reviewer_status.headers["cache-control"] == "no-store"
+        assert reviewer_status.json()["reason_code"] == "PUBLIC_NVIDIA_BYOK_ACTIVE"
+        assert reviewer_status.json()["availability_state"] == "available"
+        assert reviewer_key not in reviewer_status.text
+    finally:
+        TENANTS.pop(tenant_id, None)
+        reset_public_model_budgets()
 
 
 def test_public_usage_store_failure_fails_closed(monkeypatch) -> None:

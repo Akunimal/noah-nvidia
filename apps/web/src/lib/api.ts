@@ -100,17 +100,17 @@ export interface PublicAiStatus {
   deadline_at?: string | null;
   credit_state: 'synthetic' | 'available' | 'unavailable' | 'exhausted' | 'provider_exhausted' | 'closed';
   availability_state?: 'synthetic' | 'available' | 'internal_limit' | 'provider_exhausted' | 'temporary_unavailable' | 'closed';
-  remaining_calls?: number;
-  remaining_daily_calls?: number;
+  remaining_calls?: number | null;
+  remaining_daily_calls?: number | null;
   usage?: {
     consumed?: number;
     reserved?: number;
-    limit?: number;
-    remaining_calls?: number;
+    limit?: number | null;
+    remaining_calls?: number | null;
     daily_consumed?: number;
     daily_reserved?: number;
-    daily_limit?: number;
-    remaining_daily_calls?: number;
+    daily_limit?: number | null;
+    remaining_daily_calls?: number | null;
     provider_exhausted?: boolean;
   };
   reviewer_byok_allowed: boolean;
@@ -276,6 +276,10 @@ async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
 
 export function getBootstrap(): Promise<BootstrapPayload> {
   return request<BootstrapPayload>('/api/v1/bootstrap');
+}
+
+export function getPublicAiStatus(): Promise<PublicAiStatus> {
+  return request<PublicAiStatus>('/api/v1/public-ai/status', { includeReviewerCredentials: true });
 }
 
 export function extractOnboarding(text: string): Promise<OnboardingExtractionResponse> {

@@ -1068,6 +1068,7 @@ def public_demo_path_allowed(request: Request) -> bool:
     path = request.url.path.rstrip("/") or "/"
     read_prefixes = (
         "/api/v1/bootstrap",
+        "/api/v1/public-ai/status",
         "/api/v1/onboarding",
         "/api/v1/providers/health",
         "/api/v1/business",
@@ -1107,25 +1108,6 @@ def public_demo_path_allowed(request: Request) -> bool:
     return False
 
 
-def _nonnegative_env_int(name: str, default: int) -> int:
-    try:
-        return max(0, int(os.getenv(name, str(default))))
-    except (TypeError, ValueError):
-        return default
-
-
-def _public_budget_limit(source: str) -> int:
-    if source == "byok":
-        return _nonnegative_env_int("NOAH_PUBLIC_BYOK_USAGE_LIMIT", 5)
-    return _nonnegative_env_int("NOAH_PUBLIC_MODEL_USAGE_LIMIT", 0)
-
-
-def _public_daily_budget_limit(source: str) -> int:
-    if source == "byok":
-        return _nonnegative_env_int("NOAH_PUBLIC_BYOK_DAILY_LIMIT", 2)
-    return _nonnegative_env_int("NOAH_PUBLIC_MODEL_DAILY_LIMIT", 5)
-
-
 def _reviewer_usage_bucket(reviewer: ReviewerProvider) -> str:
     """Return a stable bucket without retaining the reviewer key."""
 
@@ -1155,17 +1137,15 @@ def _in_memory_usage_snapshot(source: str, bucket_key: str, current: datetime | 
             and (current - item["created_at"]).total_seconds() < PUBLIC_USAGE_RESERVATION_TTL_SECONDS
         ]
         daily_consumed = int(budget["daily"].get(usage_date, 0))
-        total_limit = _public_budget_limit(source)
-        daily_limit = _public_daily_budget_limit(source)
         return {
             "consumed": int(budget["consumed"]),
             "reserved": len(active),
-            "limit": total_limit,
-            "remaining_calls": max(0, total_limit - int(budget["consumed"]) - len(active)),
+            "limit": None,
+            "remaining_calls": None,
             "daily_consumed": daily_consumed,
             "daily_reserved": len(active),
-            "daily_limit": daily_limit,
-            "remaining_daily_calls": max(0, daily_limit - daily_consumed - len(active)),
+            "daily_limit": None,
+            "remaining_daily_calls": None,
             "provider_exhausted": bool(budget["provider_exhausted"]),
         }
 
@@ -1176,8 +1156,6 @@ def _public_usage_snapshot(source: str, bucket_key: str = "server") -> dict[str,
             return persistence.public_usage_snapshot(
                 source,
                 bucket_key,
-                _public_budget_limit(source),
-                _public_daily_budget_limit(source),
                 reservation_ttl_seconds=PUBLIC_USAGE_RESERVATION_TTL_SECONDS,
             )
         except RuntimeError:
@@ -1199,8 +1177,6 @@ def reserve_public_model_usage(source: str, bucket_key: str = "server") -> tuple
             reservation, error, _usage = persistence.reserve_public_usage(
                 source,
                 bucket_key,
-                _public_budget_limit(source),
-                _public_daily_budget_limit(source),
                 reservation_ttl_seconds=PUBLIC_USAGE_RESERVATION_TTL_SECONDS,
             )
             return reservation, error
@@ -1220,14 +1196,8 @@ def reserve_public_model_usage(source: str, bucket_key: str = "server") -> tuple
             and item["usage_date"] == usage_date
             and (current - item["created_at"]).total_seconds() < PUBLIC_USAGE_RESERVATION_TTL_SECONDS
         ]
-        total_limit = _public_budget_limit(source)
-        daily_limit = _public_daily_budget_limit(source)
-        if total_limit <= 0 or daily_limit <= 0:
-            return None, "PUBLIC_NVIDIA_INTERNAL_LIMIT"
         if budget["provider_exhausted"]:
             return None, "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED"
-        if int(budget["consumed"]) + len(active) >= total_limit or int(budget["daily"].get(usage_date, 0)) + len(active) >= daily_limit:
-            return None, "PUBLIC_NVIDIA_INTERNAL_LIMIT"
         reservation_id = new_id("public-usage")
         budget["reservations"][reservation_id] = {"status": "reserved", "usage_date": usage_date, "created_at": current}
         return {"id": reservation_id, "source": source, "bucket_key": bucket_key}, None
@@ -1337,14 +1307,6 @@ def public_ai_status(reviewer_bucket: str | None = None, reviewer: ReviewerProvi
             credit_state = "provider_exhausted"
             availability_state = "provider_exhausted"
             reason_code = "PUBLIC_NVIDIA_BYOK_PROVIDER_EXHAUSTED"
-        elif int(budget.get("limit", 0)) <= 0 or int(budget.get("daily_limit", 0)) <= 0:
-            credit_state = "unavailable"
-            availability_state = "temporary_unavailable"
-            reason_code = "PUBLIC_NVIDIA_BYOK_LIMIT_NOT_CONFIGURED"
-        elif int(budget.get("remaining_calls", 0)) <= 0 or int(budget.get("remaining_daily_calls", 0)) <= 0:
-            credit_state = "exhausted"
-            availability_state = "internal_limit"
-            reason_code = "PUBLIC_NVIDIA_BYOK_INTERNAL_LIMIT"
         else:
             credit_state = "available"
             availability_state = "available"
@@ -1360,24 +1322,16 @@ def public_ai_status(reviewer_bucket: str | None = None, reviewer: ReviewerProvi
             credit_state = "unavailable"
             availability_state = "temporary_unavailable"
             reason_code = "PUBLIC_NVIDIA_NOT_CONFIGURED"
-        elif int(budget.get("limit", 0)) <= 0 or int(budget.get("daily_limit", 0)) <= 0:
-            credit_state = "unavailable"
-            availability_state = "temporary_unavailable"
-            reason_code = "PUBLIC_NVIDIA_CREDIT_LIMIT_NOT_CONFIGURED"
         elif budget.get("provider_exhausted"):
             credit_state = "provider_exhausted"
             availability_state = "provider_exhausted"
             reason_code = "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED"
-        elif int(budget.get("remaining_calls", 0)) <= 0 or int(budget.get("remaining_daily_calls", 0)) <= 0:
-            credit_state = "exhausted"
-            availability_state = "internal_limit"
-            reason_code = "PUBLIC_NVIDIA_INTERNAL_LIMIT"
         else:
             credit_state = "available"
             availability_state = "available"
 
     if source == "byok" and availability_state == "available":
-        message = "Reviewer BYOK is active for this tab; the temporary key is bounded and external actions remain behind approval."
+        message = "Your Nemotron API key is active for this tab. Noah does not cap BYOK calls; provider account limits and billing apply. External actions remain behind approval."
     elif mode == "synthetic":
         message = "The public demo uses a synthetic sandbox with no model calls."
     elif reason_code == "PUBLIC_NVIDIA_NOT_OPEN":
@@ -1385,17 +1339,15 @@ def public_ai_status(reviewer_bucket: str | None = None, reviewer: ReviewerProvi
     elif reason_code == "PUBLIC_NVIDIA_WINDOW_CLOSED":
         message = "The public NVIDIA/Nemotron window has ended; the demo has returned to the synthetic sandbox."
     elif reason_code == "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED":
-        message = "The provider reported exhausted promotional credit; the demo remains available in synthetic mode."
-    elif reason_code == "PUBLIC_NVIDIA_INTERNAL_LIMIT":
-        message = "The public safety limit has been reached; the demo remains available in synthetic mode."
-    elif reason_code == "PUBLIC_NVIDIA_BYOK_INTERNAL_LIMIT":
-        message = "This temporary key reached its safety limit. Remove it or use another reviewer key."
-    elif reason_code in {"PUBLIC_NVIDIA_USAGE_STORE_UNAVAILABLE", "PUBLIC_NVIDIA_BYOK_PROVIDER_EXHAUSTED"}:
-        message = "The connected route is temporarily unavailable; the synthetic sandbox remains usable."
+        message = "Nebius reported that its available credit or quota is exhausted. Add your own NVIDIA Nemotron API key to continue; the synthetic sandbox remains available."
+    elif reason_code == "PUBLIC_NVIDIA_BYOK_PROVIDER_EXHAUSTED":
+        message = "This key's provider reports exhausted credit or quota. Add another API key or continue in the synthetic sandbox."
+    elif reason_code == "PUBLIC_NVIDIA_USAGE_STORE_UNAVAILABLE":
+        message = "The public usage store is temporarily unavailable; use the synthetic sandbox or retry later."
     elif credit_state == "unavailable":
         message = "NVIDIA/Nemotron mode is scheduled, but this instance has no available credit or configuration."
     elif effective_mode == "nebius":
-        message = "NVIDIA/Nemotron mode is active with a usage limit; external actions remain behind approval."
+        message = "NVIDIA/Nemotron mode is active. Availability depends on Nebius account credit and provider limits; external actions remain behind approval."
     else:
         message = "Synthetic sandbox active; public model calls are closed."
 
@@ -1410,8 +1362,8 @@ def public_ai_status(reviewer_bucket: str | None = None, reviewer: ReviewerProvi
         "deadline_at": deadline_at.isoformat() if deadline_at else deadline_value if deadline_value else None,
         "credit_state": credit_state,
         "availability_state": availability_state,
-        "remaining_calls": int(budget.get("remaining_calls", 0)),
-        "remaining_daily_calls": int(budget.get("remaining_daily_calls", 0)),
+        "remaining_calls": budget.get("remaining_calls"),
+        "remaining_daily_calls": budget.get("remaining_daily_calls"),
         "usage": budget,
         "reviewer_byok_allowed": public_demo_enabled(),
         "video_recording_mode": video_recording_mode,
@@ -1441,7 +1393,9 @@ def reviewer_config_from_request(request: Request) -> ReviewerProvider | None:
 
 def _is_public_quota_error(error: str | None) -> bool:
     lowered = (error or "").casefold()
-    return any(token in lowered for token in ("402", "429", "quota", "credit", "billing", "insufficient", "rate limit", "rate_limit", "too many requests"))
+    # A bare 429 is commonly a transient throughput limit, not depleted credit.
+    # Provider adapters map explicit exhausted-credit responses to a safe code.
+    return any(token in lowered for token in ("402", "quota", "credit", "billing", "insufficient", "payment required", "payment_required", "out of credits"))
 
 
 def _public_provider_error_code(result: ProviderResult, source: str) -> str:
@@ -1939,6 +1893,35 @@ async def bootstrap(tenant_id: str = Depends(tenant_from_auth)) -> dict[str, Any
     }
 
 
+@app.get("/api/v1/public-ai/status")
+async def public_ai_status_endpoint(
+    http_request: Request,
+    response: Response,
+    tenant_id: str = Depends(tenant_from_auth),
+) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
+    if is_public_demo_tenant(tenant_id):
+        try:
+            reviewer = reviewer_config_from_request(http_request)
+        except HTTPException as exc:
+            detail = exc.detail if isinstance(exc.detail, dict) else {}
+            code = str(detail.get("code") or "PUBLIC_NVIDIA_BYOK_INVALID")
+            status = public_ai_status()
+            status.update(
+                {
+                    "enabled": False,
+                    "credit_state": "unavailable",
+                    "availability_state": "temporary_unavailable",
+                    "reason_code": code,
+                    "message": str(detail.get("message") or "The temporary NVIDIA Nemotron route is invalid."),
+                }
+            )
+            return status
+        if reviewer is not None:
+            return public_ai_status(_reviewer_usage_bucket(reviewer), reviewer)
+    return public_ai_status()
+
+
 @app.get("/api/v1/onboarding", response_model=OnboardingStateResponse)
 async def onboarding_state(tenant_id: str = Depends(tenant_from_auth)) -> OnboardingStateResponse:
     store = ensure_tenant(tenant_id)
@@ -1993,26 +1976,18 @@ async def onboarding_extract(
                 "PUBLIC_DEMO_SYNTHETIC_MODE",
                 "PUBLIC_NVIDIA_WINDOW_CLOSED",
                 "PUBLIC_NVIDIA_NOT_CONFIGURED",
-                "PUBLIC_NVIDIA_CREDIT_LIMIT_NOT_CONFIGURED",
                 "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED",
-                "PUBLIC_NVIDIA_INTERNAL_LIMIT",
                 "PUBLIC_NVIDIA_USAGE_STORE_UNAVAILABLE",
-                "PUBLIC_NVIDIA_BYOK_INTERNAL_LIMIT",
                 "PUBLIC_NVIDIA_BYOK_PROVIDER_EXHAUSTED",
-                "PUBLIC_NVIDIA_BYOK_LIMIT_NOT_CONFIGURED",
             } else 502
             message = {
                 "PUBLIC_NVIDIA_NOT_OPEN": "The public demo is still in synthetic mode. You can complete the JSON manually or use a temporary key.",
                 "PUBLIC_DEMO_SYNTHETIC_MODE": "The public demo is in synthetic mode. You can complete the JSON manually or use a temporary key.",
                 "PUBLIC_NVIDIA_WINDOW_CLOSED": "The public NVIDIA/Nemotron window has ended. You can use a temporary key or complete the JSON manually.",
                 "PUBLIC_NVIDIA_NOT_CONFIGURED": "The public instance has no server-side Nebius key available. You can use a temporary key or complete the JSON manually.",
-                "PUBLIC_NVIDIA_CREDIT_LIMIT_NOT_CONFIGURED": "The public instance has no credit limit configured. You can use a temporary key or complete the JSON manually.",
-                "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED": "The provider reported exhausted promotional credit. You can use a temporary key or complete the JSON manually.",
-                "PUBLIC_NVIDIA_INTERNAL_LIMIT": "The public safety limit has been reached. You can use a temporary key or complete the JSON manually.",
+                "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED": "Nebius reported that its available credit or quota is exhausted. Add your own NVIDIA Nemotron API key to continue, or complete the JSON manually.",
                 "PUBLIC_NVIDIA_USAGE_STORE_UNAVAILABLE": "The public usage store is temporarily unavailable. You can use the synthetic sandbox or retry later.",
-                "PUBLIC_NVIDIA_BYOK_INTERNAL_LIMIT": "The temporary key reached its safety limit. You can use another key or complete the JSON manually.",
                 "PUBLIC_NVIDIA_BYOK_PROVIDER_EXHAUSTED": "The selected provider reported exhausted credit. You can use another key or complete the JSON manually.",
-                "PUBLIC_NVIDIA_BYOK_LIMIT_NOT_CONFIGURED": "The reviewer's temporary-key quota is not configured. You can complete the JSON manually.",
             }.get(code, "The NVIDIA route could not generate the draft. You can retry or complete the JSON manually.")
             raise HTTPException(
                 status_code=status_code,

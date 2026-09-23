@@ -95,6 +95,15 @@ export default function PublicAiPanel({ status, onConfigured, onCleared }: Publi
     onCleared();
   }
 
+  function replaceReviewerKey() {
+    clearReviewerProvider();
+    setSaved(false);
+    setApiKey('');
+    setExpanded(true);
+    setError('');
+    onCleared();
+  }
+
   return (
     <section className={'public-ai-panel ' + (configured ? 'byok' : status.credit_state)} aria-labelledby="public-ai-title">
       <div className="public-ai-panel-main">
@@ -104,22 +113,24 @@ export default function PublicAiPanel({ status, onConfigured, onCleared }: Publi
           <h2 id="public-ai-title">{presentation.title}</h2>
           <p>{presentation.message}</p>
           {status.mode === 'scheduled' && status.credit_state === 'synthetic' && <small>{configured ? 'Shared public runtime opens:' : 'Opens:'} {formatDate(status.opens_at)}</small>}
-          {!configured && availability === 'available' && <small>{status.remaining_calls ?? 0} total calls remain · {status.remaining_daily_calls ?? 0} remain today.</small>}
-          {!configured && availability === 'internal_limit' && <small>The total or daily safety limit was reached; the synthetic path remains free.</small>}
-          {!configured && availability === 'provider_exhausted' && <small>The provider reported exhausted credit; use the temporary key option to test Nemotron.</small>}
+          {!configured && availability === 'available' && <small>No application call cap; availability depends on Nebius credit and provider limits.</small>}
+          {!configured && availability === 'internal_limit' && <small>The connected API still reports a legacy app call cap. A supplied key can be used independently; refresh after the API is updated.</small>}
+          {!configured && availability === 'provider_exhausted' && <small>Nebius reported that its available credit or quota is exhausted. Add your own NVIDIA Nemotron API key to continue.</small>}
         </div>
         <div className="public-ai-actions">
           {configured ? (
-            <button className="outline-button" type="button" onClick={removeReviewerKey}><X size={14} /> Remove BYOK</button>
+            <button className="outline-button" type="button" onClick={availability === 'provider_exhausted' ? replaceReviewerKey : removeReviewerKey}>
+              <X size={14} /> {availability === 'provider_exhausted' ? 'Replace API key' : 'Remove BYOK'}
+            </button>
           ) : (
             <button className="outline-button" type="button" onClick={() => { setExpanded((current) => !current); setError(''); }}><KeyRound size={14} /> {expanded ? 'Close BYOK' : 'Use temporary key'}</button>
           )}
         </div>
       </div>
-      {saved && <div className="public-ai-byok-note"><ShieldCheck size={14} /><span>BYOK active: {providerLabel(reviewerProviderName() || provider)}. The key stays in this tab's memory, is attached only to BYOK requests, and is not persisted.</span></div>}
+      {saved && <div className="public-ai-byok-note"><ShieldCheck size={14} /><span>BYOK active: {providerLabel(reviewerProviderName() || provider)}. Noah imposes no call-count cap; the provider's own quotas and billing apply. The key stays in this tab's memory and is never persisted by Noah.</span></div>}
       {expanded && !configured && (
         <form className="public-ai-form" onSubmit={handleSubmit}>
-          <div className="public-ai-form-heading"><div><strong>Reviewer fallback</strong><span>Use your own key if promotional credit is unavailable.</span></div><ShieldCheck size={16} /></div>
+          <div className="public-ai-form-heading"><div><strong>Use your own NVIDIA API key</strong><span>No Noah call-count cap. Your provider's quotas and billing apply.</span></div><ShieldCheck size={16} /></div>
           <div className="public-ai-form-grid">
             <label><span>Allowlisted route</span><select value={provider} onChange={(event) => changeProvider(event.target.value as ReviewerProviderName)}><option value="nvidia-nim">NVIDIA NIM</option><option value="nebius">Nebius Token Factory</option></select></label>
             <label><span>Nemotron model</span><input value={model} onChange={(event) => setModel(event.target.value)} autoComplete="off" /></label>

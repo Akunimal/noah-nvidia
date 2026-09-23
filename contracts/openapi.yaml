@@ -32,6 +32,22 @@ paths:
                 title: Response Bootstrap Api V1 Bootstrap Get
       security:
       - HTTPBearer: []
+  /api/v1/public-ai/status:
+    get:
+      summary: Public Ai Status Endpoint
+      operationId: public_ai_status_endpoint_api_v1_public_ai_status_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Public Ai Status Endpoint Api V1 Public Ai Status
+                  Get
+      security:
+      - HTTPBearer: []
   /api/v1/onboarding:
     get:
       summary: Onboarding State

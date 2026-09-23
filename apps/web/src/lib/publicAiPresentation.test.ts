@@ -13,7 +13,17 @@ describe('public AI runtime presentation', () => {
     expect(presentation.title).toBe('Private NVIDIA Nemotron route ready');
     expect(presentation.message).toContain('Nebius Token Factory');
     expect(presentation.message).toContain('real NVIDIA Nemotron inference');
+    expect(presentation.message).toContain('provider quotas and billing apply');
     expect(presentation.message).not.toContain('synthetic');
+    expect(presentation.byok).toBe(true);
+  });
+
+  it('shows the provider exhaustion message when the reviewer key is rejected', () => {
+    const message = 'This key has exhausted its provider quota. Add another key.';
+    const presentation = getPublicAiPresentation('provider_exhausted', message, 'nvidia-nim');
+
+    expect(presentation.title).toBe('This API key has no available credit or quota');
+    expect(presentation.message).toBe(message);
     expect(presentation.byok).toBe(true);
   });
 

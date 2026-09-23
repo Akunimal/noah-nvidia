@@ -3,7 +3,7 @@ import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from providers import NebiusProvider, NvidiaRouter, OpenCode2ApiProvider, ReviewerProvider
+from providers import NebiusProvider, NvidiaRouter, OpenCode2ApiProvider, ReviewerProvider, _response_reports_credit_exhaustion
 
 
 def test_opencode2api_accepts_root_v1_or_full_endpoint(monkeypatch) -> None:
@@ -184,6 +184,24 @@ def test_nebius_requests_json_mode_for_structured_onboarding(monkeypatch) -> Non
     assert result.error is None
     assert NebiusGatewayHandler.request_headers["authorization"] == "Bearer synthetic-test-key"
     assert NebiusGatewayHandler.request_payload["response_format"] == {"type": "json_object"}
+
+
+def test_provider_error_classifier_distinguishes_credit_exhaustion_from_transient_429() -> None:
+    class FakeResponse:
+        def __init__(self, status_code: int, payload: dict[str, object]) -> None:
+            self.status_code = status_code
+            self.payload = payload
+
+        def json(self) -> dict[str, object]:
+            return self.payload
+
+    exhausted = FakeResponse(429, {"error": {"code": "insufficient_quota", "message": "Quota exceeded"}})
+    rate_limited = FakeResponse(429, {"error": {"code": "rate_limit_exceeded", "message": "Too many requests"}})
+    payment_required = FakeResponse(402, {"error": {"message": "Payment required"}})
+
+    assert _response_reports_credit_exhaustion(exhausted) is True
+    assert _response_reports_credit_exhaustion(rate_limited) is False
+    assert _response_reports_credit_exhaustion(payment_required) is True
 
 
 def test_reviewer_provider_uses_allowlisted_destinations_and_nemotron_only(monkeypatch) -> None:

@@ -280,9 +280,11 @@ OpenCode2API queda fuera de ese camino. Solo puede aparecer en la demo
 sintética ya autorizada y siempre debe devolver `provider=opencode2api` dentro
 de `ProviderResult`; si el gateway declara un modelo que no es Nemotron, se
 rechaza. Para la demo pública, `ReviewerProvider` solo acepta NVIDIA NIM o
-Nebius, fija el destino en el servidor y limita el número de llamadas. Si no
-hay ruta disponible, la UI ofrece completar manualmente o reintentar, nunca
-reenvía el texto a una familia ajena a NVIDIA.
+Nebius y fija el destino en el servidor. Noah no limita por contador las
+llamadas de la ruta financiada ni las claves BYOK; aplican las cuotas y cargos
+del proveedor. Si Nebius rechaza por crédito/cuota agotados, ese estado se
+persiste, se detiene la ruta financiada y la UI ofrece una clave BYOK Nemotron
+o completar manualmente. El texto nunca se reenvía a una familia ajena a NVIDIA.
 
 ## Evaluación Promptfoo y cambio público
 

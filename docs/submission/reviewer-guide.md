@@ -34,9 +34,10 @@ review screen should show editable business fields, optional inventory,
 `onboarding.v1` JSON, missing fields, and a provenance line containing the
 provider and model. Choose **Confirm setup** only after reviewing the fields.
 
-If the public route is closed, reaches its internal safety limit, reports
-provider exhaustion, or is temporarily unavailable, the UI must say which
-condition occurred. Use
+If the public route is closed, Nebius reports exhausted credit/quota, or the
+route is temporarily unavailable, the UI must say which condition occurred.
+Neither public route has a Noah call-count cap. If a provider reports that a
+reviewer-provided key has exhausted its credit/quota, use another key. Use
 **Complete manually** to exercise the same review and confirmation flow, or
 use the in-memory **Use temporary key** reviewer option with an allowlisted
 NVIDIA NIM or Nebius Nemotron endpoint. The key is never persisted by Noah;
