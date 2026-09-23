@@ -52,7 +52,8 @@ deliberately opened the NVIDIA/Nemotron window.
   expiry, current model ID, and smoke-test timestamp outside the repository.
 - Configure Nebius so requests are rejected when promotional credit is
   exhausted, or use a provider-side hard spend guard. Noah cannot distinguish
-  promotional from paid usage; funded calls have no application-level cap.
+  promotional from paid usage. Temporary Noah call caps apply until the public
+  opening, but they are not a provider-side hard spend guard.
 - Keep `NOAH_ENABLE_EXTERNAL_EFFECTS=false` until the test account and
   approval payloads are reviewed.
 - A provider-reported exhausted-credit/quota response disables the funded route
@@ -65,16 +66,23 @@ deliberately opened the NVIDIA/Nemotron window.
 - Keep `NOAH_PUBLIC_AI_MODE=scheduled` in Render. The checked-in release window
   opens at `2026-10-27T17:00:00Z` and closes at `2026-12-16T00:00:00Z`, four
   hours after the official judging period ends.
-- Do not set app-level total/daily caps for the server-funded Nebius route.
-  Neon stores usage counters, active reservations, and provider-exhaustion
-  state transactionally; restarts cannot clear exhaustion. If Neon is
-  unavailable, the funded route fails closed.
+- Until `NOAH_PUBLIC_AI_OPEN_AT` (currently `2026-10-27T17:00:00Z`), cap the
+  shared server-funded Nebius route at 20 total / 5 daily calls, and each
+  reviewer BYOK key at 5 total / 2 daily calls. `render.yaml` carries those
+  values. The API derives the lift from the same opening timestamp on every
+  request, so limits switch off automatically at the opening instant without a
+  cron job or redeploy. Invalid/missing opening timestamps keep the limits on.
+- Neon stores usage counters, active reservations, and provider-exhaustion
+  state transactionally; total and daily reservations are checked atomically,
+  and restarts cannot restore the budget. If Neon is unavailable, active
+  inference routes fail closed. After the opening, Noah no longer caps calls;
+  provider quotas and billing apply.
 - If Nebius is missing, the promotion is exhausted, or the provider returns a
   quota response, leave the instance in synthetic fallback and verify that the
   UI distinguishes provider exhaustion from a temporary provider outage. Do not
   replace it with OpenCode2API or another model family.
-- The reviewer BYOK fallback is available independently with no Noah
-  call-count cap. The browser sends only the key/provider/model; the backend
+- The reviewer BYOK fallback is available independently. Its temporary per-key
+  cap above is removed automatically at the opening. The browser sends only the key/provider/model; the backend
   stores only a keyed fingerprint to remember provider-reported exhaustion,
   chooses the fixed destination, and never persists or logs the key. The
   provider's own quotas and billing apply to reviewer-supplied keys.

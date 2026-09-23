@@ -13,7 +13,8 @@ describe('public AI runtime presentation', () => {
     expect(presentation.title).toBe('Private NVIDIA Nemotron route ready');
     expect(presentation.message).toContain('Nebius Token Factory');
     expect(presentation.message).toContain('real NVIDIA Nemotron inference');
-    expect(presentation.message).toContain('provider quotas and billing apply');
+    expect(presentation.message).toContain('Temporary Noah safety limits');
+    expect(presentation.message).toContain('Provider quotas and billing also apply');
     expect(presentation.message).not.toContain('synthetic');
     expect(presentation.byok).toBe(true);
   });
@@ -23,6 +24,15 @@ describe('public AI runtime presentation', () => {
     const presentation = getPublicAiPresentation('provider_exhausted', message, 'nvidia-nim');
 
     expect(presentation.title).toBe('This API key has no available credit or quota');
+    expect(presentation.message).toBe(message);
+    expect(presentation.byok).toBe(true);
+  });
+
+  it('labels a pre-opening BYOK cap as temporary rather than as a legacy API mismatch', () => {
+    const message = 'This temporary key reached Noah’s pre-opening safety limit.';
+    const presentation = getPublicAiPresentation('internal_limit', message, 'nebius');
+
+    expect(presentation.title).toBe('Temporary safety limit reached');
     expect(presentation.message).toBe(message);
     expect(presentation.byok).toBe(true);
   });
@@ -42,5 +52,11 @@ describe('public AI runtime presentation', () => {
 
     expect(presentation.message).toContain('NVIDIA NIM');
     expect(presentation.message).not.toContain('Nebius Token Factory');
+  });
+
+  it('does not describe the temporary limit as legacy', () => {
+    const presentation = getPublicAiPresentation('internal_limit', 'A temporary cap has been reached.', null);
+
+    expect(presentation.title).toBe('Temporary safety limit reached');
   });
 });

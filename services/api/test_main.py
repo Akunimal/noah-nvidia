@@ -212,7 +212,7 @@ def test_public_demo_is_bounded_synthetic_and_never_calls_a_model(monkeypatch) -
         TENANTS.pop(PUBLIC_DEMO_TENANT_ID, None)
 
 
-def test_public_cutover_boundaries_have_no_app_level_nebius_call_cap(monkeypatch) -> None:
+def test_public_cutover_boundaries_lift_temporary_caps_automatically(monkeypatch) -> None:
     from main import public_ai_status, reset_public_model_budgets, reserve_public_model_usage, settle_public_model_usage
 
     monkeypatch.setenv("NOAH_PUBLIC_DEMO", "true")
@@ -233,6 +233,14 @@ def test_public_cutover_boundaries_have_no_app_level_nebius_call_cap(monkeypatch
     assert before_open["credit_state"] == "synthetic"
     assert before_open["reason_code"] == "PUBLIC_NVIDIA_NOT_OPEN"
     assert before_open["enabled"] is False
+    assert before_open["usage"]["limit"] == 1
+    assert before_open["usage"]["remaining_calls"] == 1
+
+    first_reservation, first_error = reserve_public_model_usage("nebius")
+    assert first_reservation is not None and first_error is None
+    blocked_before_open, blocked_error = reserve_public_model_usage("nebius")
+    assert blocked_before_open is None
+    assert blocked_error == "PUBLIC_NVIDIA_INTERNAL_LIMIT"
 
     freeze_main_time(monkeypatch, "2026-10-27T17:00:00Z")
     at_open = public_ai_status()
@@ -241,6 +249,8 @@ def test_public_cutover_boundaries_have_no_app_level_nebius_call_cap(monkeypatch
     assert at_open["model"] == "nvidia/nemotron-3-super-120b-a12b"
     assert at_open["credit_state"] == "available"
     assert at_open["enabled"] is True
+    assert at_open["usage"]["limit"] is None
+    assert at_open["usage"]["daily_limit"] is None
 
     reservation, error = reserve_public_model_usage("nebius")
     assert reservation is not None
@@ -254,6 +264,7 @@ def test_public_cutover_boundaries_have_no_app_level_nebius_call_cap(monkeypatch
     assert active["availability_state"] == "available"
     assert active["remaining_calls"] is None
     assert active["remaining_daily_calls"] is None
+    settle_public_model_usage(first_reservation, consumed=True)
     settle_public_model_usage(reservation, consumed=True)
     settle_public_model_usage(second_reservation, consumed=True)
     assert public_ai_status()["credit_state"] == "available"
@@ -264,6 +275,23 @@ def test_public_cutover_boundaries_have_no_app_level_nebius_call_cap(monkeypatch
     assert after_deadline["credit_state"] == "closed"
     assert after_deadline["reason_code"] == "PUBLIC_NVIDIA_WINDOW_CLOSED"
     assert after_deadline["enabled"] is False
+
+
+def test_invalid_public_open_timestamp_keeps_safety_caps_enabled(monkeypatch) -> None:
+    from main import _public_usage_limits, reset_public_model_budgets, reserve_public_model_usage
+
+    monkeypatch.setenv("NOAH_PUBLIC_AI_OPEN_AT", "not-a-date")
+    monkeypatch.setenv("NOAH_PUBLIC_MODEL_USAGE_LIMIT", "2")
+    monkeypatch.setenv("NOAH_PUBLIC_MODEL_DAILY_LIMIT", "1")
+    reset_public_model_budgets()
+    freeze_main_time(monkeypatch, "2026-10-27T17:00:00Z")
+
+    assert _public_usage_limits("nebius") == (2, 1)
+    first, first_error = reserve_public_model_usage("nebius")
+    assert first is not None and first_error is None
+    blocked, blocked_error = reserve_public_model_usage("nebius")
+    assert blocked is None
+    assert blocked_error == "PUBLIC_NVIDIA_INTERNAL_LIMIT"
 
 
 def test_public_scheduled_nvidia_mode_is_not_stopped_by_app_call_caps(monkeypatch) -> None:
@@ -461,26 +489,43 @@ def test_public_reviewer_byok_is_ephemeral_and_accepts_nvidia_nim(monkeypatch) -
         TENANTS.pop(tenant_id, None)
 
 
-def test_public_usage_has_no_app_caps_and_provider_exhaustion_is_scoped_per_key(monkeypatch) -> None:
+def test_public_usage_caps_apply_before_open_then_lift_and_provider_exhaustion_stays_scoped(monkeypatch) -> None:
     from concurrent.futures import ThreadPoolExecutor
-    from main import reset_public_model_budgets, reserve_public_model_usage, settle_public_model_usage
+    from main import public_ai_status, reset_public_model_budgets, reserve_public_model_usage, settle_public_model_usage
 
-    # Legacy environment values must not reintroduce app-level public call caps.
+    # App caps apply before the scheduled opening even when old env values exist.
+    monkeypatch.setenv("NOAH_PUBLIC_AI_OPEN_AT", "2026-10-27T17:00:00Z")
     monkeypatch.setenv("NOAH_PUBLIC_MODEL_USAGE_LIMIT", "1")
     monkeypatch.setenv("NOAH_PUBLIC_MODEL_DAILY_LIMIT", "1")
     monkeypatch.setenv("NOAH_PUBLIC_BYOK_USAGE_LIMIT", "1")
     monkeypatch.setenv("NOAH_PUBLIC_BYOK_DAILY_LIMIT", "1")
     reset_public_model_budgets()
+    freeze_main_time(monkeypatch, "2026-10-27T16:59:59Z")
 
     with ThreadPoolExecutor(max_workers=8) as pool:
         funded = list(pool.map(lambda _: reserve_public_model_usage("nebius"), range(8)))
         reviewer = list(pool.map(lambda _: reserve_public_model_usage("byok", "key-a"), range(8)))
     funded_successful = [item for item, error in funded if item is not None and error is None]
     reviewer_successful = [item for item, error in reviewer if item is not None and error is None]
-    assert len(funded_successful) == 8
-    assert len(reviewer_successful) == 8
-    assert all(error is None for _item, error in [*funded, *reviewer])
+    assert len(funded_successful) == 1
+    assert len(reviewer_successful) == 1
+    assert sum(error == "PUBLIC_NVIDIA_INTERNAL_LIMIT" for _item, error in funded) == 7
+    assert sum(error == "PUBLIC_NVIDIA_BYOK_INTERNAL_LIMIT" for _item, error in reviewer) == 7
+    key_status = public_ai_status(reviewer_bucket="key-a")
+    assert key_status["availability_state"] == "internal_limit"
+    assert key_status["reason_code"] == "PUBLIC_NVIDIA_BYOK_INTERNAL_LIMIT"
     for reservation in [*funded_successful, *reviewer_successful]:
+        settle_public_model_usage(reservation, True)
+
+    freeze_main_time(monkeypatch, "2026-10-27T17:00:00Z")
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        funded_after_open = list(pool.map(lambda _: reserve_public_model_usage("nebius"), range(8)))
+        reviewer_after_open = list(pool.map(lambda _: reserve_public_model_usage("byok", "key-a"), range(8)))
+    funded_after_open_successful = [item for item, error in funded_after_open if item is not None and error is None]
+    reviewer_after_open_successful = [item for item, error in reviewer_after_open if item is not None and error is None]
+    assert len(funded_after_open_successful) == 8
+    assert len(reviewer_after_open_successful) == 8
+    for reservation in [*funded_after_open_successful, *reviewer_after_open_successful]:
         settle_public_model_usage(reservation, True)
 
     exhausted_key, exhausted_error = reserve_public_model_usage("byok", "key-a")

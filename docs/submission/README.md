@@ -22,14 +22,17 @@ URLs, private prompts, connected model responses, or real customer data.
 The planned public AI window is **2026-10-27 17:00 UTC through 2026-12-16
 00:00 UTC**. Before the window, the public URL remains a synthetic sandbox.
 During the window, it may use a server-funded Nebius/NVIDIA Nemotron route
-when configured; Noah imposes no total or daily call cap on this route. Neon
-records usage and provider-reported exhaustion durably. If Nebius reports
+when configured. Until the public opening on October 27, Noah applies a limit
+of 20 total / 5 daily calls to the shared route and 5 total / 2 daily calls per
+reviewer-provided key. These safety caps lift automatically at the opening
+without a redeploy. Neon records usage and provider-reported exhaustion
+durably. If Nebius reports
 exhausted credit/quota, the funded route stops and reviewers can provide their
 own NVIDIA Nemotron key through the BYOK path; the synthetic sandbox remains
-available. Noah imposes no call-count cap on either public route, so the
-provider's own quotas and billing policies apply to BYOK keys. Noah cannot
-distinguish promotional credit from paid usage, so Nebius must reject requests
-at promotional-credit exhaustion or have a provider-side hard spend guard.
+available. After the scheduled opening, Noah imposes no call-count cap and the
+provider's own quotas and billing policies apply. Noah cannot distinguish
+promotional credit from paid usage, so Nebius must reject requests at
+promotional-credit exhaustion or have a provider-side hard spend guard.
 
 OpenCode2API is present only as an operator-supplied, synthetic NVIDIA
 Nemotron transport for local evaluation. It is not an NVIDIA product, does not

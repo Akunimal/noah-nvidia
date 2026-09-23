@@ -311,16 +311,18 @@ class PostgresTenantRepository:
         daily_consumed: int,
         daily_reserved: int,
         provider_exhausted: bool,
+        total_limit: int | None = None,
+        daily_limit: int | None = None,
     ) -> dict[str, Any]:
         return {
             "consumed": total_consumed,
             "reserved": total_reserved,
-            "limit": None,
-            "remaining_calls": None,
+            "limit": total_limit,
+            "remaining_calls": None if total_limit is None else max(0, total_limit - total_consumed - total_reserved),
             "daily_consumed": daily_consumed,
             "daily_reserved": daily_reserved,
-            "daily_limit": None,
-            "remaining_daily_calls": None,
+            "daily_limit": daily_limit,
+            "remaining_daily_calls": None if daily_limit is None else max(0, daily_limit - daily_consumed - daily_reserved),
             "provider_exhausted": provider_exhausted,
         }
 
@@ -329,6 +331,8 @@ class PostgresTenantRepository:
         source: str,
         bucket_key: str,
         *,
+        total_limit: int | None = None,
+        daily_limit: int | None = None,
         current: datetime | None = None,
         reservation_ttl_seconds: int = 900,
     ) -> dict[str, Any]:
@@ -404,6 +408,8 @@ class PostgresTenantRepository:
             int(daily[0]),
             int(pending_daily[0] if pending_daily else 0),
             bool(total[1]),
+            total_limit,
+            daily_limit,
         )
 
     def reserve_public_usage(
@@ -411,6 +417,8 @@ class PostgresTenantRepository:
         source: str,
         bucket_key: str,
         *,
+        total_limit: int | None = None,
+        daily_limit: int | None = None,
         current: datetime | None = None,
         reservation_ttl_seconds: int = 900,
     ) -> tuple[dict[str, str] | None, str | None, dict[str, Any]]:
@@ -422,7 +430,7 @@ class PostgresTenantRepository:
         usage_date = self._usage_date(current)
         now = current or datetime.now(timezone.utc)
         cutoff = now - timedelta(seconds=reservation_ttl_seconds)
-        empty = self._usage_snapshot(0, 0, 0, 0, False)
+        empty = self._usage_snapshot(0, 0, 0, 0, False, total_limit, daily_limit)
         self.ensure_schema()
         try:
             with self._connect() as connection:
@@ -489,9 +497,16 @@ class PostgresTenantRepository:
                     daily_consumed,
                     active_daily,
                     provider_exhausted,
+                    total_limit,
+                    daily_limit,
                 )
                 if provider_exhausted:
                     return None, "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED", usage
+                if (total_limit is not None and total_consumed + active_total >= total_limit) or (
+                    daily_limit is not None and daily_consumed + active_daily >= daily_limit
+                ):
+                    limit_code = "PUBLIC_NVIDIA_BYOK_INTERNAL_LIMIT" if source == "byok" else "PUBLIC_NVIDIA_INTERNAL_LIMIT"
+                    return None, limit_code, usage
                 reservation_id = "public-usage-" + uuid4().hex
                 connection.execute(
                     """
@@ -507,6 +522,8 @@ class PostgresTenantRepository:
                     daily_consumed,
                     active_daily + 1,
                     provider_exhausted,
+                    total_limit,
+                    daily_limit,
                 )
         except RuntimeError:
             raise

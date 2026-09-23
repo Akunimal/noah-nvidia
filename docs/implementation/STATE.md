@@ -72,15 +72,18 @@ bearer playground válido.
   reduced motion y persistencia por tenant del marcador `v1`. No aparece
   antes de una decisión explícita de onboarding.
 - Public AI: `NOAH_PUBLIC_AI_MODE=scheduled` abre automaticamente del
-  `2026-10-27T17:00:00Z` al `2026-12-16T00:00:00Z`. La ruta Nebius
-  financiada no tiene un limite de llamadas impuesto por la app: sigue hasta
-  que Nebius rechace por credito/cuota agotados. Ese estado y los contadores se
-  persisten en Neon para que un reinicio no reactive la ruta; al agotarse, la
-  UI ofrece BYOK y conserva el sandbox sintetico. BYOK no tiene un tope de
-  llamadas de Noah; aplican las cuotas y cargos del proveedor de cada clave.
-  Nebius debe rechazar al agotarse el credito
-  promocional o tener un control duro de gasto, porque Noah no distingue
-  credito promocional de uso pago. El estado seguro llega por
+  `2026-10-27T17:00:00Z` al `2026-12-16T00:00:00Z`. Hasta el instante de
+  apertura, Noah impone 20 llamadas totales/5 diarias a la ruta Nebius
+  compartida y 5 totales/2 diarias por clave BYOK. Neon persiste contadores y
+  reservas; la transaccion limita concurrencia y un reinicio no repone el cupo.
+  El API calcula el vencimiento con `NOAH_PUBLIC_AI_OPEN_AT` en cada solicitud:
+  a las 17:00 UTC del 27 de octubre los topes se levantan automaticamente, sin
+  cron ni redeploy. Una fecha ausente o invalida conserva los topes. A partir
+  de la apertura aplican las cuotas y cargos del proveedor, y se mantiene el
+  fallback BYOK ante agotamiento reportado por Nebius. El sandbox sintetico
+  sigue disponible; Nebius debe rechazar al agotarse el credito promocional o
+  tener un control duro de gasto, porque Noah no distingue credito promocional
+  de uso pago. El estado seguro llega por
   `bootstrap.public_ai`; las claves nunca llegan a bootstrap, logs,
   Graphify, Neon ni el bundle.
 - Contrato JSON: `contracts/onboarding.v1.schema.json`.

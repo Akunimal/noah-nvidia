@@ -130,15 +130,20 @@ cannot clear that state. If Nebius reports exhausted credit/quota, the funded
 route stops, the UI explains the reason and offers the reviewer BYOK route; the
 synthetic sandbox remains available. BYOK accepts a key for NVIDIA NIM or
 Nebius in memory for one browser session, chooses a fixed backend destination,
-validates Nemotron, imposes no Noah call-count cap, and never stores or logs
-the key. The provider's own quotas, account policy, and billing apply to a
-reviewer's key. Each browser gets an opaque ephemeral playground id; Google
+validates Nemotron, and never stores or logs the key. Until the public opening
+on October 27, Noah applies temporary caps of 20 total/5 daily calls to the
+shared Nebius route and 5 total/2 daily calls per reviewer key. These caps lift
+automatically at the scheduled opening without a redeploy; after that, the
+provider's own quotas, account policy, and billing apply. Each browser gets an
+opaque ephemeral playground id; Google
 OAuth, external effects, and visitor writes to Neon remain off.
 
-Noah cannot distinguish promotional credit from paid Nebius usage. Before
-opening the funded route, ensure the Nebius account rejects requests when the
-promotional balance is exhausted (or otherwise enforce a provider-side hard
-spend guard); app-level request caps are intentionally disabled.
+Noah cannot distinguish promotional credit from paid Nebius usage. The
+temporary application caps reduce pre-opening exposure but are not a
+provider-side spend guard. Before they lift on October 27, ensure Nebius rejects
+requests when promotional credit is exhausted or configure a provider-side
+hard spend guard; requests may become billable after promotional credit is
+depleted.
 Keep `NOAH_PUBLIC_DEMO=false` for a private deployment.
 
 The deployed API is hardened with exact-origin CORS (no wildcard), no-store

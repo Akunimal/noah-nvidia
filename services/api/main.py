@@ -109,6 +109,10 @@ RUN_LEASE_SECONDS = 45
 PUBLIC_AI_MODES = {"synthetic", "scheduled", "nebius"}
 PUBLIC_AI_OPEN_AT_DEFAULT = "2026-10-27T17:00:00Z"
 PUBLIC_AI_DEADLINE_AT_DEFAULT = "2026-12-16T00:00:00Z"
+PUBLIC_MODEL_USAGE_LIMIT_DEFAULT = 20
+PUBLIC_MODEL_DAILY_LIMIT_DEFAULT = 5
+PUBLIC_BYOK_USAGE_LIMIT_DEFAULT = 5
+PUBLIC_BYOK_DAILY_LIMIT_DEFAULT = 2
 PUBLIC_REVIEWER_KEY_HEADER = "X-Noah-Reviewer-Api-Key"
 PUBLIC_REVIEWER_PROVIDER_HEADER = "X-Noah-Reviewer-Provider"
 PUBLIC_REVIEWER_MODEL_HEADER = "X-Noah-Reviewer-Model"
@@ -1120,8 +1124,58 @@ def _reviewer_usage_bucket(reviewer: ReviewerProvider) -> str:
     return hmac.new(salt, reviewer.api_key.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
-def _in_memory_usage_snapshot(source: str, bucket_key: str, current: datetime | None = None) -> dict[str, Any]:
+def _nonnegative_env_int(name: str, default: int) -> int:
+    try:
+        return max(0, int(os.getenv(name, str(default))))
+    except (TypeError, ValueError):
+        return default
+
+
+def _public_usage_limits(source: str, current: datetime | None = None) -> tuple[int | None, int | None]:
+    """Apply public usage limits until the scheduled opening timestamp.
+
+    Invalid or missing schedule values fail closed by keeping the limits. At
+    and after the opening timestamp, limits are lifted automatically without a
+    cron job, database migration, or redeploy.
+    """
+
+    _, opens_at = _public_timestamp_value("NOAH_PUBLIC_AI_OPEN_AT", PUBLIC_AI_OPEN_AT_DEFAULT)
+    now = current or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    if opens_at is not None and now.astimezone(timezone.utc) >= opens_at:
+        return None, None
+    if source == "byok":
+        return (
+            _nonnegative_env_int("NOAH_PUBLIC_BYOK_USAGE_LIMIT", PUBLIC_BYOK_USAGE_LIMIT_DEFAULT),
+            _nonnegative_env_int("NOAH_PUBLIC_BYOK_DAILY_LIMIT", PUBLIC_BYOK_DAILY_LIMIT_DEFAULT),
+        )
+    return (
+        _nonnegative_env_int("NOAH_PUBLIC_MODEL_USAGE_LIMIT", PUBLIC_MODEL_USAGE_LIMIT_DEFAULT),
+        _nonnegative_env_int("NOAH_PUBLIC_MODEL_DAILY_LIMIT", PUBLIC_MODEL_DAILY_LIMIT_DEFAULT),
+    )
+
+
+def _usage_limit_exhausted(budget: dict[str, Any]) -> bool:
+    return (
+        budget.get("limit") is not None and int(budget.get("remaining_calls", 0)) <= 0
+    ) or (
+        budget.get("daily_limit") is not None and int(budget.get("remaining_daily_calls", 0)) <= 0
+    )
+
+
+def _in_memory_usage_snapshot(
+    source: str,
+    bucket_key: str,
+    current: datetime | None = None,
+    total_limit: int | None = None,
+    daily_limit: int | None = None,
+) -> dict[str, Any]:
     current = current or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    if total_limit is None and daily_limit is None:
+        total_limit, daily_limit = _public_usage_limits(source, current)
     usage_date = current.astimezone(timezone.utc).date().isoformat()
     key = (source, bucket_key)
     with PUBLIC_MODEL_BUDGET_LOCK:
@@ -1137,33 +1191,48 @@ def _in_memory_usage_snapshot(source: str, bucket_key: str, current: datetime | 
             and (current - item["created_at"]).total_seconds() < PUBLIC_USAGE_RESERVATION_TTL_SECONDS
         ]
         daily_consumed = int(budget["daily"].get(usage_date, 0))
+        remaining_calls = None if total_limit is None else max(0, total_limit - int(budget["consumed"]) - len(active))
+        remaining_daily_calls = None if daily_limit is None else max(0, daily_limit - daily_consumed - len(active))
         return {
             "consumed": int(budget["consumed"]),
             "reserved": len(active),
-            "limit": None,
-            "remaining_calls": None,
+            "limit": total_limit,
+            "remaining_calls": remaining_calls,
             "daily_consumed": daily_consumed,
             "daily_reserved": len(active),
-            "daily_limit": None,
-            "remaining_daily_calls": None,
+            "daily_limit": daily_limit,
+            "remaining_daily_calls": remaining_daily_calls,
             "provider_exhausted": bool(budget["provider_exhausted"]),
         }
 
 
-def _public_usage_snapshot(source: str, bucket_key: str = "server") -> dict[str, Any]:
+def _public_usage_snapshot(
+    source: str,
+    bucket_key: str = "server",
+    current: datetime | None = None,
+) -> dict[str, Any]:
+    current = current or datetime.now(timezone.utc)
+    total_limit, daily_limit = _public_usage_limits(source, current)
     if persistence.configured:
         try:
             return persistence.public_usage_snapshot(
                 source,
                 bucket_key,
+                total_limit=total_limit,
+                daily_limit=daily_limit,
+                current=current,
                 reservation_ttl_seconds=PUBLIC_USAGE_RESERVATION_TTL_SECONDS,
             )
         except RuntimeError:
             return {"store_error": "PUBLIC_NVIDIA_USAGE_STORE_UNAVAILABLE"}
-    return _in_memory_usage_snapshot(source, bucket_key)
+    return _in_memory_usage_snapshot(source, bucket_key, current, total_limit, daily_limit)
 
 
-def reserve_public_model_usage(source: str, bucket_key: str = "server") -> tuple[dict[str, str] | None, str | None]:
+def reserve_public_model_usage(
+    source: str,
+    bucket_key: str = "server",
+    current: datetime | None = None,
+) -> tuple[dict[str, str] | None, str | None]:
     """Reserve one public call, using durable Neon usage when configured.
 
     Render is configured with Neon, so a restart cannot restore the budget.
@@ -1172,17 +1241,23 @@ def reserve_public_model_usage(source: str, bucket_key: str = "server") -> tuple
 
     if source not in {"nebius", "byok"}:
         raise ValueError("PUBLIC_USAGE_SOURCE_UNSUPPORTED")
+    current = current or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    total_limit, daily_limit = _public_usage_limits(source, current)
     if persistence.configured:
         try:
             reservation, error, _usage = persistence.reserve_public_usage(
                 source,
                 bucket_key,
+                total_limit=total_limit,
+                daily_limit=daily_limit,
+                current=current,
                 reservation_ttl_seconds=PUBLIC_USAGE_RESERVATION_TTL_SECONDS,
             )
             return reservation, error
         except RuntimeError:
             return None, "PUBLIC_NVIDIA_USAGE_STORE_UNAVAILABLE"
-    current = datetime.now(timezone.utc)
     with PUBLIC_MODEL_BUDGET_LOCK:
         budget = PUBLIC_MODEL_BUDGETS.setdefault(
             (source, bucket_key),
@@ -1196,8 +1271,13 @@ def reserve_public_model_usage(source: str, bucket_key: str = "server") -> tuple
             and item["usage_date"] == usage_date
             and (current - item["created_at"]).total_seconds() < PUBLIC_USAGE_RESERVATION_TTL_SECONDS
         ]
+        daily_consumed = int(budget["daily"].get(usage_date, 0))
         if budget["provider_exhausted"]:
             return None, "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED"
+        if (total_limit is not None and int(budget["consumed"]) + len(active) >= total_limit) or (
+            daily_limit is not None and daily_consumed + len(active) >= daily_limit
+        ):
+            return None, "PUBLIC_NVIDIA_BYOK_INTERNAL_LIMIT" if source == "byok" else "PUBLIC_NVIDIA_INTERNAL_LIMIT"
         reservation_id = new_id("public-usage")
         budget["reservations"][reservation_id] = {"status": "reserved", "usage_date": usage_date, "created_at": current}
         return {"id": reservation_id, "source": source, "bucket_key": bucket_key}, None
@@ -1293,7 +1373,7 @@ def public_ai_status(reviewer_bucket: str | None = None, reviewer: ReviewerProvi
     server_model = router.nebius.model.strip()
     server_model_allowed = is_nvidia_nemotron_model(server_model)
     server_configured = router.nebius.configured() and server_model_allowed
-    budget = _public_usage_snapshot(source, bucket_key)
+    budget = _public_usage_snapshot(source, bucket_key, current)
     credit_state = "synthetic"
     availability_state = "synthetic"
     if budget.get("store_error") and (source == "byok" or effective_mode == "nebius"):
@@ -1307,6 +1387,10 @@ def public_ai_status(reviewer_bucket: str | None = None, reviewer: ReviewerProvi
             credit_state = "provider_exhausted"
             availability_state = "provider_exhausted"
             reason_code = "PUBLIC_NVIDIA_BYOK_PROVIDER_EXHAUSTED"
+        elif _usage_limit_exhausted(budget):
+            credit_state = "exhausted"
+            availability_state = "internal_limit"
+            reason_code = "PUBLIC_NVIDIA_BYOK_INTERNAL_LIMIT"
         else:
             credit_state = "available"
             availability_state = "available"
@@ -1326,14 +1410,24 @@ def public_ai_status(reviewer_bucket: str | None = None, reviewer: ReviewerProvi
             credit_state = "provider_exhausted"
             availability_state = "provider_exhausted"
             reason_code = "PUBLIC_NVIDIA_PROVIDER_EXHAUSTED"
+        elif _usage_limit_exhausted(budget):
+            credit_state = "exhausted"
+            availability_state = "internal_limit"
+            reason_code = "PUBLIC_NVIDIA_INTERNAL_LIMIT"
         else:
             credit_state = "available"
             availability_state = "available"
 
     if source == "byok" and availability_state == "available":
-        message = "Your Nemotron API key is active for this tab. Noah does not cap BYOK calls; provider account limits and billing apply. External actions remain behind approval."
+        if budget.get("limit") is not None:
+            message = "Your Nemotron API key is active for this tab under a temporary Noah safety limit until the public opening on October 27, 2026. Provider account limits and billing also apply. External actions remain behind approval."
+        else:
+            message = "Your Nemotron API key is active for this tab. Noah no longer applies a call-count cap; provider account limits and billing apply. External actions remain behind approval."
     elif mode == "synthetic":
-        message = "The public demo uses a synthetic sandbox with no model calls."
+        if budget.get("limit") is not None:
+            message = "The shared public demo uses a synthetic sandbox. Temporary inference safety limits lift automatically when NVIDIA/Nemotron opens on October 27, 2026."
+        else:
+            message = "The public demo uses a synthetic sandbox with no model calls."
     elif reason_code == "PUBLIC_NVIDIA_NOT_OPEN":
         message = "The public demo is still in synthetic mode. NVIDIA/Nemotron mode will open on the scheduled date."
     elif reason_code == "PUBLIC_NVIDIA_WINDOW_CLOSED":
@@ -1342,6 +1436,10 @@ def public_ai_status(reviewer_bucket: str | None = None, reviewer: ReviewerProvi
         message = "Nebius reported that its available credit or quota is exhausted. Add your own NVIDIA Nemotron API key to continue; the synthetic sandbox remains available."
     elif reason_code == "PUBLIC_NVIDIA_BYOK_PROVIDER_EXHAUSTED":
         message = "This key's provider reports exhausted credit or quota. Add another API key or continue in the synthetic sandbox."
+    elif reason_code == "PUBLIC_NVIDIA_INTERNAL_LIMIT":
+        message = "The temporary shared inference safety limit has been reached. It lifts automatically when the public NVIDIA/Nemotron window opens on October 27, 2026; the synthetic sandbox remains available."
+    elif reason_code == "PUBLIC_NVIDIA_BYOK_INTERNAL_LIMIT":
+        message = "This temporary key reached Noah's pre-opening safety limit. The limit lifts automatically on October 27, 2026; the sandbox remains available."
     elif reason_code == "PUBLIC_NVIDIA_USAGE_STORE_UNAVAILABLE":
         message = "The public usage store is temporarily unavailable; use the synthetic sandbox or retry later."
     elif credit_state == "unavailable":

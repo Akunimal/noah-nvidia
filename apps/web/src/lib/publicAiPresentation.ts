@@ -33,11 +33,19 @@ export function getPublicAiPresentation(
         byok: true,
       };
     }
+    if (availability === 'internal_limit') {
+      return {
+        kicker: 'PRIVATE BYOK SESSION',
+        title: 'Temporary safety limit reached',
+        message: publicMessage,
+        byok: true,
+      };
+    }
     const provider = providerLabel(reviewerProvider);
     return {
       kicker: 'PRIVATE BYOK SESSION',
       title: 'Private NVIDIA Nemotron route ready',
-      message: `This tab sends onboarding requests through ${provider} for real NVIDIA Nemotron inference. Noah does not cap calls; provider quotas and billing apply. The shared public runtime has separate availability.`,
+      message: `This tab sends onboarding requests through ${provider} for real NVIDIA Nemotron inference. Temporary Noah safety limits apply before the public opening and lift automatically at opening. Provider quotas and billing also apply. The shared public runtime has separate availability.`,
       byok: true,
     };
   }
@@ -45,7 +53,7 @@ export function getPublicAiPresentation(
   const titles: Record<PublicAiAvailability, string> = {
     available: 'NVIDIA/Nemotron public active',
     provider_exhausted: 'Provider credit exhausted',
-    internal_limit: 'Legacy application call cap',
+    internal_limit: 'Temporary safety limit reached',
     closed: 'Public window closed',
     synthetic: 'Scheduled synthetic demo',
     temporary_unavailable: 'NVIDIA/Nemotron temporarily unavailable',

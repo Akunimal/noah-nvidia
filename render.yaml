@@ -35,6 +35,14 @@ services:
         value: "2026-10-27T17:00:00Z"
       - key: NOAH_PUBLIC_AI_DEADLINE_AT
         value: "2026-12-16T00:00:00Z"
+      - key: NOAH_PUBLIC_MODEL_USAGE_LIMIT
+        value: "20"
+      - key: NOAH_PUBLIC_MODEL_DAILY_LIMIT
+        value: "5"
+      - key: NOAH_PUBLIC_BYOK_USAGE_LIMIT
+        value: "5"
+      - key: NOAH_PUBLIC_BYOK_DAILY_LIMIT
+        value: "2"
       - key: NOAH_PUBLIC_BYOK_KEY_SALT
         sync: false
       - key: NOAH_NEBIUS_BASE_URL

@@ -23,7 +23,15 @@ function formatDate(value: string | null | undefined): string {
   if (!value) return 'date not configured';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(parsed);
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  }).format(parsed);
 }
 
 function providerLabel(provider: ReviewerProviderName | null): string {
@@ -60,6 +68,11 @@ export default function PublicAiPanel({ status, onConfigured, onCleared }: Publi
     status.message ?? 'Public runtime status is not available.',
     configured ? reviewerProviderName() || provider : null,
   );
+  const usage = status.usage;
+  const usageCapsActive = usage?.limit != null || usage?.daily_limit != null;
+  const usageLimitSummary = usageCapsActive
+    ? `${configured ? 'This key' : 'Shared route'}: ${usage?.remaining_calls ?? '—'} of ${usage?.limit ?? '—'} total and ${usage?.remaining_daily_calls ?? '—'} of ${usage?.daily_limit ?? '—'} today remain. Noah lifts these temporary caps automatically at the public opening (${formatDate(status.opens_at)}).`
+    : null;
 
   function changeProvider(nextProvider: ReviewerProviderName) {
     setProvider(nextProvider);
@@ -113,24 +126,24 @@ export default function PublicAiPanel({ status, onConfigured, onCleared }: Publi
           <h2 id="public-ai-title">{presentation.title}</h2>
           <p>{presentation.message}</p>
           {status.mode === 'scheduled' && status.credit_state === 'synthetic' && <small>{configured ? 'Shared public runtime opens:' : 'Opens:'} {formatDate(status.opens_at)}</small>}
-          {!configured && availability === 'available' && <small>No application call cap; availability depends on Nebius credit and provider limits.</small>}
-          {!configured && availability === 'internal_limit' && <small>The connected API still reports a legacy app call cap. A supplied key can be used independently; refresh after the API is updated.</small>}
+          {usageLimitSummary && <small>{usageLimitSummary}</small>}
+          {!usageCapsActive && availability === 'available' && <small>No Noah call-count cap; availability depends on the provider's credit, quotas, and billing.</small>}
           {!configured && availability === 'provider_exhausted' && <small>Nebius reported that its available credit or quota is exhausted. Add your own NVIDIA Nemotron API key to continue.</small>}
         </div>
         <div className="public-ai-actions">
           {configured ? (
-            <button className="outline-button" type="button" onClick={availability === 'provider_exhausted' ? replaceReviewerKey : removeReviewerKey}>
-              <X size={14} /> {availability === 'provider_exhausted' ? 'Replace API key' : 'Remove BYOK'}
+            <button className="outline-button" type="button" onClick={availability === 'provider_exhausted' || availability === 'internal_limit' ? replaceReviewerKey : removeReviewerKey}>
+              <X size={14} /> {availability === 'provider_exhausted' || availability === 'internal_limit' ? 'Replace API key' : 'Remove BYOK'}
             </button>
           ) : (
             <button className="outline-button" type="button" onClick={() => { setExpanded((current) => !current); setError(''); }}><KeyRound size={14} /> {expanded ? 'Close BYOK' : 'Use temporary key'}</button>
           )}
         </div>
       </div>
-      {saved && <div className="public-ai-byok-note"><ShieldCheck size={14} /><span>BYOK active: {providerLabel(reviewerProviderName() || provider)}. Noah imposes no call-count cap; the provider's own quotas and billing apply. The key stays in this tab's memory and is never persisted by Noah.</span></div>}
+      {saved && <div className="public-ai-byok-note"><ShieldCheck size={14} /><span>BYOK active: {providerLabel(reviewerProviderName() || provider)}. {usageCapsActive ? 'A temporary Noah safety cap applies until the scheduled public opening.' : 'Noah call-count caps have lifted; the provider’s own quotas and billing apply.'} The key stays in this tab's memory and is never persisted by Noah.</span></div>}
       {expanded && !configured && (
         <form className="public-ai-form" onSubmit={handleSubmit}>
-          <div className="public-ai-form-heading"><div><strong>Use your own NVIDIA API key</strong><span>No Noah call-count cap. Your provider's quotas and billing apply.</span></div><ShieldCheck size={16} /></div>
+          <div className="public-ai-form-heading"><div><strong>Use your own NVIDIA API key</strong><span>{usageCapsActive ? 'Temporary per-key safety limits apply until the scheduled opening; provider quotas and billing also apply.' : 'No Noah call-count cap. Your provider’s quotas and billing apply.'}</span></div><ShieldCheck size={16} /></div>
           <div className="public-ai-form-grid">
             <label><span>Allowlisted route</span><select value={provider} onChange={(event) => changeProvider(event.target.value as ReviewerProviderName)}><option value="nvidia-nim">NVIDIA NIM</option><option value="nebius">Nebius Token Factory</option></select></label>
             <label><span>Nemotron model</span><input value={model} onChange={(event) => setModel(event.target.value)} autoComplete="off" /></label>

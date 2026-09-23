@@ -36,8 +36,10 @@ provider and model. Choose **Confirm setup** only after reviewing the fields.
 
 If the public route is closed, Nebius reports exhausted credit/quota, or the
 route is temporarily unavailable, the UI must say which condition occurred.
-Neither public route has a Noah call-count cap. If a provider reports that a
-reviewer-provided key has exhausted its credit/quota, use another key. Use
+Until the scheduled public opening on October 27, Noah applies temporary limits
+of 20 total/5 daily calls to the shared route and 5 total/2 daily calls per
+reviewer key. The limits lift automatically at opening. If a provider reports
+that a reviewer-provided key has exhausted its credit/quota, use another key. Use
 **Complete manually** to exercise the same review and confirmation flow, or
 use the in-memory **Use temporary key** reviewer option with an allowlisted
 NVIDIA NIM or Nebius Nemotron endpoint. The key is never persisted by Noah;

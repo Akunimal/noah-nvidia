@@ -188,6 +188,37 @@ def test_postgres_public_usage_persists_provider_exhaustion(monkeypatch) -> None
     assert usage["provider_exhausted"] is True
 
 
+def test_postgres_public_usage_enforces_caps_until_the_caller_lifts_them(monkeypatch) -> None:
+    database = _FakeDatabase()
+    monkeypatch.setattr(storage, "psycopg", database)
+    repository = PostgresTenantRepository("postgresql://db.internal/noah")
+    now = datetime(2026, 10, 27, 16, 59, 59, tzinfo=timezone.utc)
+
+    first, first_error, first_usage = repository.reserve_public_usage(
+        "nebius", "server", total_limit=1, daily_limit=1, current=now
+    )
+    assert first is not None and first_error is None
+    assert first_usage["remaining_calls"] == 0
+    assert first_usage["remaining_daily_calls"] == 0
+
+    blocked, blocked_error, blocked_usage = repository.reserve_public_usage(
+        "nebius", "server", total_limit=1, daily_limit=1, current=now
+    )
+    assert blocked is None
+    assert blocked_error == "PUBLIC_NVIDIA_INTERNAL_LIMIT"
+    assert blocked_usage["limit"] == 1
+
+    # When the caller reaches the opening timestamp it passes None limits;
+    # persisted usage no longer blocks new calls and remains visible.
+    opened = datetime(2026, 10, 27, 17, 0, 0, tzinfo=timezone.utc)
+    after_open, after_open_error, after_open_usage = repository.reserve_public_usage(
+        "nebius", "server", total_limit=None, daily_limit=None, current=opened
+    )
+    assert after_open is not None and after_open_error is None
+    assert after_open_usage["limit"] is None
+    assert after_open_usage["remaining_calls"] is None
+
+
 def test_postgres_public_usage_allows_unbounded_nebius_until_provider_exhaustion(monkeypatch) -> None:
     database = _FakeDatabase()
     monkeypatch.setattr(storage, "psycopg", database)
